@@ -87,19 +87,11 @@ SCORE_THRESHOLDS = {
 }
 
 RECOMMENDATION_RANGES = [
-    (75, 100, "High priority", "#4CAF50"),
-    (55, 74, "Consider", "#FFC107"),
-    (35, 54, "Low priority", "#FF9800"),
-    (0, 34, "Reject", "#F44336"),
+    (75, 100, "Highly Attractive", "green"),
+    (55, 74, "Attractive", "yellow"),
+    (35, 54, "Conditionally Attractive", "orange"),
+    (0, 34, "Unattractive", "red"),
 ]
-
-MARKET_STATUS_RULES = {
-    "Growing": "usd_growth > 0.10 and un_growth > 0.0",
-    "Stable": "-0.10 <= usd_growth <= 0.10 and -0.10 <= un_growth <= 0.10",
-    "Declining": "usd_growth < -0.10 or un_growth < -0.15",
-    "Price-driven": "usd_growth > 0.0 and un_growth < 0.0",
-    "Price pressure": "usd_growth < 0.0 and un_growth > 0.0",
-}
 
 CONCENTRATION_THRESHOLDS = {
     "top3_share": {"green": 0.40, "yellow": 0.70},

@@ -2,14 +2,18 @@ export interface Market {
   id: number;
   name: string;
   years: number[];
+  language: "ru" | "en";
   regions: string[] | null;
   created_at: string;
   mnn_count?: number | null;
+  has_pc?: boolean;
+  has_grls?: boolean;
 }
 
 export interface MarketCreate {
   name: string;
   years: number[];
+  language: "ru" | "en";
 }
 
 export interface UploadResponse {
@@ -34,6 +38,7 @@ export interface MappingResult {
   avp_count: number;
   kap_count: number;
   regions: string[];
+  unrecognized?: UnrecognizedMap;
 }
 
 export interface AvpRow {
@@ -131,6 +136,13 @@ export interface NamedShare {
   share: number;
 }
 
+export interface PcStats {
+  min: number;
+  median: number;
+  max: number;
+  count: number;
+}
+
 export interface Zone2Data {
   ret_share: number | null;
   hos_share: number | null;
@@ -143,11 +155,16 @@ export interface Zone2Data {
   countries: NamedShare[];
   znvlp: string;
   grls: string;
+  grls_active_count: number;
+  grls_registrants: number;
+  jnvlp_flag: boolean;
+  pc_flag: boolean;
+  pc_stats: PcStats | null;
 }
 
 export interface DriverFlag {
   text: string;
-  impact: string;
+  type?: string;
 }
 
 export interface Zone3Data {
@@ -160,7 +177,7 @@ export interface Zone3Data {
   drivers: DriverFlag[];
   red_flags: DriverFlag[];
   next_checks: string[];
-  details?: Record<string, Record<string, number>>;
+  details?: Record<string, unknown>;
 }
 
 export interface DashboardResponse {
@@ -174,4 +191,73 @@ export interface DashboardResponse {
 
 export interface MnnListResponse {
   mnns: string[];
+}
+
+// References
+export interface PcStatus {
+  loaded: boolean;
+  rows_count: number;
+}
+
+export interface GrlsStatus {
+  loaded: boolean;
+  rows_count: number;
+  by_status: Record<string, number>;
+}
+
+export interface UnrecognizedMap {
+  [field_type: string]: string[];
+}
+
+export interface ReferenceMappingResult {
+  ok: boolean;
+  pc_count?: number;
+  grls_count?: number;
+  unrecognized: UnrecognizedMap;
+}
+
+// Dictionary
+export interface DictionaryType {
+  type: string;
+  label: string;
+}
+
+export interface DictionaryAlias {
+  id: number;
+  alias: string;
+  language: string | null;
+}
+
+export interface DictionaryEntry {
+  id: number;
+  field_type: string;
+  value_en: string | null;
+  value_ru: string | null;
+  canonical: string;
+  notes: string | null;
+  aliases: DictionaryAlias[];
+}
+
+export interface DictionaryEntryCreate {
+  field_type: string;
+  value_en?: string | null;
+  value_ru?: string | null;
+  canonical?: string | null;
+  aliases?: string[];
+  notes?: string | null;
+}
+
+export interface DictionarySuggestion {
+  value: string;
+  suggestion: string | null;
+  suggestion_entry_id: number | null;
+  similarity: number;
+}
+
+export interface DictionaryImportResult {
+  ok: boolean;
+  created: number;
+  updated: number;
+  skipped: number;
+  total: number;
 }

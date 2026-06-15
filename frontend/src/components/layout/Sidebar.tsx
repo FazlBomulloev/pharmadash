@@ -7,6 +7,9 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
+  DollarSign,
+  ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -22,6 +25,11 @@ const navItems = [
     label: "Загрузка",
     icon: Upload,
     to: "/admin",
+  },
+  {
+    label: "Словарь",
+    icon: BookOpen,
+    to: "/admin/dictionary",
   },
 ];
 
@@ -41,6 +49,16 @@ function marketItems(marketId: string) {
       label: "КАП",
       icon: BarChart3,
       to: `/market/${marketId}/kap`,
+    },
+    {
+      label: "Предельные цены",
+      icon: DollarSign,
+      to: `/market/${marketId}/references/pc`,
+    },
+    {
+      label: "ГРЛС",
+      icon: ShieldCheck,
+      to: `/market/${marketId}/references/grls`,
     },
   ];
 }

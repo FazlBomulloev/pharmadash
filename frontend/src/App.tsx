@@ -5,6 +5,9 @@ import AdminPage from "./pages/AdminPage";
 import MarketAvpPage from "./pages/MarketAvpPage";
 import MarketKapPage from "./pages/MarketKapPage";
 import MarketDashboardPage from "./pages/MarketDashboardPage";
+import MarketReferencePage from "./pages/MarketReferencePage";
+import DictionaryPage from "./pages/DictionaryPage";
+import DictionaryImportPage from "./pages/DictionaryImportPage";
 
 export default function App() {
   return (
@@ -25,6 +28,16 @@ export default function App() {
             path="/market/:marketId/kap"
             element={<MarketKapPage />}
           />
+          <Route
+            path="/market/:marketId/references/pc"
+            element={<MarketReferencePage source="pc" />}
+          />
+          <Route
+            path="/market/:marketId/references/grls"
+            element={<MarketReferencePage source="grls" />}
+          />
+          <Route path="/admin/dictionary" element={<DictionaryPage />} />
+          <Route path="/admin/dictionary/import" element={<DictionaryImportPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

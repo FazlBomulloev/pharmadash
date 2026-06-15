@@ -80,6 +80,8 @@ def calculate_structure_score(
     top3_share: float | None,
     hhi: float | None,
     ret_share: float | None,
+    forms_count: int = 0,
+    strengths_count: int = 0,
 ) -> tuple[float, list[dict]]:
     cfg = SCORE_THRESHOLDS["market_structure"]
     details = []
@@ -102,52 +104,87 @@ def calculate_structure_score(
         "value": hhi, "score": s3, "max": 5,
     })
 
-    fit = cfg["ret_hos_fit"]
+    rh_fit = cfg["ret_hos_fit"]
     if ret_share is not None:
         if 0.3 <= ret_share <= 0.8:
-            s4 = fit["match"]
+            s4 = rh_fit["match"]
         elif 0.2 <= ret_share <= 0.9:
-            s4 = fit["mixed"]
+            s4 = rh_fit["mixed"]
         else:
-            s4 = fit["mismatch"]
+            s4 = rh_fit["mismatch"]
     else:
-        s4 = fit["mixed"]
+        s4 = rh_fit["mixed"]
     details.append({
         "metric": "RET/HOS Fit",
         "value": ret_share, "score": s4, "max": 5,
     })
 
-    s5 = fit["mixed"]
+    fs_fit = cfg["form_strength_fit"]
+    diversity = forms_count + strengths_count * 0.5
+    if diversity >= 6 or forms_count >= 4:
+        s5 = fs_fit["large"]
+        fs_label = "разнообразный портфель"
+    elif diversity >= 2.5 or forms_count >= 2:
+        s5 = fs_fit["medium"]
+        fs_label = "умеренное разнообразие"
+    else:
+        s5 = fs_fit["small"]
+        fs_label = "узкий портфель"
     details.append({
         "metric": "Form/Strength Fit",
-        "value": None, "score": s5, "max": 5,
+        "value": f"{forms_count} форм, {strengths_count} дозировок ({fs_label})",
+        "score": s5, "max": 5,
     })
 
     return s1 + s2 + s3 + s4 + s5, details
 
 
-def calculate_regulatory_score() -> tuple[float, list[dict]]:
+def calculate_regulatory_score(
+    jnvlp_flag: bool = False,
+    grls_active_count: int = 0,
+    grls_registrants: int = 0,
+    pc_flag: bool = False,
+    has_grls: bool = False,
+    has_pc: bool = False,
+) -> tuple[float, list[dict]]:
     details = []
-    s1 = 3
-    details.append({
-        "metric": "ЖНВЛП", "value": "Не определено",
-        "score": s1, "max": 5,
-    })
-    s2 = 3
-    details.append({
-        "metric": "ГРЛС", "value": "Не определено",
-        "score": s2, "max": 6,
-    })
-    s3 = 2
-    details.append({
-        "metric": "GRLS Crowding", "value": "Не определено",
-        "score": s3, "max": 4,
-    })
-    s4 = 3
-    details.append({
-        "metric": "Access Risk", "value": "Не определено",
-        "score": s4, "max": 5,
-    })
+
+    if not has_grls:
+        s1, v1 = 3, "Нет данных GRLS"
+    elif not jnvlp_flag:
+        s1, v1 = 5, "Не в ЖНВЛП"
+    else:
+        s1, v1 = 1, "ЖНВЛП — ценовое регулирование"
+    details.append({"metric": "ЖНВЛП", "value": v1, "score": s1, "max": 5})
+
+    if not has_grls:
+        s2, v2 = 3, "Нет данных"
+    elif grls_active_count > 5:
+        s2, v2 = 6, f"{grls_active_count} активных РУ"
+    elif grls_active_count >= 2:
+        s2, v2 = 3, f"{grls_active_count} активных РУ"
+    else:
+        s2, v2 = 1, f"{grls_active_count} активных РУ"
+    details.append({"metric": "Активные РУ", "value": v2, "score": s2, "max": 6})
+
+    if not has_grls:
+        s3, v3 = 2, "Нет данных"
+    elif 3 <= grls_registrants <= 10:
+        s3, v3 = 4, f"{grls_registrants} регистрантов"
+    elif grls_registrants > 10:
+        s3, v3 = 2, f"{grls_registrants} (перенасыщено)"
+    else:
+        s3, v3 = 1, f"{grls_registrants} (монополия/мало)"
+    details.append({"metric": "Плотность регистрантов", "value": v3, "score": s3, "max": 4})
+
+    if not has_pc:
+        s4, v4 = 3, "Нет данных РС"
+    elif not pc_flag:
+        s4, v4 = 5, "Не в РС"
+    else:
+        s4, v4 = 3, "В действующем РС"
+    details.append({"metric": "Риск ценового регулирования", "value": v4, "score": s4, "max": 5})
+
     return s1 + s2 + s3 + s4, details
 
 
@@ -155,7 +192,7 @@ def get_recommendation(total_score: float) -> tuple[str, str]:
     for low, high, label, color in RECOMMENDATION_RANGES:
         if low <= total_score <= high:
             return label, color
-    return "Reject", "#F44336"
+    return "Unattractive", "red"
 
 
 def generate_drivers_and_flags(
@@ -166,6 +203,11 @@ def generate_drivers_and_flags(
     top3_share: float | None,
     hhi: float | None,
     active_competitors: int,
+    jnvlp_flag: bool = False,
+    pc_flag: bool = False,
+    grls_registrants: int = 0,
+    has_grls: bool = False,
+    has_pc: bool = False,
 ) -> tuple[list[dict], list[dict], list[str]]:
     drivers: list[dict] = []
     flags: list[dict] = []
@@ -234,6 +276,21 @@ def generate_drivers_and_flags(
             "type": "competition",
             "text": "Мало конкурентов — возможен закрытый рынок",
         })
+
+    if has_grls and jnvlp_flag:
+        flags.append({"type": "regulatory", "text": "Препарат в ЖНВЛП (ценовое регулирование)"})
+
+    if has_pc and pc_flag:
+        flags.append({"type": "regulatory", "text": "Действующая предельная цена — риск маржинальности"})
+
+    if has_grls and grls_registrants > 10:
+        flags.append({
+            "type": "competition",
+            "text": f"Высокая регистрационная насыщенность ({grls_registrants} регистрантов)",
+        })
+
+    if has_grls and not jnvlp_flag and has_pc and not pc_flag:
+        drivers.append({"type": "positive", "text": "Регуляторно чистый продукт"})
 
     checks.append("Проверить форму завода, цену, GMP/БЭ")
     if top3_share and top3_share > 0.50:

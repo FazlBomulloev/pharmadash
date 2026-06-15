@@ -8,6 +8,7 @@ import {
   Pill,
   Trash2,
 } from "lucide-react";
+import clsx from "clsx";
 import { getMarkets, deleteMarket } from "../api/client";
 import type { Market } from "../types/api";
 import LoadingSpinner from "../components/common/LoadingSpinner";
@@ -98,6 +99,21 @@ export default function MarketsPage() {
               <h3 className="text-lg font-semibold text-slate-800 mb-3">
                 {market.name}
               </h3>
+
+              <div className="flex gap-1.5 mb-3">
+                <span className={clsx(
+                  "px-2 py-0.5 text-[10px] font-semibold rounded uppercase tracking-wide",
+                  "bg-emerald-100 text-emerald-700",
+                )}>БДП ✓</span>
+                <span className={clsx(
+                  "px-2 py-0.5 text-[10px] font-semibold rounded uppercase tracking-wide",
+                  market.has_pc ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400",
+                )}>РС {market.has_pc ? "✓" : "—"}</span>
+                <span className={clsx(
+                  "px-2 py-0.5 text-[10px] font-semibold rounded uppercase tracking-wide",
+                  market.has_grls ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400",
+                )}>ГРЛС {market.has_grls ? "✓" : "—"}</span>
+              </div>
 
               <div className="space-y-2 mb-4">
                 <div className="flex items-center gap-2 text-sm text-slate-500">

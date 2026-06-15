@@ -7,10 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import (
     MIN_COMPETITOR_USD,
     COMPETITOR_PCT,
-    MARKET_STATUS_RULES,
 )
 from backend.database import get_db
-from backend.models import Market, BdpRaw
+from backend.models import Market, BdpRaw, GrlsEntry, PcEntry
 from backend.services.scoring import (
     calculate_economic_score,
     calculate_structure_score,
@@ -34,13 +33,13 @@ async def mnn_list(
         raise HTTPException(404, "Рынок не найден")
 
     stmt = (
-        select(BdpRaw.mnn)
+        select(BdpRaw.mnn_canonical)
         .where(BdpRaw.market_id == market_id)
         .distinct()
-        .order_by(BdpRaw.mnn)
+        .order_by(BdpRaw.mnn_canonical)
     )
     if q:
-        stmt = stmt.where(BdpRaw.mnn.ilike(f"%{q.upper()}%"))
+        stmt = stmt.where(BdpRaw.mnn_canonical.ilike(f"%{q.upper()}%"))
 
     result = await db.execute(stmt)
     mnns = [r[0] for r in result.all()]
@@ -74,10 +73,10 @@ async def dashboard(
     if not market:
         raise HTTPException(404, "Рынок не найден")
 
-    mnn_norm = mnn.strip().upper()
+    mnn_upper = mnn.strip().upper()
     stmt = select(BdpRaw).where(
         BdpRaw.market_id == market_id,
-        func.upper(BdpRaw.mnn) == mnn_norm,
+        func.upper(BdpRaw.mnn_canonical) == mnn_upper,
     )
     result = await db.execute(stmt)
     items = result.scalars().all()
@@ -85,18 +84,29 @@ async def dashboard(
     if not items:
         raise HTTPException(404, "МНН не найден в базе. Проверьте написание.")
 
+    real_canonical = items[0].mnn_canonical
+
     years = json.loads(market.years_json)
     regions = (
         json.loads(market.regions_json)
         if market.regions_json else []
     )
 
+    has_grls = (await db.execute(
+        select(func.count()).select_from(GrlsEntry)
+        .where(GrlsEntry.market_id == market_id)
+    )).scalar() > 0
+    has_pc = (await db.execute(
+        select(func.count()).select_from(PcEntry)
+        .where(PcEntry.market_id == market_id)
+    )).scalar() > 0
+
     zone1 = _build_zone1(items, years)
-    zone2 = _build_zone2(items)
-    zone3 = _build_zone3(zone1, zone2)
+    zone2 = await _build_zone2(items, db, market_id, real_canonical)
+    zone3 = _build_zone3(zone1, zone2, has_grls, has_pc)
 
     return {
-        "mnn": mnn_norm,
+        "mnn": real_canonical,
         "years": years,
         "regions": regions,
         "zone1": zone1,
@@ -132,8 +142,9 @@ def _build_zone1(items, years) -> dict:
     threshold = max(MIN_COMPETITOR_USD, COMPETITOR_PCT * usd_y3)
     producer_sales: dict[str, float] = defaultdict(float)
     for i in items:
-        if i.producer:
-            producer_sales[i.producer] += i.usd_y3
+        prod = i.producer_canonical or i.producer
+        if prod:
+            producer_sales[prod] += i.usd_y3
     active = sum(
         1 for s in producer_sales.values() if s >= threshold
     )
@@ -160,14 +171,16 @@ def _build_zone1(items, years) -> dict:
     }
 
 
-def _build_zone2(items) -> dict:
+async def _build_zone2(
+    items, db: AsyncSession, market_id: int, mnn_canonical: str,
+) -> dict:
     total_usd_y3 = sum(i.usd_y3 for i in items)
 
     ret_usd = sum(
-        i.usd_y3 for i in items if "RET" in (i.sector or "")
+        i.usd_y3 for i in items if "RET" in (i.sector_canonical or i.sector or "")
     )
     hos_usd = sum(
-        i.usd_y3 for i in items if "HOS" in (i.sector or "")
+        i.usd_y3 for i in items if "HOS" in (i.sector_canonical or i.sector or "")
     )
 
     ret_share = ret_usd / total_usd_y3 if total_usd_y3 > 0 else None
@@ -180,9 +193,10 @@ def _build_zone2(items) -> dict:
         }
     )
     for i in items:
-        if not i.producer:
+        prod = i.producer_canonical or i.producer
+        if not prod:
             continue
-        pd = producer_data[i.producer]
+        pd = producer_data[prod]
         pd["usd_y2"] += i.usd_y2
         pd["usd_y3"] += i.usd_y3
         pd["un_y2"] += i.un_y2
@@ -225,8 +239,9 @@ def _build_zone2(items) -> dict:
 
     lf_data: dict[str, float] = defaultdict(float)
     for i in items:
-        if i.lf_avp:
-            lf_data[i.lf_avp] += i.usd_y3
+        lf = i.lf_canonical or i.lf_avp
+        if lf:
+            lf_data[lf] += i.usd_y3
     forms = [
         {
             "name": k,
@@ -268,6 +283,63 @@ def _build_zone2(items) -> dict:
         )[:10]
     ]
 
+    # ─── GRLS ───
+    mnn_upper = mnn_canonical.upper()
+    grls_result = await db.execute(
+        select(GrlsEntry).where(
+            GrlsEntry.market_id == market_id,
+            func.upper(GrlsEntry.mnn_canonical) == mnn_upper,
+        )
+    )
+    grls_rows = grls_result.scalars().all()
+
+    active_statuses = {
+        "Действующий", "Изменённый",
+        "Выдано по правилам ЕАЭС",
+        "Действует на подтверждении государственной регистрации",
+    }
+    active_grls = [g for g in grls_rows if g.status in active_statuses]
+    grls_active_count = len(active_grls)
+    grls_registrants = len({
+        g.ru_holder_canonical or g.ru_holder
+        for g in active_grls
+        if g.ru_holder_canonical or g.ru_holder
+    })
+    jnvlp_flag = any(g.jnvlp for g in active_grls)
+
+    znvlp_text = (
+        "Да (ЖНВЛП)" if jnvlp_flag
+        else ("Нет" if grls_rows else "Не определено")
+    )
+    grls_text = (
+        f"{grls_active_count} активных РУ, {grls_registrants} регистрантов"
+        if grls_rows else "Не определено"
+    )
+
+    # ─── PC ───
+    pc_result = await db.execute(
+        select(PcEntry).where(
+            PcEntry.market_id == market_id,
+            func.upper(PcEntry.mnn_canonical) == mnn_upper,
+        )
+    )
+    pc_rows = pc_result.scalars().all()
+    pc_flag = len(pc_rows) > 0
+    pc_prices = sorted(p.price_rub_no_vat for p in pc_rows if p.price_rub_no_vat)
+    pc_stats = None
+    if pc_prices:
+        n = len(pc_prices)
+        median = (
+            pc_prices[n // 2] if n % 2 == 1
+            else (pc_prices[n // 2 - 1] + pc_prices[n // 2]) / 2
+        )
+        pc_stats = {
+            "min": pc_prices[0],
+            "median": median,
+            "max": pc_prices[-1],
+            "count": n,
+        }
+
     return {
         "ret_share": ret_share,
         "hos_share": hos_share,
@@ -278,12 +350,20 @@ def _build_zone2(items) -> dict:
         "forms": forms,
         "strengths": strengths,
         "countries": countries,
-        "znvlp": "Не определено",
-        "grls": "Не определено",
+        "znvlp": znvlp_text,
+        "grls": grls_text,
+        "grls_active_count": grls_active_count,
+        "grls_registrants": grls_registrants,
+        "jnvlp_flag": jnvlp_flag,
+        "pc_flag": pc_flag,
+        "pc_stats": pc_stats,
     }
 
 
-def _build_zone3(zone1: dict, zone2: dict) -> dict:
+def _build_zone3(
+    zone1: dict, zone2: dict,
+    has_grls: bool = False, has_pc: bool = False,
+) -> dict:
     econ_score, econ_details = calculate_economic_score(
         usd_y3=zone1["usd_last_year"],
         usd_growth=zone1["usd_growth"],
@@ -297,11 +377,20 @@ def _build_zone3(zone1: dict, zone2: dict) -> dict:
         top3_share=zone2["top3_share"],
         hhi=zone2["hhi"],
         ret_share=zone2["ret_share"],
+        forms_count=len(zone2.get("forms") or []),
+        strengths_count=len(zone2.get("strengths") or []),
     )
 
-    reg_score, reg_details = calculate_regulatory_score()
+    reg_score, reg_details = calculate_regulatory_score(
+        jnvlp_flag=zone2.get("jnvlp_flag", False),
+        grls_active_count=zone2.get("grls_active_count", 0),
+        grls_registrants=zone2.get("grls_registrants", 0),
+        pc_flag=zone2.get("pc_flag", False),
+        has_grls=has_grls,
+        has_pc=has_pc,
+    )
 
-    # Без справочников: пропорция из 80
+    # Пропорция из 100 (50 эконом + 30 структура + 20 регулирование)
     raw_total = econ_score + struct_score + reg_score
     max_possible = 50 + 30 + 20
     total_score = round(raw_total / max_possible * 100, 1)
@@ -316,6 +405,11 @@ def _build_zone3(zone1: dict, zone2: dict) -> dict:
         top3_share=zone2["top3_share"],
         hhi=zone2["hhi"],
         active_competitors=zone1["active_competitors"],
+        jnvlp_flag=zone2.get("jnvlp_flag", False),
+        pc_flag=zone2.get("pc_flag", False),
+        grls_registrants=zone2.get("grls_registrants", 0),
+        has_grls=has_grls,
+        has_pc=has_pc,
     )
 
     return {

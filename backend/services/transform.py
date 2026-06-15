@@ -17,7 +17,7 @@ def build_avp(
 ) -> list[dict]:
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for r in rows:
-        key = (r["mnn"], r["lf_avp"])
+        key = (r.get("mnn_canonical") or r["mnn"], r.get("lf_canonical") or r["lf_avp"])
         groups[key].append(r)
 
     avp_list: list[dict] = []
@@ -115,7 +115,7 @@ def build_avp(
             "total_un_y3": total_un_y3,
             "hos_usd_y3": hos_usd_y3,
             "ret_usd_y3": ret_usd_y3,
-            "competitors_total": len(producers_hos) + len(producers_ret),
+            "competitors_total": len(producers_hos | producers_ret),
             "competitors_hos": len(producers_hos),
             "competitors_ret": len(producers_ret),
             "usd_growth": _safe_growth(
@@ -142,7 +142,7 @@ def build_kap(
 ) -> list[dict]:
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for r in rows:
-        key = (r["mnn"], r["lf_avp"])
+        key = (r.get("mnn_canonical") or r["mnn"], r.get("lf_canonical") or r["lf_avp"])
         groups[key].append(r)
 
     kap_list: list[dict] = []

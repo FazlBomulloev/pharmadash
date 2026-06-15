@@ -2,67 +2,24 @@ import logging
 import re
 from pathlib import Path
 from openpyxl import load_workbook
+from backend.services.normalize import normalize_str, normalize_mnn, parse_float
+from backend.services.parsers.base import (
+    get_sheets_and_columns,
+    read_columns_at_row,
+    count_data_rows,
+)
 
 log = logging.getLogger(__name__)
 
 
-def get_sheets_and_columns(
-    file_path: Path,
-) -> dict[str, list[str]]:
-    wb = load_workbook(file_path, read_only=True, data_only=True)
-    result: dict[str, list[str]] = {}
-    for name in wb.sheetnames:
-        ws = wb[name]
-        first_row = []
-        for cell in next(ws.iter_rows(min_row=1, max_row=1)):
-            v = cell.value
-            first_row.append(str(v) if v is not None else "")
-        result[name] = first_row
-    wb.close()
-    return result
-
-
-def read_columns_at_row(
-    file_path: Path,
-    sheet_name: str,
-    header_row: int,
-) -> list[str]:
-    wb = load_workbook(file_path, read_only=True, data_only=True)
-    ws = wb[sheet_name]
-    headers: list[str] = []
-    for row in ws.iter_rows(
-        min_row=header_row, max_row=header_row
-    ):
-        for cell in row:
-            v = cell.value
-            if v is not None:
-                headers.append(str(v).strip())
-            else:
-                headers.append(f"col_{cell.column}")
-    wb.close()
-    return headers
-
-
-def _normalize_str(value) -> str:
-    if value is None:
-        return ""
-    s = str(value).strip().upper()
-    s = re.sub(r"\s+", " ", s)
-    return s
-
-
 def _to_float(value) -> float:
-    if value is None:
-        return 0.0
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return 0.0
+    r = parse_float(value)
+    return r if r is not None else 0.0
 
 
 def _compute_bg_g(tm: str, mnn: str) -> str:
-    tm_norm = _normalize_str(tm)
-    mnn_norm = _normalize_str(mnn)
+    tm_norm = normalize_str(tm)
+    mnn_norm = normalize_str(mnn)
     if not tm_norm or not mnn_norm:
         return "БГ"
     if tm_norm == mnn_norm:
@@ -109,9 +66,7 @@ def parse_rows(
     ws = wb[sheet_name]
 
     headers: list[str] = []
-    for row in ws.iter_rows(
-        min_row=header_row, max_row=header_row
-    ):
+    for row in ws.iter_rows(min_row=header_row, max_row=header_row):
         for cell in row:
             v = cell.value
             headers.append(str(v).strip() if v is not None else "")
@@ -149,21 +104,22 @@ def parse_rows(
             else:
                 raw = None
 
-            if sys_field in STRING_FIELDS:
-                record[sys_field] = _normalize_str(raw)
+            if sys_field == "mnn":
+                record[sys_field] = normalize_mnn(raw)
+            elif sys_field in STRING_FIELDS:
+                record[sys_field] = normalize_str(raw)
             elif sys_field in NUMERIC_FIELDS:
                 record[sys_field] = _to_float(raw)
             else:
                 record[sys_field] = raw
 
         for rf in REQUIRED_FIELDS:
+            if rf in NUMERIC_FIELDS:
+                continue
             v = record.get(rf)
-            if v is None or v == "" or v == 0.0:
-                if rf in NUMERIC_FIELDS:
-                    pass
-                else:
-                    skip = True
-                    break
+            if v is None or v == "":
+                skip = True
+                break
         if skip:
             continue
 
@@ -180,18 +136,3 @@ def parse_rows(
     wb.close()
     log.info("Распарсено %d строк из %s/%s", len(rows), sheet_name, file_path.name)
     return rows
-
-
-def count_data_rows(
-    file_path: Path,
-    sheet_name: str,
-    header_row: int,
-) -> int:
-    wb = load_workbook(file_path, read_only=True, data_only=True)
-    ws = wb[sheet_name]
-    total = 0
-    for row in ws.iter_rows(min_row=header_row + 1):
-        if any(cell.value for cell in row):
-            total += 1
-    wb.close()
-    return total

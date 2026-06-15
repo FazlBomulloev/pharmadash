@@ -15,6 +15,7 @@ import {
   TrendingDown,
   Shield,
   FileCheck,
+  DollarSign,
 } from "lucide-react";
 import clsx from "clsx";
 import type { Zone2Data } from "../../types/api";
@@ -150,25 +151,47 @@ export default function Zone2({ data }: { data: Zone2Data }) {
           <h4 className="text-sm font-semibold text-slate-700 mb-4">
             Регуляторика
           </h4>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-              <Shield size={20} className="text-slate-400" />
+          <div className="space-y-3">
+            <div className={clsx(
+              "flex items-center gap-3 p-3 rounded-lg",
+              data.jnvlp_flag ? "bg-red-50" : "bg-emerald-50",
+            )}>
+              <Shield size={20} className={
+                data.jnvlp_flag ? "text-red-500" : "text-emerald-500"
+              } />
               <div>
                 <p className="text-xs text-slate-500">ЖНВЛП</p>
-                <p className="text-sm font-medium text-slate-700">
-                  {data.znvlp}
-                </p>
+                <p className="text-sm font-medium text-slate-700">{data.znvlp}</p>
               </div>
             </div>
+
             <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
               <FileCheck size={20} className="text-slate-400" />
               <div>
                 <p className="text-xs text-slate-500">ГРЛС</p>
-                <p className="text-sm font-medium text-slate-700">
-                  {data.grls}
-                </p>
+                <p className="text-sm font-medium text-slate-700">{data.grls}</p>
               </div>
             </div>
+
+            {data.pc_stats && (
+              <div className={clsx(
+                "flex items-center gap-3 p-3 rounded-lg",
+                data.pc_flag ? "bg-amber-50" : "bg-slate-50",
+              )}>
+                <DollarSign size={20} className={
+                  data.pc_flag ? "text-amber-600" : "text-slate-400"
+                } />
+                <div>
+                  <p className="text-xs text-slate-500">Предельная цена</p>
+                  <p className="text-sm font-medium text-slate-700">
+                    {data.pc_stats.min.toFixed(0)} – {data.pc_stats.max.toFixed(0)} &#8381;
+                    <span className="text-xs text-slate-400 ml-1">
+                      ({data.pc_stats.count} записей)
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

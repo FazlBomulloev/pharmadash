@@ -23,12 +23,13 @@ import type {
   UploadResponse,
   MappingResult,
 } from "../types/api";
+import UnrecognizedBanner from "../components/common/UnrecognizedBanner";
 
 const SYSTEM_FIELDS = [
   { key: "mnn", label: "МНН", required: true },
   { key: "tm", label: "Торговое наименование", required: true },
   { key: "producer", label: "Производитель", required: true },
-  { key: "country_mfr", label: "Страна производства", required: true },
+  { key: "country_mfr", label: "Страна производства", required: false },
   { key: "lf_avp", label: "Лекарственная форма", required: true },
   { key: "strength", label: "Дозировка", required: false },
   { key: "atc", label: "АТХ код", required: false },
@@ -57,6 +58,7 @@ export default function AdminPage() {
 
   const [name, setName] = useState("");
   const [yearsStr, setYearsStr] = useState("2022,2023,2024");
+  const [language, setLanguage] = useState<"ru" | "en">("ru");
   const [market, setMarket] = useState<Market | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -84,7 +86,7 @@ export default function AdminPage() {
       return;
     }
     try {
-      const m = await createMarket({ name: name.trim(), years });
+      const m = await createMarket({ name: name.trim(), years, language });
       setMarket(m);
       setStep(1);
     } catch (e: unknown) {
@@ -240,6 +242,23 @@ export default function AdminPage() {
                 placeholder="2022,2023,2024"
                 className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Язык МНН в источниках
+              </label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="ru"
+                    checked={language === "ru"} onChange={() => setLanguage("ru")} />
+                  <span className="text-sm">Русский</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="en"
+                    checked={language === "en"} onChange={() => setLanguage("en")} />
+                  <span className="text-sm">Английский</span>
+                </label>
+              </div>
             </div>
             <button
               onClick={handleCreateMarket}
@@ -504,6 +523,13 @@ export default function AdminPage() {
                 <p className="text-xs text-slate-500 mt-1">КАП строк</p>
               </div>
             </div>
+            {result.unrecognized && Object.keys(result.unrecognized).length > 0 && (
+              <div className="text-left space-y-2">
+                {Object.entries(result.unrecognized).map(([ft, vals]) => vals.length > 0 && (
+                  <UnrecognizedBanner key={ft} fieldType={ft} values={vals} />
+                ))}
+              </div>
+            )}
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => navigate("/")}

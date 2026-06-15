@@ -4,15 +4,19 @@ from pydantic import BaseModel
 class MarketCreate(BaseModel):
     name: str
     years: list[int]
+    language: str = "ru"
 
 
 class MarketOut(BaseModel):
     id: int
     name: str
     years: list[int]
+    language: str = "ru"
     regions: list[str] | None
     created_at: str
     mnn_count: int | None = None
+    has_pc: bool = False
+    has_grls: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -138,6 +142,11 @@ class Zone2Data(BaseModel):
     countries: list[dict]
     znvlp: str
     grls: str
+    grls_active_count: int = 0
+    grls_registrants: int = 0
+    jnvlp_flag: bool = False
+    pc_flag: bool = False
+    pc_stats: dict | None = None
 
 
 class Zone3Data(BaseModel):
@@ -161,3 +170,53 @@ class DashboardResponse(BaseModel):
 
 class ThresholdsOut(BaseModel):
     thresholds: dict
+
+
+# --- Dictionary schemas ---
+
+class DictionaryAliasOut(BaseModel):
+    id: int
+    alias: str
+    language: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class DictionaryEntryOut(BaseModel):
+    id: int
+    field_type: str
+    value_en: str | None
+    value_ru: str | None
+    canonical: str
+    notes: str | None
+    aliases: list[DictionaryAliasOut]
+
+    model_config = {"from_attributes": True}
+
+
+class DictionaryEntryCreate(BaseModel):
+    field_type: str
+    value_en: str | None = None
+    value_ru: str | None = None
+    canonical: str | None = None
+    aliases: list[str] = []
+    notes: str | None = None
+
+
+class DictionaryEntryUpdate(BaseModel):
+    value_en: str | None = None
+    value_ru: str | None = None
+    canonical: str | None = None
+    notes: str | None = None
+
+
+class DictionarySuggestion(BaseModel):
+    value: str
+    suggestion: str | None
+    suggestion_entry_id: int | None
+    similarity: float
+
+
+class UnrecognizedField(BaseModel):
+    field_type: str
+    values: list[str]

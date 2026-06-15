@@ -13,7 +13,10 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import UPLOAD_DIR
 from backend.database import get_db
-from backend.models import Market, FieldMapping, BdpRaw, Avp, Kap
+from backend.models import (
+    Market, FieldMapping, BdpRaw, Avp, Kap,
+    PcEntry, GrlsEntry,
+)
 from backend.schemas import (
     MarketCreate,
     MarketOut,
@@ -22,12 +25,13 @@ from backend.schemas import (
     PreviewResponse,
     PreviewRow,
 )
-from backend.services.parser import (
+from backend.services.parsers.bdp_parser import (
     get_sheets_and_columns,
     read_columns_at_row,
     parse_rows,
     count_data_rows,
 )
+from backend.services.canonicalize import apply_canonical_to_rows
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["markets"])
@@ -50,14 +54,28 @@ async def list_markets(db: AsyncSession = Depends(get_db)):
             .where(BdpRaw.market_id == m.id)
         )
         cnt = (await db.execute(cnt_stmt)).scalar() or 0
+
+        has_pc = (await db.execute(
+            select(func.count()).select_from(PcEntry)
+            .where(PcEntry.market_id == m.id)
+        )).scalar() > 0
+
+        has_grls = (await db.execute(
+            select(func.count()).select_from(GrlsEntry)
+            .where(GrlsEntry.market_id == m.id)
+        )).scalar() > 0
+
         out.append(MarketOut(
             id=m.id,
             name=m.name,
             years=json.loads(m.years_json),
+            language=m.language,
             regions=json.loads(m.regions_json)
             if m.regions_json else None,
             created_at=m.created_at.isoformat(),
             mnn_count=cnt,
+            has_pc=has_pc,
+            has_grls=has_grls,
         ))
     return out
 
@@ -79,6 +97,7 @@ async def create_market(
     market = Market(
         name=body.name,
         years_json=json.dumps(sorted(body.years)),
+        language=body.language,
     )
     db.add(market)
     await db.commit()
@@ -88,6 +107,7 @@ async def create_market(
         id=market.id,
         name=market.name,
         years=sorted(body.years),
+        language=market.language,
         regions=None,
         created_at=market.created_at.isoformat(),
     )
@@ -108,6 +128,17 @@ async def delete_market(
     fp = _upload_path(market_id)
     if fp.exists():
         fp.unlink()
+
+    pc_fp = UPLOAD_DIR / f"market_{market_id}_pc.xlsx"
+    if pc_fp.exists():
+        pc_fp.unlink()
+
+    grls_single = UPLOAD_DIR / f"market_{market_id}_grls.xlsx"
+    if grls_single.exists():
+        grls_single.unlink()
+    grls_dir = UPLOAD_DIR / f"market_{market_id}_grls"
+    if grls_dir.exists():
+        shutil.rmtree(grls_dir)
 
     log.info("Удалён рынок id=%d", market_id)
     return {"ok": True}
@@ -242,8 +273,35 @@ async def apply_mapping(
     if not rows:
         raise HTTPException(400, "Не удалось распарсить строки. Проверьте маппинг.")
 
+    rows, unrecognized = await apply_canonical_to_rows(rows, db)
+
     bdp_objects = [
-        BdpRaw(market_id=market_id, **row) for row in rows
+        BdpRaw(
+            market_id=market_id,
+            mnn=r["mnn"],
+            tm=r.get("tm"),
+            producer=r.get("producer"),
+            sector=r.get("sector"),
+            region=r.get("region"),
+            atc=r.get("atc"),
+            lf=r.get("lf"),
+            lf_avp=r.get("lf_avp"),
+            strength=r.get("strength"),
+            pack_size=r.get("pack_size"),
+            country_mfr=r.get("country_mfr"),
+            bg_g=r.get("bg_g"),
+            usd_y1=r.get("usd_y1", 0),
+            usd_y2=r.get("usd_y2", 0),
+            usd_y3=r.get("usd_y3", 0),
+            un_y1=r.get("un_y1", 0),
+            un_y2=r.get("un_y2", 0),
+            un_y3=r.get("un_y3", 0),
+            mnn_canonical=r.get("mnn_canonical") or r["mnn"],
+            lf_canonical=r.get("lf_canonical"),
+            producer_canonical=r.get("producer_canonical"),
+            sector_canonical=r.get("sector_canonical"),
+        )
+        for r in rows
     ]
     db.add_all(bdp_objects)
     await db.flush()
@@ -288,4 +346,5 @@ async def apply_mapping(
         "avp_count": len(avp_rows),
         "kap_count": len(kap_rows),
         "regions": regions,
+        "unrecognized": unrecognized,
     }
