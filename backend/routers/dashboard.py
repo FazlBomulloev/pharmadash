@@ -1,7 +1,8 @@
 import json
 import logging
+import re
 from collections import defaultdict
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import (
@@ -17,6 +18,34 @@ from backend.services.scoring import (
     get_recommendation,
     generate_drivers_and_flags,
 )
+
+
+def _form_key(item) -> str:
+    return item.lf_canonical or item.lf or item.lf_avp or "—"
+
+
+_DOSE_RE = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*"
+    r"(MG|МГ|MCG|МКГ|UG|G|Г|ME|МЕ|IU|ME/ML|МЕ/МЛ|"
+    r"%|MG/ML|МГ/МЛ|MG/G|МГ/Г|ML|МЛ)",
+    re.IGNORECASE,
+)
+
+
+def _extract_dose(strength: str | None) -> str | None:
+    if not strength:
+        return None
+    matches = _DOSE_RE.findall(strength)
+    if not matches:
+        return None
+    return ", ".join(
+        f"{num.replace(',', '.')} {unit.upper()}"
+        for num, unit in matches
+    )
+
+
+def _dose_key(item) -> str:
+    return _extract_dose(item.strength) or "—"
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["dashboard"])
@@ -67,6 +96,8 @@ def _classify_market_status(
 async def dashboard(
     market_id: int,
     mnn: str,
+    lf: str | None = Query(None),
+    dose: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     market = await db.get(Market, market_id)
@@ -79,12 +110,29 @@ async def dashboard(
         func.upper(BdpRaw.mnn_canonical) == mnn_upper,
     )
     result = await db.execute(stmt)
-    items = result.scalars().all()
+    all_items = result.scalars().all()
 
-    if not items:
+    if not all_items:
         raise HTTPException(404, "МНН не найден в базе. Проверьте написание.")
 
-    real_canonical = items[0].mnn_canonical
+    real_canonical = all_items[0].mnn_canonical
+
+    forms_doses_map: dict[str, set[str]] = defaultdict(set)
+    doses_forms_map: dict[str, set[str]] = defaultdict(set)
+    for it in all_items:
+        f = _form_key(it)
+        d = _dose_key(it)
+        forms_doses_map[f].add(d)
+        doses_forms_map[d].add(f)
+
+    available_forms = sorted(forms_doses_map.keys())
+    available_doses = sorted(doses_forms_map.keys())
+
+    items = all_items
+    if lf:
+        items = [i for i in items if _form_key(i) == lf]
+    if dose:
+        items = [i for i in items if _dose_key(i) == dose]
 
     years = json.loads(market.years_json)
     regions = (
@@ -102,13 +150,24 @@ async def dashboard(
     )).scalar() > 0
 
     zone1 = _build_zone1(items, years)
-    zone2 = await _build_zone2(items, db, market_id, real_canonical)
+    zone2 = await _build_zone2(
+        items, db, market_id, real_canonical, all_items,
+    )
     zone3 = _build_zone3(zone1, zone2, has_grls, has_pc)
 
     return {
         "mnn": real_canonical,
         "years": years,
         "regions": regions,
+        "available_forms": available_forms,
+        "available_doses": available_doses,
+        "forms_doses_map": {
+            k: sorted(v) for k, v in forms_doses_map.items()
+        },
+        "doses_forms_map": {
+            k: sorted(v) for k, v in doses_forms_map.items()
+        },
+        "applied_filter": {"lf": lf, "dose": dose},
         "zone1": zone1,
         "zone2": zone2,
         "zone3": zone3,
@@ -173,8 +232,10 @@ def _build_zone1(items, years) -> dict:
 
 async def _build_zone2(
     items, db: AsyncSession, market_id: int, mnn_canonical: str,
+    all_items=None,
 ) -> dict:
     total_usd_y3 = sum(i.usd_y3 for i in items)
+    total_un_y3 = sum(i.un_y3 for i in items)
 
     ret_usd = sum(
         i.usd_y3 for i in items if "RET" in (i.sector_canonical or i.sector or "")
@@ -268,20 +329,70 @@ async def _build_zone2(
         )[:10]
     ]
 
-    country_data: dict[str, float] = defaultdict(float)
+    country_data: dict[str, dict] = defaultdict(
+        lambda: {"usd": 0.0, "un": 0.0}
+    )
     for i in items:
         if i.country_mfr:
-            country_data[i.country_mfr] += i.usd_y3
+            country_data[i.country_mfr]["usd"] += i.usd_y3
+            country_data[i.country_mfr]["un"] += i.un_y3
     countries = [
         {
             "name": k,
-            "usd": v,
-            "share": v / total_usd_y3 if total_usd_y3 > 0 else 0,
+            "usd": v["usd"],
+            "un": v["un"],
+            "share": v["usd"] / total_usd_y3 if total_usd_y3 > 0 else 0,
+            "un_share": v["un"] / total_un_y3 if total_un_y3 > 0 else 0,
         }
         for k, v in sorted(
-            country_data.items(), key=lambda x: x[1], reverse=True
+            country_data.items(), key=lambda x: x[1]["usd"], reverse=True
         )[:10]
     ]
+
+    # ─── Концентрация по формам (по всему МНН, без lf/dose-фильтра) ───
+    base_items = all_items if all_items is not None else items
+    forms_groups: dict[str, list] = defaultdict(list)
+    for it in base_items:
+        forms_groups[_form_key(it)].append(it)
+
+    concentration_by_form: list[dict] = []
+    for form_name, form_items in forms_groups.items():
+        form_total = sum(i.usd_y3 for i in form_items)
+        if form_total <= 0:
+            continue
+        prod_sales: dict[str, float] = defaultdict(float)
+        for i in form_items:
+            prod = i.producer_canonical or i.producer
+            if prod:
+                prod_sales[prod] += i.usd_y3
+        if not prod_sales:
+            continue
+
+        shares_sorted = sorted(prod_sales.values(), reverse=True)
+        shares_pct = [s / form_total for s in shares_sorted]
+        top3 = sum(shares_pct[:3])
+        leader = shares_pct[0]
+        hhi_v = sum(s * s for s in shares_pct) * 10000
+
+        threshold = max(MIN_COMPETITOR_USD, COMPETITOR_PCT * form_total)
+        active = sum(1 for v in prod_sales.values() if v >= threshold)
+
+        concentration_by_form.append({
+            "name": form_name,
+            "usd_total": form_total,
+            "share": (
+                form_total / sum(i.usd_y3 for i in base_items)
+                if sum(i.usd_y3 for i in base_items) > 0 else 0
+            ),
+            "hhi": hhi_v,
+            "top3_share": top3,
+            "leader_share": leader,
+            "active_competitors": active,
+            "producer_count": len(prod_sales),
+        })
+    concentration_by_form.sort(
+        key=lambda x: x["usd_total"], reverse=True,
+    )
 
     # ─── GRLS ───
     mnn_upper = mnn_canonical.upper()
@@ -350,6 +461,7 @@ async def _build_zone2(
         "forms": forms,
         "strengths": strengths,
         "countries": countries,
+        "concentration_by_form": concentration_by_form,
         "znvlp": znvlp_text,
         "grls": grls_text,
         "grls_active_count": grls_active_count,

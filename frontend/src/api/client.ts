@@ -118,9 +118,14 @@ export async function getMnnList(
 export async function getDashboard(
   marketId: number,
   mnn: string,
+  filters: { lf?: string | null; dose?: string | null } = {},
 ): Promise<DashboardResponse> {
+  const params: Record<string, string> = {};
+  if (filters.lf) params.lf = filters.lf;
+  if (filters.dose) params.dose = filters.dose;
   const { data } = await api.get(
     `/markets/${marketId}/dashboard/${encodeURIComponent(mnn)}`,
+    { params },
   );
   return data;
 }

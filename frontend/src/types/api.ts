@@ -134,6 +134,19 @@ export interface NamedShare {
   name: string;
   usd: number;
   share: number;
+  un?: number;
+  un_share?: number;
+}
+
+export interface FormConcentration {
+  name: string;
+  usd_total: number;
+  share: number;
+  hhi: number;
+  top3_share: number;
+  leader_share: number;
+  active_competitors: number;
+  producer_count: number;
 }
 
 export interface PcStats {
@@ -153,6 +166,7 @@ export interface Zone2Data {
   forms: NamedShare[];
   strengths: NamedShare[];
   countries: NamedShare[];
+  concentration_by_form: FormConcentration[];
   znvlp: string;
   grls: string;
   grls_active_count: number;
@@ -184,6 +198,11 @@ export interface DashboardResponse {
   mnn: string;
   years: number[];
   regions: string[];
+  available_forms: string[];
+  available_doses: string[];
+  forms_doses_map: Record<string, string[]>;
+  doses_forms_map: Record<string, string[]>;
+  applied_filter: { lf: string | null; dose: string | null };
   zone1: KpiZone1;
   zone2: Zone2Data;
   zone3: Zone3Data;
