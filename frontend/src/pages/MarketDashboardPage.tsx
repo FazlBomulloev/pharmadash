@@ -153,6 +153,7 @@ export default function MarketDashboardPage() {
             data={data.zone2}
             marketId={parseInt(marketId ?? "0")}
             mnn={data.mnn}
+            years={data.years}
           />
           <div className="border-t border-slate-200" />
           <Zone3 data={data.zone3} />

@@ -6,7 +6,9 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { getProducerDetails } from "../../api/client";
-import type { ProducerDetails as ProducerDetailsData } from "../../types/api";
+import type {
+  ProducerDetails as ProducerDetailsData, BgGFlag,
+} from "../../types/api";
 import LoadingSpinner from "./LoadingSpinner";
 
 export type DrillScope = "market" | "mnn";
@@ -183,6 +185,7 @@ export default function ProducerDetails({
                 <tr className="text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
                   <th className="text-left py-2 px-3 font-medium">ТМ</th>
                   <th className="text-left py-2 px-3 font-medium">Форма</th>
+                  <th className="text-center py-2 px-3 font-medium">БГ/Г</th>
                   <th className="text-right py-2 px-3 font-medium">USD</th>
                   <th className="text-right py-2 px-3 font-medium">UN</th>
                   <th className="text-right py-2 px-3 font-medium">Доля произв-я</th>
@@ -193,6 +196,9 @@ export default function ProducerDetails({
                   <tr key={`${t.tm}-${t.form}-${i}`} className="border-b border-slate-100 last:border-b-0 hover:bg-white">
                     <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[200px]">{t.tm}</td>
                     <td className="py-1.5 px-3 text-slate-600">{t.form || "—"}</td>
+                    <td className="py-1.5 px-3 text-center">
+                      <BgGBadge flag={t.bg_g_flag} />
+                    </td>
                     <td className="py-1.5 px-3 text-right">{fmtUsd(t.usd_y3)}</td>
                     <td className="py-1.5 px-3 text-right text-slate-500">{fmtUn(t.un_y3)}</td>
                     <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(t.share_in_producer)}</td>
@@ -291,6 +297,34 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </h6>
       {children}
     </div>
+  );
+}
+
+function BgGBadge({ flag }: { flag: BgGFlag | null }) {
+  if (!flag) return <span className="text-slate-300 text-xs">—</span>;
+  const style =
+    flag === "BG"
+      ? "bg-indigo-100 text-indigo-700 ring-indigo-200"
+      : flag === "G"
+      ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
+      : "bg-slate-100 text-slate-600 ring-slate-200";
+  const label = flag === "MIXED" ? "M" : flag;
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center justify-center min-w-[26px] px-1 py-0.5 rounded-md text-[10px] font-bold tracking-wider ring-1 ring-inset",
+        style,
+      )}
+      title={
+        flag === "BG"
+          ? "Бренд-генерик"
+          : flag === "G"
+          ? "Генерик"
+          : "Смешанный"
+      }
+    >
+      {label}
+    </span>
   );
 }
 

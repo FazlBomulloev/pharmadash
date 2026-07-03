@@ -38,6 +38,7 @@ BDP_COLS = (
     BdpRaw.lf, BdpRaw.lf_canonical, BdpRaw.lf_avp,
     BdpRaw.strength,
     BdpRaw.country_mfr,
+    BdpRaw.bg_g,
     BdpRaw.usd_y1, BdpRaw.usd_y2, BdpRaw.usd_y3,
     BdpRaw.un_y1, BdpRaw.un_y2, BdpRaw.un_y3,
 )
@@ -249,7 +250,10 @@ def _producer_tm_breakdown(items: Sequence[Any]) -> list[dict]:
     producer_total_y3 = sum(i.usd_y3 for i in items)
 
     grouped: dict[tuple[str, str], dict] = defaultdict(
-        lambda: {"usd_y3": 0.0, "un_y3": 0.0}
+        lambda: {
+            "usd_y3": 0.0, "un_y3": 0.0,
+            "bg_usd_y3": 0.0, "g_usd_y3": 0.0,
+        }
     )
     for i in items:
         tm = (i.tm or "").strip()
@@ -257,23 +261,41 @@ def _producer_tm_breakdown(items: Sequence[Any]) -> list[dict]:
             continue
         form = _form_key(i)
         key = (tm, form)
-        grouped[key]["usd_y3"] += i.usd_y3
-        grouped[key]["un_y3"] += i.un_y3
+        d = grouped[key]
+        d["usd_y3"] += i.usd_y3
+        d["un_y3"] += i.un_y3
+        flag = (i.bg_g or "").strip().upper()
+        if flag.startswith(("B", "Б")):
+            d["bg_usd_y3"] += i.usd_y3
+        elif flag.startswith(("G", "Г")):
+            d["g_usd_y3"] += i.usd_y3
 
     ranked = sorted(
         grouped.items(), key=lambda x: x[1]["usd_y3"], reverse=True,
     )[:20]
 
-    return [
-        {
+    result: list[dict] = []
+    for (tm, form), d in ranked:
+        bg_g_total = d["bg_usd_y3"] + d["g_usd_y3"]
+        if bg_g_total <= 0:
+            bg_g_flag = None
+        else:
+            bg_ratio = d["bg_usd_y3"] / bg_g_total
+            if bg_ratio >= 0.6:
+                bg_g_flag = "BG"
+            elif bg_ratio <= 0.4:
+                bg_g_flag = "G"
+            else:
+                bg_g_flag = "MIXED"
+        result.append({
             "tm": tm, "form": form,
             "usd_y3": d["usd_y3"], "un_y3": d["un_y3"],
             "share_in_producer": _safe_div(
                 d["usd_y3"], producer_total_y3,
             ) or 0.0,
-        }
-        for (tm, form), d in ranked
-    ]
+            "bg_g_flag": bg_g_flag,
+        })
+    return result
 
 
 def _producer_sector_split(items: Sequence[Any]) -> dict:

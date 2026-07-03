@@ -9,6 +9,8 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  LineChart,
+  Line,
 } from "recharts";
 import {
   TrendingUp,
@@ -26,7 +28,7 @@ import clsx from "clsx";
 import { useState } from "react";
 import type {
   Zone2Data, FormConcentration, RegionalDistribution,
-  BgGBreakdown, GrlsExtra,
+  BgGBreakdown, GrlsExtra, BgGFlag,
 } from "../../types/api";
 import DrillDownRow from "../common/DrillDownRow";
 import { ProducerDetailsLoader } from "../common/ProducerDetails";
@@ -75,11 +77,12 @@ function concentrationLabel(hhi: number | null): {
 }
 
 export default function Zone2({
-  data, marketId, mnn,
+  data, marketId, mnn, years,
 }: {
   data: Zone2Data;
   marketId: number;
   mnn: string;
+  years: number[];
 }) {
   const [expandedProducer, setExpandedProducer] = useState<string | null>(null);
   const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
@@ -204,7 +207,7 @@ export default function Zone2({
           entropy={data.entropy_normalized}
         />
         {data.bg_g_breakdown && (
-          <BgGCard data={data.bg_g_breakdown} />
+          <BgGCard data={data.bg_g_breakdown} years={years} />
         )}
         {data.regional_distribution && (
           <RegionalCard
@@ -249,6 +252,9 @@ export default function Zone2({
                   <th className="text-left py-2 px-3 text-slate-500 font-medium">
                     Производитель
                   </th>
+                  <th className="text-center py-2 px-3 text-slate-500 font-medium">
+                    БГ/Г
+                  </th>
                   <th className="text-right py-2 px-3 text-slate-500 font-medium">
                     USD
                   </th>
@@ -276,7 +282,7 @@ export default function Zone2({
                         prev === c.corporation ? null : c.corporation,
                       )
                     }
-                    colSpan={8}
+                    colSpan={9}
                     columns={
                       <>
                         <td className="py-2.5 px-3 text-slate-400">
@@ -293,6 +299,9 @@ export default function Zone2({
                             />
                             {c.corporation}
                           </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <BgGBadge flag={c.bg_g_flag} />
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           {fmtUsd(c.usd_last_year)}
@@ -724,75 +733,216 @@ function ConcentrationCard({
   );
 }
 
-function BgGCard({ data }: { data: BgGBreakdown }) {
-  const bgGData = [
-    { name: "Бренд", value: data.bg_share },
-    { name: "Генерик", value: data.g_share },
-  ];
+function BgGCard({
+  data, years,
+}: {
+  data: BgGBreakdown;
+  years: number[];
+}) {
+  const yearLabels = years.length
+    ? years.slice(-3).map(String)
+    : ["Y1", "Y2", "Y3"];
+  while (yearLabels.length < 3) yearLabels.unshift("—");
+  const trendData = yearLabels.map((y, k) => ({
+    year: y,
+    bg_share: data.bg_share_by_year?.[k] ?? null,
+    g_share:
+      data.bg_share_by_year?.[k] != null
+        ? 1 - (data.bg_share_by_year[k] as number)
+        : null,
+  }));
+  const first = data.bg_share_by_year?.[0];
+  const last = data.bg_share_by_year?.[2];
+  const bgShareTrend =
+    first != null && last != null ? last - first : null;
+  const trendTone =
+    bgShareTrend == null
+      ? "text-slate-400"
+      : bgShareTrend > 0.02
+      ? "text-indigo-600"
+      : bgShareTrend < -0.02
+      ? "text-emerald-600"
+      : "text-slate-500";
+  const trendArrow =
+    bgShareTrend == null
+      ? "—"
+      : bgShareTrend > 0
+      ? "↑"
+      : bgShareTrend < 0
+      ? "↓"
+      : "—";
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-1.5">
-        <Pill size={14} className="text-indigo-500" />
-        Бренд vs Генерик
-      </h4>
-      <ResponsiveContainer width="100%" height={140}>
-        <PieChart>
-          <Pie
-            data={bgGData}
-            cx="50%"
-            cy="50%"
-            innerRadius={34}
-            outerRadius={58}
-            dataKey="value"
-            stroke="none"
-            label={({ value }) =>
-              Number(value ?? 0) >= 0.05
-                ? `${(Number(value) * 100).toFixed(0)}%`
-                : ""
-            }
-            labelLine={false}
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+          <Pill size={14} className="text-indigo-500" />
+          Бренд vs Генерик
+        </h4>
+        {bgShareTrend != null && (
+          <span
+            className={clsx(
+              "text-[11px] font-medium tabular-nums",
+              trendTone,
+            )}
+            title={`Δ доли бренда за ${yearLabels[0]}→${yearLabels[2]}`}
           >
-            <Cell fill="#4f46e5" />
-            <Cell fill="#10b981" />
-          </Pie>
-          <Tooltip
-            formatter={(v) => fmtPct(Number(v))}
-            contentStyle={{
-              borderRadius: 8,
-              border: "1px solid #e2e8f0",
-              fontSize: 12,
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="flex justify-center gap-3 text-[11px] mt-1">
+            {trendArrow} {(Math.abs(bgShareTrend) * 100).toFixed(1)}пп
+          </span>
+        )}
+      </div>
+
+      {/* Stacked share bar (Y3) */}
+      <div className="h-3 w-full rounded-full overflow-hidden bg-slate-100 flex">
+        <div
+          className="h-full bg-indigo-500 flex items-center justify-center text-[10px] text-white font-semibold"
+          style={{ width: `${data.bg_share * 100}%` }}
+        >
+          {data.bg_share >= 0.12 ? `${(data.bg_share * 100).toFixed(0)}%` : ""}
+        </div>
+        <div
+          className="h-full bg-emerald-500 flex items-center justify-center text-[10px] text-white font-semibold"
+          style={{ width: `${data.g_share * 100}%` }}
+        >
+          {data.g_share >= 0.12 ? `${(data.g_share * 100).toFixed(0)}%` : ""}
+        </div>
+      </div>
+      <div className="flex justify-between text-[11px] mt-1.5">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded bg-indigo-600" />
+          <span className="w-2 h-2 rounded-sm bg-indigo-500" />
           Бренд {fmtPct(data.bg_share)}
         </span>
+        <span className="flex items-center gap-1 text-slate-500">
+          {yearLabels[2]}
+        </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded bg-emerald-500" />
+          <span className="w-2 h-2 rounded-sm bg-emerald-500" />
           Генерик {fmtPct(data.g_share)}
         </span>
       </div>
-      {data.asp_gap_pct != null && (
-        <div className="mt-3 pt-3 border-t border-slate-100">
-          <p className="text-xs text-slate-500">Ценовой gap (ASP)</p>
-          <p
-            className={clsx(
-              "text-lg font-bold",
-              data.asp_gap_pct > 0 ? "text-indigo-700" : "text-slate-700",
-            )}
-          >
-            {data.asp_gap_pct > 0 ? "+" : ""}
-            {(data.asp_gap_pct * 100).toFixed(0)}%
+
+      {/* Sparkline: BG share Y1 → Y3 */}
+      {data.bg_share_by_year?.some((v) => v != null) && (
+        <div className="mt-3">
+          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+            Динамика доли бренда
           </p>
-          <p className="text-[10px] text-slate-400">
-            Бренд дороже генерика на N%
-          </p>
+          <ResponsiveContainer width="100%" height={60}>
+            <LineChart
+              data={trendData}
+              margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+            >
+              <XAxis
+                dataKey="year"
+                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide domain={[0, 1]} />
+              <Tooltip
+                formatter={(v) =>
+                  v == null ? "—" : fmtPct(Number(v))
+                }
+                labelFormatter={(l) => `Год ${l}`}
+                contentStyle={{
+                  borderRadius: 8,
+                  border: "1px solid #e2e8f0",
+                  fontSize: 12,
+                  padding: "4px 8px",
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="bg_share"
+                stroke="#4f46e5"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "#4f46e5" }}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       )}
+
+      {/* ASP bg vs g */}
+      <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+        <AspTile
+          label="ASP Бренд"
+          value={data.asp_bg}
+          accent="bg-indigo-500"
+        />
+        <AspTile
+          label="ASP Генерик"
+          value={data.asp_g}
+          accent="bg-emerald-500"
+        />
+      </div>
+      {data.asp_gap_pct != null && (
+        <p
+          className={clsx(
+            "text-[11px] mt-2",
+            data.asp_gap_pct > 0 ? "text-indigo-700" : "text-slate-500",
+          )}
+        >
+          Бренд дороже генерика на{" "}
+          <span className="font-bold">
+            {(data.asp_gap_pct * 100).toFixed(0)}%
+          </span>
+        </p>
+      )}
     </div>
+  );
+}
+
+function AspTile({
+  label, value, accent,
+}: {
+  label: string;
+  value: number | null;
+  accent: string;
+}) {
+  return (
+    <div className="relative overflow-hidden bg-slate-50 rounded-lg px-2.5 py-2 ring-1 ring-slate-200/60">
+      <div className={clsx("absolute inset-y-0 left-0 w-1", accent)} />
+      <p className="text-[10px] uppercase tracking-wider text-slate-500 pl-1.5">
+        {label}
+      </p>
+      <p className="text-sm font-bold text-slate-800 pl-1.5 tabular-nums">
+        {value != null ? `$${value.toFixed(2)}` : "—"}
+      </p>
+    </div>
+  );
+}
+
+function BgGBadge({ flag }: { flag: BgGFlag | null }) {
+  if (!flag) {
+    return <span className="text-slate-300 text-xs">—</span>;
+  }
+  const style =
+    flag === "BG"
+      ? "bg-indigo-100 text-indigo-700 ring-indigo-200"
+      : flag === "G"
+      ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
+      : "bg-slate-100 text-slate-600 ring-slate-200";
+  const label = flag === "MIXED" ? "M" : flag;
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-wider ring-1 ring-inset",
+        style,
+      )}
+      title={
+        flag === "BG"
+          ? "Бренд-генерик (доминирует)"
+          : flag === "G"
+          ? "Генерик (доминирует)"
+          : "Смешанный портфель (40-60% бренд)"
+      }
+    >
+      {label}
+    </span>
   );
 }
 

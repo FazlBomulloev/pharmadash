@@ -337,6 +337,7 @@ async def _build_zone2(
         lambda: {
             "usd_y2": 0, "usd_y3": 0,
             "un_y2": 0, "un_y3": 0,
+            "bg_usd_y3": 0.0, "g_usd_y3": 0.0,
         }
     )
     for i in items:
@@ -348,6 +349,11 @@ async def _build_zone2(
         pd["usd_y3"] += i.usd_y3
         pd["un_y2"] += i.un_y2
         pd["un_y3"] += i.un_y3
+        flag = (i.bg_g or "").strip().upper()
+        if flag.startswith(("B", "Б")):
+            pd["bg_usd_y3"] += i.usd_y3
+        elif flag.startswith(("G", "Г")):
+            pd["g_usd_y3"] += i.usd_y3
 
     sorted_producers = sorted(
         producer_data.items(),
@@ -363,6 +369,17 @@ async def _build_zone2(
         )
         usd_gr = _safe_growth(d["usd_y3"], d["usd_y2"])
         un_gr = _safe_growth(d["un_y3"], d["un_y2"])
+        bg_g_total = d["bg_usd_y3"] + d["g_usd_y3"]
+        if bg_g_total <= 0:
+            bg_g_flag = None
+        else:
+            bg_ratio = d["bg_usd_y3"] / bg_g_total
+            if bg_ratio >= 0.6:
+                bg_g_flag = "BG"
+            elif bg_ratio <= 0.4:
+                bg_g_flag = "G"
+            else:
+                bg_g_flag = "MIXED"
         top_competitors.append({
             "corporation": name,
             "usd_last_year": d["usd_y3"],
@@ -371,6 +388,7 @@ async def _build_zone2(
             "asp": asp,
             "usd_growth": usd_gr,
             "un_growth": un_gr,
+            "bg_g_flag": bg_g_flag,
         })
 
     shares = [c["share"] for c in top_competitors]
@@ -596,32 +614,69 @@ async def _build_zone2(
         "regions_count": len(region_usd),
     } if len(region_usd) >= 2 else None
 
-    # ─── БГ vs Г разрез + ASP-gap ───
-    bg_usd = bg_un = g_usd = g_un = 0.0
+    # ─── БГ vs Г разрез: динамика Y1→Y3 + ASP по годам + gap ───
+    bg = {"usd": [0.0, 0.0, 0.0], "un": [0.0, 0.0, 0.0]}
+    g = {"usd": [0.0, 0.0, 0.0], "un": [0.0, 0.0, 0.0]}
     for i in items:
         flag = (i.bg_g or "").strip().upper()
-        if flag.startswith("B"):
-            bg_usd += i.usd_y3
-            bg_un += i.un_y3
-        elif flag.startswith("G"):
-            g_usd += i.usd_y3
-            g_un += i.un_y3
-    total_bg_g = bg_usd + g_usd
+        if flag.startswith(("B", "Б")):
+            bucket = bg
+        elif flag.startswith(("G", "Г")):
+            bucket = g
+        else:
+            continue
+        bucket["usd"][0] += i.usd_y1
+        bucket["usd"][1] += i.usd_y2
+        bucket["usd"][2] += i.usd_y3
+        bucket["un"][0] += i.un_y1
+        bucket["un"][1] += i.un_y2
+        bucket["un"][2] += i.un_y3
+
+    total_bg_g_y3 = bg["usd"][2] + g["usd"][2]
     bg_g_breakdown = None
-    if total_bg_g > 0:
-        asp_bg = bg_usd / bg_un if bg_un > 0 else None
-        asp_g = g_usd / g_un if g_un > 0 else None
-        asp_gap = None
-        if asp_bg and asp_g and asp_g > 0:
-            asp_gap = (asp_bg / asp_g) - 1
+    if total_bg_g_y3 > 0:
+        totals_by_year = [
+            bg["usd"][k] + g["usd"][k] for k in range(3)
+        ]
+        bg_share_by_year = [
+            (bg["usd"][k] / totals_by_year[k])
+            if totals_by_year[k] > 0 else None
+            for k in range(3)
+        ]
+        asp_bg_by_year = [
+            (bg["usd"][k] / bg["un"][k]) if bg["un"][k] > 0 else None
+            for k in range(3)
+        ]
+        asp_g_by_year = [
+            (g["usd"][k] / g["un"][k]) if g["un"][k] > 0 else None
+            for k in range(3)
+        ]
+        asp_bg_y3 = asp_bg_by_year[2]
+        asp_g_y3 = asp_g_by_year[2]
+        asp_gap = (
+            (asp_bg_y3 / asp_g_y3 - 1)
+            if asp_bg_y3 and asp_g_y3 and asp_g_y3 > 0
+            else None
+        )
         bg_g_breakdown = {
-            "bg_share": bg_usd / total_bg_g,
-            "g_share": g_usd / total_bg_g,
-            "bg_un_share": bg_un / (bg_un + g_un) if (bg_un + g_un) > 0 else None,
-            "g_un_share": g_un / (bg_un + g_un) if (bg_un + g_un) > 0 else None,
-            "asp_bg": asp_bg,
-            "asp_g": asp_g,
+            "bg_share": bg["usd"][2] / total_bg_g_y3,
+            "g_share": g["usd"][2] / total_bg_g_y3,
+            "bg_un_share": (
+                bg["un"][2] / (bg["un"][2] + g["un"][2])
+                if (bg["un"][2] + g["un"][2]) > 0 else None
+            ),
+            "g_un_share": (
+                g["un"][2] / (bg["un"][2] + g["un"][2])
+                if (bg["un"][2] + g["un"][2]) > 0 else None
+            ),
+            "asp_bg": asp_bg_y3,
+            "asp_g": asp_g_y3,
             "asp_gap_pct": asp_gap,
+            "bg_share_by_year": bg_share_by_year,
+            "bg_usd_by_year": bg["usd"],
+            "g_usd_by_year": g["usd"],
+            "asp_bg_by_year": asp_bg_by_year,
+            "asp_g_by_year": asp_g_by_year,
         }
 
     return {

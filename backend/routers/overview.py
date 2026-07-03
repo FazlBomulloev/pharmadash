@@ -126,11 +126,11 @@ def _build_volume(items: list[BdpRaw], years: list[int]) -> dict:
 
     bg_usd = sum(
         i.usd_y3 for i in items
-        if (i.bg_g or "").strip().upper().startswith("B")
+        if (i.bg_g or "").strip().upper().startswith(("B", "Б"))
     )
     g_usd = sum(
         i.usd_y3 for i in items
-        if (i.bg_g or "").strip().upper().startswith("G")
+        if (i.bg_g or "").strip().upper().startswith(("G", "Г"))
     )
     bg_g_total = bg_usd + g_usd
 

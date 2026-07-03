@@ -129,6 +129,8 @@ export interface KpiZone1 {
   trend: TrendData;
 }
 
+export type BgGFlag = "BG" | "G" | "MIXED";
+
 export interface Competitor {
   corporation: string;
   usd_last_year: number;
@@ -137,6 +139,7 @@ export interface Competitor {
   asp: number | null;
   usd_growth: number | null;
   un_growth: number | null;
+  bg_g_flag: BgGFlag | null;
 }
 
 export interface NamedShare {
@@ -179,6 +182,11 @@ export interface BgGBreakdown {
   asp_bg: number | null;
   asp_g: number | null;
   asp_gap_pct: number | null;
+  bg_share_by_year: (number | null)[];
+  bg_usd_by_year: number[];
+  g_usd_by_year: number[];
+  asp_bg_by_year: (number | null)[];
+  asp_g_by_year: (number | null)[];
 }
 
 export interface GrlsExtra {
@@ -554,6 +562,7 @@ export interface TmBreakdownItem {
   usd_y3: number;
   un_y3: number;
   share_in_producer: number;
+  bg_g_flag: BgGFlag | null;
 }
 
 export interface SectorSplit {

@@ -350,6 +350,7 @@ class TmBreakdownItem(BaseModel):
     usd_y3: float
     un_y3: float
     share_in_producer: float
+    bg_g_flag: str | None = None
 
 
 class SectorSplit(BaseModel):
