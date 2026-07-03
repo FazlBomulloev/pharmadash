@@ -11,7 +11,8 @@ from fastapi import (
 )
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.config import UPLOAD_DIR
+from datetime import date
+from backend.config import UPLOAD_DIR, FX_RATE_USD_RUB_DEFAULT
 from backend.database import get_db
 from backend.models import (
     Market, FieldMapping, BdpRaw, Avp, Kap,
@@ -20,11 +21,14 @@ from backend.models import (
 from backend.schemas import (
     MarketCreate,
     MarketOut,
+    MarketFxUpdate,
     MappingRequest,
     UploadResponse,
     PreviewResponse,
     PreviewRow,
 )
+from backend.services.normalize import parse_date as _parse_date
+from backend.routers.overview import invalidate_overview_cache
 from backend.services.parsers.bdp_parser import (
     get_sheets_and_columns,
     read_columns_at_row,
@@ -76,8 +80,76 @@ async def list_markets(db: AsyncSession = Depends(get_db)):
             mnn_count=cnt,
             has_pc=has_pc,
             has_grls=has_grls,
+            fx_rate_usd_rub=m.fx_rate_usd_rub,
+            fx_rate_date=(
+                m.fx_rate_date.isoformat() if m.fx_rate_date else None
+            ),
         ))
     return out
+
+
+@router.get("/{market_id}", response_model=MarketOut)
+async def get_market(
+    market_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    m = await db.get(Market, market_id)
+    if not m:
+        raise HTTPException(404, "Рынок не найден")
+
+    cnt = (await db.execute(
+        select(func.count(func.distinct(BdpRaw.mnn)))
+        .where(BdpRaw.market_id == m.id)
+    )).scalar() or 0
+    has_pc = (await db.execute(
+        select(func.count()).select_from(PcEntry)
+        .where(PcEntry.market_id == m.id)
+    )).scalar() > 0
+    has_grls = (await db.execute(
+        select(func.count()).select_from(GrlsEntry)
+        .where(GrlsEntry.market_id == m.id)
+    )).scalar() > 0
+
+    return MarketOut(
+        id=m.id,
+        name=m.name,
+        years=json.loads(m.years_json),
+        language=m.language,
+        regions=json.loads(m.regions_json) if m.regions_json else None,
+        created_at=m.created_at.isoformat(),
+        mnn_count=cnt,
+        has_pc=has_pc,
+        has_grls=has_grls,
+        fx_rate_usd_rub=m.fx_rate_usd_rub,
+        fx_rate_date=m.fx_rate_date.isoformat() if m.fx_rate_date else None,
+    )
+
+
+@router.patch("/{market_id}/fx", response_model=MarketOut)
+async def update_market_fx(
+    market_id: int,
+    body: MarketFxUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    market = await db.get(Market, market_id)
+    if not market:
+        raise HTTPException(404, "Рынок не найден")
+    if body.fx_rate_usd_rub <= 0:
+        raise HTTPException(400, "Курс должен быть положительным")
+
+    market.fx_rate_usd_rub = body.fx_rate_usd_rub
+    if body.fx_rate_date:
+        parsed = _parse_date(body.fx_rate_date)
+        if parsed is None:
+            raise HTTPException(400, "Некорректный формат даты")
+        market.fx_rate_date = parsed
+    else:
+        market.fx_rate_date = date.today()
+    await db.commit()
+    await db.refresh(market)
+
+    invalidate_overview_cache(market_id)
+    return await get_market(market_id, db)
 
 
 @router.post("", response_model=MarketOut)
@@ -98,6 +170,8 @@ async def create_market(
         name=body.name,
         years_json=json.dumps(sorted(body.years)),
         language=body.language,
+        fx_rate_usd_rub=FX_RATE_USD_RUB_DEFAULT,
+        fx_rate_date=date.today(),
     )
     db.add(market)
     await db.commit()
@@ -110,6 +184,10 @@ async def create_market(
         language=market.language,
         regions=None,
         created_at=market.created_at.isoformat(),
+        fx_rate_usd_rub=market.fx_rate_usd_rub,
+        fx_rate_date=(
+            market.fx_rate_date.isoformat() if market.fx_rate_date else None
+        ),
     )
 
 
@@ -124,6 +202,7 @@ async def delete_market(
 
     await db.delete(market)
     await db.commit()
+    invalidate_overview_cache(market_id)
 
     fp = _upload_path(market_id)
     if fp.exists():
@@ -339,6 +418,7 @@ async def apply_mapping(
         "Рынок %s: %d БДП, %d АВП, %d КАП",
         market.name, len(rows), len(avp_rows), len(kap_rows),
     )
+    invalidate_overview_cache(market_id)
 
     return {
         "ok": True,

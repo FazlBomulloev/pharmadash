@@ -33,10 +33,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from backend.routers import markets, tables, dashboard, references, dictionary  # noqa: E402
+from backend.routers import (  # noqa: E402
+    markets, tables, dashboard, references, dictionary, overview,
+)
 
 app.include_router(markets.router, prefix="/api")
 app.include_router(tables.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(references.router, prefix="/api")
 app.include_router(dictionary.router, prefix="/api")
+app.include_router(overview.router, prefix="/api")

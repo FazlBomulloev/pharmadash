@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, ChevronDown, ChevronRight, Search, Upload } from "lucide-react";
+import {
+  Plus, Trash2, ChevronDown, ChevronRight, Search, Upload,
+  RefreshCw, AlertTriangle, Sparkles,
+} from "lucide-react";
 import clsx from "clsx";
 import {
   getDictTypes,
@@ -9,8 +12,13 @@ import {
   deleteDictEntry,
   addDictAlias,
   deleteDictAlias,
+  getDictUnrecognized,
+  recanonicalizeDict,
 } from "../api/client";
-import type { DictionaryType, DictionaryEntry } from "../types/api";
+import type {
+  DictionaryType, DictionaryEntry, UnrecognizedItem,
+  RecanonicalizeResponse,
+} from "../types/api";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 
 export default function DictionaryPage() {
@@ -31,6 +39,13 @@ export default function DictionaryPage() {
   const [newNotes, setNewNotes] = useState("");
   const [newAlias, setNewAlias] = useState("");
 
+  const [unrecognized, setUnrecognized] = useState<UnrecognizedItem[]>([]);
+  const [unrecognizedTotal, setUnrecognizedTotal] = useState(0);
+  const [unrecognizedLimit, setUnrecognizedLimit] = useState(50);
+  const [unrecognizedLoading, setUnrecognizedLoading] = useState(false);
+  const [recanonRunning, setRecanonRunning] = useState(false);
+  const [recanonResult, setRecanonResult] = useState<RecanonicalizeResponse | null>(null);
+
   useEffect(() => {
     getDictTypes().then((t) => {
       setTypes(t);
@@ -40,7 +55,10 @@ export default function DictionaryPage() {
 
   useEffect(() => {
     loadEntries();
-  }, [activeTab, search]);
+    loadUnrecognized();
+    setRecanonResult(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, search, unrecognizedLimit]);
 
   async function loadEntries() {
     setLoading(true);
@@ -48,6 +66,45 @@ export default function DictionaryPage() {
     setEntries(data.rows);
     setTotal(data.total);
     setLoading(false);
+  }
+
+  const loadUnrecognized = useCallback(async () => {
+    setUnrecognizedLoading(true);
+    try {
+      const data = await getDictUnrecognized(activeTab, unrecognizedLimit);
+      setUnrecognized(data.items);
+      setUnrecognizedTotal(data.total);
+    } catch {
+      setUnrecognized([]);
+      setUnrecognizedTotal(0);
+    } finally {
+      setUnrecognizedLoading(false);
+    }
+  }, [activeTab, unrecognizedLimit]);
+
+  async function handleRecanon() {
+    if (!confirm(
+      `Перегнать canonical для типа «${activeTab}»? Это обновит ` +
+      `lf/mnn/producer/sector_canonical во всех уже загруженных строках.`,
+    )) return;
+    setRecanonRunning(true);
+    try {
+      const res = await recanonicalizeDict(activeTab);
+      setRecanonResult(res);
+      await loadUnrecognized();
+      await loadEntries();
+    } finally {
+      setRecanonRunning(false);
+    }
+  }
+
+  function handleAddFromUnrecognized(item: UnrecognizedItem) {
+    setNewCanonical(item.value);
+    setNewEn("");
+    setNewRu("");
+    setNewAliases(item.value);
+    setNewNotes("");
+    setShowAdd(true);
   }
 
   async function handleAdd() {
@@ -63,6 +120,7 @@ export default function DictionaryPage() {
     setShowAdd(false);
     setNewEn(""); setNewRu(""); setNewCanonical(""); setNewAliases(""); setNewNotes("");
     loadEntries();
+    loadUnrecognized();
   }
 
   async function handleDelete(id: number) {
@@ -85,9 +143,18 @@ export default function DictionaryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-semibold text-slate-800">Словарь</h2>
         <div className="flex gap-2">
+          <button
+            onClick={handleRecanon}
+            disabled={recanonRunning}
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50"
+            title="Перегнать canonical-поля во всех уже загруженных БДП/ПЦ/ГРЛС для этого типа"
+          >
+            <RefreshCw size={16} className={recanonRunning ? "animate-spin" : ""} />
+            Применить к данным
+          </button>
           <button onClick={() => navigate("/admin/dictionary/import")}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50">
             <Upload size={16} /> Импорт
@@ -98,6 +165,23 @@ export default function DictionaryPage() {
           </button>
         </div>
       </div>
+
+      {recanonResult && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
+          <div className="flex items-center gap-2 font-medium text-emerald-800">
+            <Sparkles size={14} /> Обновлено {recanonResult.updated_total} строк
+            ({recanonResult.matched_total} распознано, {recanonResult.unmatched_total} нет)
+          </div>
+          <div className="mt-1 text-xs text-emerald-700 flex gap-3 flex-wrap">
+            {Object.entries(recanonResult.by_source).map(([src, s]) => (
+              <span key={src}>
+                <strong>{src.toUpperCase()}:</strong> {s.updated}/{s.rows}
+                <span className="opacity-70"> ({s.matched} ✓ / {s.unmatched} ✗)</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 border-b border-slate-200">
         {types.map((t) => (
@@ -115,6 +199,84 @@ export default function DictionaryPage() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 text-sm" />
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-amber-200">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} className="text-amber-600" />
+            <span className="text-sm font-semibold text-amber-900">
+              Нераспознанные значения
+            </span>
+            <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs font-bold rounded">
+              {unrecognizedTotal}
+            </span>
+          </div>
+          <div className="text-xs text-amber-700">
+            raw-значения из БДП/ПЦ/ГРЛС, которым нет соответствия в словаре
+          </div>
+        </div>
+        {unrecognizedLoading ? (
+          <div className="p-4">
+            <LoadingSpinner className="h-12" />
+          </div>
+        ) : unrecognized.length === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-amber-700">
+            ✓ Всё распознано
+          </div>
+        ) : (
+          <>
+            <div className="max-h-72 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-amber-100 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 font-medium text-amber-900">Значение</th>
+                    <th className="text-right px-3 py-1.5 font-medium text-amber-900 w-16">БДП</th>
+                    <th className="text-right px-3 py-1.5 font-medium text-amber-900 w-16">ПЦ</th>
+                    <th className="text-right px-3 py-1.5 font-medium text-amber-900 w-16">ГРЛС</th>
+                    <th className="text-right px-3 py-1.5 w-24"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unrecognized.map((item) => (
+                    <tr key={item.normalized} className="border-t border-amber-100 hover:bg-amber-100/40">
+                      <td className="px-3 py-1.5 font-mono text-xs text-slate-700 truncate max-w-[280px]">
+                        {item.value}
+                      </td>
+                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_bdp ? "text-slate-700" : "text-slate-300")}>
+                        {item.count_bdp || "—"}
+                      </td>
+                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_pc ? "text-slate-700" : "text-slate-300")}>
+                        {item.count_pc || "—"}
+                      </td>
+                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_grls ? "text-slate-700" : "text-slate-300")}>
+                        {item.count_grls || "—"}
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <button
+                          onClick={() => handleAddFromUnrecognized(item)}
+                          className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700 inline-flex items-center gap-1"
+                        >
+                          <Plus size={11} /> В словарь
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {unrecognizedTotal > unrecognizedLimit && (
+              <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-center">
+                <button
+                  onClick={() => setUnrecognizedLimit((n) => n + 100)}
+                  className="text-xs text-amber-800 hover:text-amber-900 font-medium"
+                >
+                  Показать ещё (осталось {unrecognizedTotal - unrecognizedLimit})
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {loading ? <LoadingSpinner className="h-32" /> : (

@@ -76,7 +76,7 @@ export default function MarketsPage() {
             key={market.id}
             className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:border-indigo-200 cursor-pointer"
             onClick={() =>
-              navigate(`/market/${market.id}/dashboard`)
+              navigate(`/market/${market.id}/overview`)
             }
           >
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-indigo-500/[0.02] to-purple-500/[0.02] group-hover:from-indigo-500/[0.05] group-hover:to-purple-500/[0.05] transition-all duration-300" />

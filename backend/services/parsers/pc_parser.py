@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from backend.services.normalize import (
     normalize_mnn, normalize_str, parse_float, parse_date,
+    parse_pack_qty,
 )
 from backend.services.parsers.base import (
     iter_data_rows, build_col_index, read_columns_at_row,
@@ -54,6 +55,7 @@ def parse_pc_rows(
         if record.get("price_rub_no_vat") is None:
             continue
 
+        record["pack_qty_parsed"] = parse_pack_qty(record.get("pack_qty"))
         rows.append(record)
         count += 1
         if max_rows and count >= max_rows:

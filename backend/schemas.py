@@ -17,8 +17,15 @@ class MarketOut(BaseModel):
     mnn_count: int | None = None
     has_pc: bool = False
     has_grls: bool = False
+    fx_rate_usd_rub: float | None = None
+    fx_rate_date: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class MarketFxUpdate(BaseModel):
+    fx_rate_usd_rub: float
+    fx_rate_date: str | None = None
 
 
 class FieldMappingItem(BaseModel):
@@ -220,3 +227,88 @@ class DictionarySuggestion(BaseModel):
 class UnrecognizedField(BaseModel):
     field_type: str
     values: list[str]
+
+
+# --- Market Overview schemas ---
+
+class OverviewHeader(BaseModel):
+    market_id: int
+    name: str
+    years: list[int]
+    regions: list[str]
+    language: str
+    fx_rate_usd_rub: float | None
+    fx_rate_date: str | None
+    has_bdp: bool
+    has_pc: bool
+    has_grls: bool
+    mnn_count: int
+    producer_count: int
+    tm_count: int
+    grls_active_count: int
+    pc_rows_count: int
+
+
+class OverviewVolume(BaseModel):
+    usd_y1: float
+    usd_y2: float
+    usd_y3: float
+    un_y1: float
+    un_y2: float
+    un_y3: float
+    usd_growth: float | None
+    un_growth: float | None
+    usd_cagr_2y: float | None
+    un_cagr_2y: float | None
+    asp_y2: float | None
+    asp_y3: float | None
+    asp_growth: float | None
+    ret_share: float | None
+    hos_share: float | None
+    bg_share: float | None
+    g_share: float | None
+    years_labels: list[str]
+
+
+class OverviewPortfolio(BaseModel):
+    top_mnn: list[dict]
+    top_producers: list[dict]
+    hhi: float | None
+    top3_share: float | None
+    atc_distribution: list[dict]
+    countries: list[dict]
+
+
+class OverviewGrls(BaseModel):
+    active_count: int
+    registrants_count: int
+    registrations_by_year: list[dict]
+    expiring_1y: int
+    expiring_2y: int
+    expiring_3y: int
+    foreign_share: float | None
+    jnvlp_money_share: float | None
+    jnvlp_mnn_count: int
+
+
+class OverviewPc(BaseModel):
+    mnn_coverage_pct: float | None
+    money_coverage_pct: float | None
+    unit_price_usd_stats: dict | None
+    indexation_by_year: list[dict]
+    top_owners: list[dict]
+
+
+class OverviewDecision(BaseModel):
+    distribution: dict
+    top_opportunities: list[dict]
+    top_avoid: list[dict]
+
+
+class OverviewResponse(BaseModel):
+    header: OverviewHeader
+    volume: OverviewVolume
+    portfolio: OverviewPortfolio
+    grls: OverviewGrls | None
+    pc: OverviewPc | None
+    decision: OverviewDecision

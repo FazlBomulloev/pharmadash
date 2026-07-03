@@ -5,6 +5,7 @@ import AdminPage from "./pages/AdminPage";
 import MarketAvpPage from "./pages/MarketAvpPage";
 import MarketKapPage from "./pages/MarketKapPage";
 import MarketDashboardPage from "./pages/MarketDashboardPage";
+import MarketOverviewPage from "./pages/MarketOverviewPage";
 import MarketReferencePage from "./pages/MarketReferencePage";
 import DictionaryPage from "./pages/DictionaryPage";
 import DictionaryImportPage from "./pages/DictionaryImportPage";
@@ -16,6 +17,10 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<MarketsPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route
+            path="/market/:marketId/overview"
+            element={<MarketOverviewPage />}
+          />
           <Route
             path="/market/:marketId/dashboard"
             element={<MarketDashboardPage />}

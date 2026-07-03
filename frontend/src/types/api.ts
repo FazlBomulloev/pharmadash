@@ -8,6 +8,13 @@ export interface Market {
   mnn_count?: number | null;
   has_pc?: boolean;
   has_grls?: boolean;
+  fx_rate_usd_rub?: number | null;
+  fx_rate_date?: string | null;
+}
+
+export interface MarketFxUpdate {
+  fx_rate_usd_rub: number;
+  fx_rate_date?: string | null;
 }
 
 export interface MarketCreate {
@@ -156,24 +163,74 @@ export interface PcStats {
   count: number;
 }
 
+export interface RegionalDistribution {
+  regions: { name: string; usd: number; share: number }[];
+  gini: number | null;
+  regions_count: number;
+}
+
+export interface BgGBreakdown {
+  bg_share: number;
+  g_share: number;
+  bg_un_share: number | null;
+  g_un_share: number | null;
+  asp_bg: number | null;
+  asp_g: number | null;
+  asp_gap_pct: number | null;
+}
+
+export interface GrlsExtra {
+  market_age: number | null;
+  oldest_reg_year: number | null;
+  expiring_1y: number;
+  expiring_2y: number;
+  expiring_3y: number;
+  registrations_by_year: { year: number; count: number }[];
+}
+
 export interface Zone2Data {
   ret_share: number | null;
   hos_share: number | null;
   top_competitors: Competitor[];
   top3_share: number | null;
   hhi: number | null;
+  entropy_normalized: number | null;
   leader_share: number | null;
   forms: NamedShare[];
   strengths: NamedShare[];
   countries: NamedShare[];
   concentration_by_form: FormConcentration[];
+  regional_distribution: RegionalDistribution | null;
+  bg_g_breakdown: BgGBreakdown | null;
   znvlp: string;
   grls: string;
   grls_active_count: number;
   grls_registrants: number;
+  grls_extra: GrlsExtra | null;
   jnvlp_flag: boolean;
   pc_flag: boolean;
   pc_stats: PcStats | null;
+}
+
+export interface AtcBenchmark {
+  atc3: string;
+  mnn_count: number;
+  our: {
+    usd: number;
+    growth: number | null;
+    hhi: number | null;
+    competitors: number;
+    rank_by_usd: number | null;
+  };
+  class_stats: {
+    usd_median: number | null;
+    usd_p75: number | null;
+    usd_max: number | null;
+    growth_median: number | null;
+    hhi_median: number | null;
+    competitors_median: number | null;
+  };
+  top_peers: { mnn: string; usd: number }[];
 }
 
 export interface DriverFlag {
@@ -205,6 +262,7 @@ export interface DashboardResponse {
   applied_filter: { lf: string | null; dose: string | null };
   zone1: KpiZone1;
   zone2: Zone2Data;
+  atc_benchmark: AtcBenchmark[];
   zone3: Zone3Data;
 }
 
@@ -279,4 +337,183 @@ export interface DictionaryImportResult {
   updated: number;
   skipped: number;
   total: number;
+}
+
+export interface UnrecognizedItem {
+  value: string;
+  normalized: string;
+  count_bdp: number;
+  count_pc: number;
+  count_grls: number;
+  total: number;
+}
+
+export interface UnrecognizedResponse {
+  items: UnrecognizedItem[];
+  total: number;
+  shown: number;
+}
+
+export interface RecanonicalizeResponse {
+  ok: boolean;
+  by_source: Record<string, {
+    rows: number;
+    updated: number;
+    matched: number;
+    unmatched: number;
+  }>;
+  updated_total: number;
+  matched_total: number;
+  unmatched_total: number;
+}
+
+// Market Overview
+export interface OverviewHeader {
+  market_id: number;
+  name: string;
+  years: number[];
+  regions: string[];
+  language: string;
+  fx_rate_usd_rub: number | null;
+  fx_rate_date: string | null;
+  has_bdp: boolean;
+  has_pc: boolean;
+  has_grls: boolean;
+  mnn_count: number;
+  producer_count: number;
+  tm_count: number;
+  grls_active_count: number;
+  pc_rows_count: number;
+}
+
+export interface OverviewVolume {
+  usd_y1: number;
+  usd_y2: number;
+  usd_y3: number;
+  un_y1: number;
+  un_y2: number;
+  un_y3: number;
+  usd_growth: number | null;
+  un_growth: number | null;
+  usd_cagr_2y: number | null;
+  un_cagr_2y: number | null;
+  asp_y2: number | null;
+  asp_y3: number | null;
+  asp_growth: number | null;
+  ret_share: number | null;
+  hos_share: number | null;
+  bg_share: number | null;
+  g_share: number | null;
+  years_labels: string[];
+}
+
+export interface OverviewMnn {
+  mnn: string;
+  usd: number;
+  share: number;
+  growth: number | null;
+  jnvlp: boolean;
+}
+
+export interface OverviewProducer {
+  name: string;
+  usd: number;
+  share: number;
+  growth: number | null;
+}
+
+export interface OverviewAtc {
+  atc: string;
+  usd: number;
+  share: number;
+}
+
+export interface OverviewCountry {
+  name: string;
+  usd: number;
+  un: number;
+  share: number;
+  un_share: number;
+}
+
+export interface OverviewPortfolio {
+  top_mnn: OverviewMnn[];
+  top_producers: OverviewProducer[];
+  hhi: number | null;
+  top3_share: number | null;
+  atc_distribution: OverviewAtc[];
+  countries: OverviewCountry[];
+}
+
+export interface OverviewGrls {
+  active_count: number;
+  registrants_count: number;
+  registrations_by_year: { year: number; count: number }[];
+  expiring_1y: number;
+  expiring_2y: number;
+  expiring_3y: number;
+  foreign_share: number | null;
+  jnvlp_money_share: number | null;
+  jnvlp_mnn_count: number;
+}
+
+export interface OverviewPcUnitStats {
+  count: number;
+  min: number;
+  p25: number;
+  median: number;
+  p75: number;
+  max: number;
+}
+
+export interface OverviewPc {
+  mnn_coverage_pct: number | null;
+  money_coverage_pct: number | null;
+  unit_price_usd_stats: OverviewPcUnitStats | null;
+  indexation_by_year: { year: number; count: number }[];
+  top_owners: { name: string; count: number }[];
+}
+
+export interface OverviewDecisionItem {
+  mnn: string;
+  usd: number;
+  total_score: number;
+  recommendation: string;
+  color: string;
+}
+
+export interface OverviewDecision {
+  distribution: Record<string, number>;
+  top_opportunities: OverviewDecisionItem[];
+  top_avoid: OverviewDecisionItem[];
+}
+
+export interface OverviewFiltersApplied {
+  sector: "all" | "ret" | "hos";
+  atc3: string | null;
+  jnvlp: "all" | "only" | "exclude";
+}
+
+export interface OverviewFilters {
+  applied: OverviewFiltersApplied;
+  options: {
+    atc3: { atc: string; share: number }[];
+    has_jnvlp_data: boolean;
+  };
+}
+
+export interface OverviewResponse {
+  header: OverviewHeader;
+  filters: OverviewFilters;
+  volume: OverviewVolume;
+  portfolio: OverviewPortfolio;
+  grls: OverviewGrls | null;
+  pc: OverviewPc | null;
+  decision: OverviewDecision;
+}
+
+export interface OverviewQuery {
+  sector?: "all" | "ret" | "hos";
+  atc3?: string | null;
+  jnvlp?: "all" | "only" | "exclude";
 }

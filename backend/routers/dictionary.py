@@ -8,19 +8,56 @@ from sqlalchemy.orm import selectinload
 
 from backend.config import UPLOAD_DIR
 from backend.database import get_db
-from backend.models import DictionaryEntry, DictionaryAlias
+from backend.models import (
+    DictionaryEntry, DictionaryAlias,
+    BdpRaw, PcEntry, GrlsEntry,
+)
 from backend.schemas import (
     DictionaryEntryCreate, DictionaryEntryUpdate, DictionaryEntryOut,
     UploadResponse, MappingRequest,
 )
 from backend.services.dictionary_types import (
     DICT_TYPES, DICT_TYPE_LABELS,
+    DICT_TYPE_MNN, DICT_TYPE_LF, DICT_TYPE_PRODUCER, DICT_TYPE_SECTOR,
 )
 from backend.services.dict_suggest import suggest_for_unrecognized
+from backend.services.canonicalize import build_dict_index
+from backend.services.normalize import normalize_alias, normalize_mnn
 from backend.services.parsers.base import (
     get_sheets_and_columns, read_columns_at_row,
 )
 from backend.services.parsers.dict_parser import parse_dict_import
+from backend.routers.overview import invalidate_overview_cache
+
+
+# Какие колонки в каких таблицах хранят raw-значения и их canonical
+# для каждого типа словаря.
+TYPE_TO_SOURCES: dict[str, list[tuple]] = {
+    DICT_TYPE_LF: [
+        ("bdp", BdpRaw, BdpRaw.lf_avp, BdpRaw.lf_canonical),
+        ("pc", PcEntry, PcEntry.lf, PcEntry.lf_canonical),
+        ("grls", GrlsEntry, GrlsEntry.lf_full, GrlsEntry.lf_canonical),
+    ],
+    DICT_TYPE_MNN: [
+        ("bdp", BdpRaw, BdpRaw.mnn, BdpRaw.mnn_canonical),
+        ("pc", PcEntry, PcEntry.mnn_raw, PcEntry.mnn_canonical),
+        ("grls", GrlsEntry, GrlsEntry.mnn_raw, GrlsEntry.mnn_canonical),
+    ],
+    DICT_TYPE_PRODUCER: [
+        ("bdp", BdpRaw, BdpRaw.producer, BdpRaw.producer_canonical),
+        ("pc", PcEntry, PcEntry.owner, PcEntry.owner_canonical),
+        ("grls", GrlsEntry, GrlsEntry.ru_holder, GrlsEntry.ru_holder_canonical),
+    ],
+    DICT_TYPE_SECTOR: [
+        ("bdp", BdpRaw, BdpRaw.sector, BdpRaw.sector_canonical),
+    ],
+}
+
+
+def _normalize(value: str, field_type: str) -> str:
+    if field_type == DICT_TYPE_MNN:
+        return normalize_mnn(value)
+    return normalize_alias(value)
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/dictionary", tags=["dictionary"])
@@ -188,6 +225,141 @@ async def suggest(
     if field_type not in DICT_TYPES:
         raise HTTPException(400, "Неизвестный тип словаря")
     return await suggest_for_unrecognized(field_type, values, db)
+
+
+@router.get("/unrecognized")
+async def list_unrecognized(
+    field_type: str,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    """Список raw-значений из БДП/ПЦ/ГРЛС, которые НЕ нашли
+    соответствия в словаре. С счётчиками по источникам."""
+    if field_type not in DICT_TYPES:
+        raise HTTPException(400, "Неизвестный тип словаря")
+    sources = TYPE_TO_SOURCES.get(field_type, [])
+    if not sources:
+        return {"items": [], "total": 0}
+
+    dict_index = await build_dict_index(db)
+    type_index = dict_index.get(field_type, {})
+
+    # Агрегированно по нормализованному ключу: counts по источникам
+    # + сохраняем «представительное» raw-значение (первое попавшееся).
+    aggregated: dict[str, dict] = {}
+    for source_name, model, raw_col, _canonical_col in sources:
+        result = await db.execute(
+            select(raw_col, func.count())
+            .where(raw_col.isnot(None), raw_col != "")
+            .group_by(raw_col)
+        )
+        for raw_value, count in result.all():
+            if raw_value is None:
+                continue
+            normalized = _normalize(str(raw_value), field_type)
+            if not normalized:
+                continue
+            if normalized in type_index:
+                continue  # уже распознано
+            bucket = aggregated.setdefault(
+                normalized,
+                {
+                    "value": str(raw_value),
+                    "normalized": normalized,
+                    "count_bdp": 0,
+                    "count_pc": 0,
+                    "count_grls": 0,
+                    "total": 0,
+                },
+            )
+            bucket[f"count_{source_name}"] += count
+            bucket["total"] += count
+
+    items = sorted(
+        aggregated.values(), key=lambda x: -x["total"]
+    )
+    return {
+        "items": items[:limit],
+        "total": len(aggregated),
+        "shown": min(limit, len(aggregated)),
+    }
+
+
+@router.post("/recanonicalize")
+async def recanonicalize(
+    field_type: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Перегоняет canonical-поля по всем уже загруженным строкам
+    БДП/ПЦ/ГРЛС для данного типа словаря."""
+    if field_type not in DICT_TYPES:
+        raise HTTPException(400, "Неизвестный тип словаря")
+    sources = TYPE_TO_SOURCES.get(field_type, [])
+    if not sources:
+        return {"ok": True, "updated": 0, "matched": 0, "unmatched": 0}
+
+    dict_index = await build_dict_index(db)
+    type_index = dict_index.get(field_type, {})
+
+    summary = {
+        "ok": True,
+        "by_source": {},
+        "updated_total": 0,
+        "matched_total": 0,
+        "unmatched_total": 0,
+    }
+    touched_market_ids: set[int] = set()
+
+    for source_name, model, raw_col, canonical_col in sources:
+        result = await db.execute(select(model))
+        rows = result.scalars().all()
+
+        updated = 0
+        matched = 0
+        unmatched = 0
+        for row in rows:
+            raw = getattr(row, raw_col.key)
+            if not raw:
+                continue
+            normalized = _normalize(str(raw), field_type)
+            if not normalized:
+                continue
+            if normalized in type_index:
+                new_canonical = type_index[normalized]
+                matched += 1
+            else:
+                new_canonical = normalized
+                unmatched += 1
+            current = getattr(row, canonical_col.key)
+            if current != new_canonical:
+                setattr(row, canonical_col.key, new_canonical)
+                updated += 1
+                if hasattr(row, "market_id"):
+                    touched_market_ids.add(row.market_id)
+
+        summary["by_source"][source_name] = {
+            "rows": len(rows),
+            "updated": updated,
+            "matched": matched,
+            "unmatched": unmatched,
+        }
+        summary["updated_total"] += updated
+        summary["matched_total"] += matched
+        summary["unmatched_total"] += unmatched
+
+    await db.commit()
+
+    for mid in touched_market_ids:
+        invalidate_overview_cache(mid)
+
+    log.info(
+        "Recanonicalize %s: updated %d (matched %d, unmatched %d) "
+        "across markets %s",
+        field_type, summary["updated_total"],
+        summary["matched_total"], summary["unmatched_total"],
+        sorted(touched_market_ids),
+    )
+    return summary
 
 
 _DICT_IMPORT_PATH = UPLOAD_DIR / "dict_import.xlsx"

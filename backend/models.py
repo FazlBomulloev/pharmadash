@@ -29,6 +29,8 @@ class Market(Base):
     created_at = Column(
         DateTime, nullable=False, default=datetime.utcnow
     )
+    fx_rate_usd_rub = Column(Float, nullable=True)
+    fx_rate_date = Column(Date, nullable=True)
 
     field_mappings = relationship(
         "FieldMapping", back_populates="market",
@@ -248,6 +250,7 @@ class PcEntry(Base):
     owner = Column(String(300), nullable=True)
     owner_canonical = Column(String(300), nullable=True, index=True)
     pack_qty = Column(String(200), nullable=True)
+    pack_qty_parsed = Column(Float, nullable=True)
     price_rub_no_vat = Column(Float, nullable=False, default=0.0)
     price_reg_date = Column(Date, nullable=True)
     price_effective_date = Column(Date, nullable=True)

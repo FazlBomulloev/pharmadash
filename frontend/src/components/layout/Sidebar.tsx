@@ -10,6 +10,7 @@ import {
   DollarSign,
   ShieldCheck,
   BookOpen,
+  Compass,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -35,6 +36,11 @@ const navItems = [
 
 function marketItems(marketId: string) {
   return [
+    {
+      label: "Обзор",
+      icon: Compass,
+      to: `/market/${marketId}/overview`,
+    },
     {
       label: "Дашборд",
       icon: LayoutDashboard,

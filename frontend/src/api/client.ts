@@ -2,6 +2,7 @@ import axios from "axios";
 import type {
   Market,
   MarketCreate,
+  MarketFxUpdate,
   UploadResponse,
   MappingRequest,
   MappingResult,
@@ -16,6 +17,10 @@ import type {
   DictionaryEntryCreate,
   DictionarySuggestion,
   DictionaryImportResult,
+  OverviewResponse,
+  OverviewQuery,
+  UnrecognizedResponse,
+  RecanonicalizeResponse,
 } from "../types/api";
 
 const api = axios.create({ baseURL: "/api" });
@@ -32,6 +37,34 @@ export async function createMarket(body: MarketCreate): Promise<Market> {
 
 export async function deleteMarket(id: number): Promise<void> {
   await api.delete(`/markets/${id}`);
+}
+
+export async function getMarket(id: number): Promise<Market> {
+  const { data } = await api.get<Market>(`/markets/${id}`);
+  return data;
+}
+
+export async function updateMarketFx(
+  id: number,
+  body: MarketFxUpdate,
+): Promise<Market> {
+  const { data } = await api.patch<Market>(`/markets/${id}/fx`, body);
+  return data;
+}
+
+export async function getMarketOverview(
+  id: number,
+  query: OverviewQuery = {},
+): Promise<OverviewResponse> {
+  const params: Record<string, string> = {};
+  if (query.sector && query.sector !== "all") params.sector = query.sector;
+  if (query.atc3) params.atc3 = query.atc3;
+  if (query.jnvlp && query.jnvlp !== "all") params.jnvlp = query.jnvlp;
+  const { data } = await api.get<OverviewResponse>(
+    `/markets/${id}/overview`,
+    { params },
+  );
+  return data;
 }
 
 export async function uploadFile(
@@ -243,6 +276,24 @@ export async function applyDictImport(
 ): Promise<DictionaryImportResult> {
   const { data } = await api.post("/dictionary/import/apply", body, {
     params: { field_type, overwrite },
+  });
+  return data;
+}
+
+export async function getDictUnrecognized(
+  field_type: string, limit = 100,
+): Promise<UnrecognizedResponse> {
+  const { data } = await api.get("/dictionary/unrecognized", {
+    params: { field_type, limit },
+  });
+  return data;
+}
+
+export async function recanonicalizeDict(
+  field_type: string,
+): Promise<RecanonicalizeResponse> {
+  const { data } = await api.post("/dictionary/recanonicalize", null, {
+    params: { field_type },
   });
   return data;
 }

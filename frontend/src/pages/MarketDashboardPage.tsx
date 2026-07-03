@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { getDashboard } from "../api/client";
 import type { DashboardResponse } from "../types/api";
 import MnnSearch from "../components/dashboard/MnnSearch";
@@ -7,13 +7,15 @@ import DashboardFilters from "../components/dashboard/DashboardFilters";
 import Zone1 from "../components/dashboard/Zone1";
 import Zone2 from "../components/dashboard/Zone2";
 import Zone3 from "../components/dashboard/Zone3";
+import AtcBenchmark from "../components/dashboard/AtcBenchmark";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import EmptyState from "../components/common/EmptyState";
 import { Search } from "lucide-react";
 
 export default function MarketDashboardPage() {
   const { marketId } = useParams<{ marketId: string }>();
-  const [mnn, setMnn] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [mnn, setMnn] = useState(searchParams.get("mnn") ?? "");
   const [selectedLf, setSelectedLf] = useState<string | null>(null);
   const [selectedDose, setSelectedDose] = useState<string | null>(null);
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -46,11 +48,30 @@ export default function MarketDashboardPage() {
     [marketId],
   );
 
-  const handleMnnChange = useCallback((newMnn: string) => {
-    setMnn(newMnn);
-    setSelectedLf(null);
-    setSelectedDose(null);
-  }, []);
+  const handleMnnChange = useCallback(
+    (newMnn: string) => {
+      setMnn(newMnn);
+      setSelectedLf(null);
+      setSelectedDose(null);
+      if (newMnn) {
+        setSearchParams({ mnn: newMnn }, { replace: true });
+      } else {
+        setSearchParams({}, { replace: true });
+      }
+    },
+    [setSearchParams],
+  );
+
+  // Sync MNN when URL ?mnn= changes (e.g., navigating from Overview)
+  useEffect(() => {
+    const urlMnn = searchParams.get("mnn") ?? "";
+    if (urlMnn !== mnn) {
+      setMnn(urlMnn);
+      setSelectedLf(null);
+      setSelectedDose(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleFiltersChange = useCallback(
     (lf: string | null, dose: string | null) => {
@@ -117,6 +138,16 @@ export default function MarketDashboardPage() {
           }`}
         >
           <Zone1 data={data.zone1} />
+          {data.atc_benchmark.length > 0 && (
+            <>
+              <div className="border-t border-slate-200" />
+              <div className="space-y-4">
+                {data.atc_benchmark.map((b) => (
+                  <AtcBenchmark key={b.atc3} data={b} />
+                ))}
+              </div>
+            </>
+          )}
           <div className="border-t border-slate-200" />
           <Zone2 data={data.zone2} />
           <div className="border-t border-slate-200" />

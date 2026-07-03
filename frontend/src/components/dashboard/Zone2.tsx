@@ -16,9 +16,17 @@ import {
   Shield,
   FileCheck,
   DollarSign,
+  Sigma,
+  Map as MapIcon,
+  Pill,
+  CalendarClock,
+  AlertTriangle,
 } from "lucide-react";
 import clsx from "clsx";
-import type { Zone2Data, FormConcentration } from "../../types/api";
+import type {
+  Zone2Data, FormConcentration, RegionalDistribution,
+  BgGBreakdown, GrlsExtra,
+} from "../../types/api";
 
 const PIE_COLORS = [
   "#4f46e5",
@@ -174,6 +182,33 @@ export default function Zone2({ data }: { data: Zone2Data }) {
         </div>
       </div>
 
+      {/* Concentration + Entropy + BG/G */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ConcentrationCard
+          hhi={data.hhi}
+          top3={data.top3_share}
+          leader={data.leader_share}
+          entropy={data.entropy_normalized}
+        />
+        {data.bg_g_breakdown && (
+          <BgGCard data={data.bg_g_breakdown} />
+        )}
+        {data.regional_distribution && (
+          <RegionalCard
+            data={data.regional_distribution}
+            className={!data.bg_g_breakdown ? "lg:col-span-2" : ""}
+          />
+        )}
+      </div>
+
+      {/* GRLS extended */}
+      {data.grls_extra && data.grls_active_count > 0 && (
+        <GrlsExtendedCard
+          extra={data.grls_extra}
+          activeCount={data.grls_active_count}
+        />
+      )}
+
       {/* Concentration by form */}
       <ConcentrationByForm items={data.concentration_by_form ?? []} />
 
@@ -291,8 +326,9 @@ export default function Zone2({ data }: { data: Zone2Data }) {
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={120}
+                  width={160}
                   tick={{ fontSize: 11, fill: "#64748b" }}
+                  interval={0}
                 />
                 <Tooltip
                   formatter={(value) => fmtPct(Number(value))}
@@ -365,21 +401,20 @@ function CountryPieChart({
       <p className="text-xs font-medium text-slate-500 text-center mb-1">
         {title}
       </p>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie
             data={data}
             cx="50%"
             cy="50%"
-            outerRadius={75}
+            innerRadius={36}
+            outerRadius={72}
             dataKey={dataKey}
             nameKey="name"
             stroke="none"
-            label={(props) => {
-              const s = Number(props.value ?? 0);
-              return s > 0.05
-                ? `${props.name} ${(s * 100).toFixed(0)}%`
-                : "";
+            label={({ value }) => {
+              const s = Number(value ?? 0);
+              return s >= 0.05 ? `${(s * 100).toFixed(0)}%` : "";
             }}
             labelLine={false}
           >
@@ -406,6 +441,32 @@ function CountryPieChart({
           />
         </PieChart>
       </ResponsiveContainer>
+      <ul className="mt-2 space-y-1 max-h-32 overflow-auto">
+        {data.map((c, idx) => {
+          const cAny = c as unknown as Record<string, number | string>;
+          const share = Number(cAny[dataKey] ?? 0);
+          const raw = Number(cAny[valueKey] ?? 0);
+          return (
+            <li key={c.name} className="flex items-center gap-2 text-[11px]">
+              <span
+                className="inline-block w-2 h-2 rounded flex-shrink-0"
+                style={{
+                  background: PIE_COLORS[idx % PIE_COLORS.length],
+                }}
+              />
+              <span className="flex-1 text-slate-700 truncate">
+                {c.name}
+              </span>
+              <span className="text-slate-500 font-medium">
+                {fmtPct(share)}
+              </span>
+              <span className="text-slate-400 w-12 text-right">
+                {fmtAbsolute(raw)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -500,5 +561,308 @@ function GrowthBadge({ value }: { value: number | null }) {
       {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
       {(value * 100).toFixed(1)}%
     </span>
+  );
+}
+
+function ConcentrationCard({
+  hhi, top3, leader, entropy,
+}: {
+  hhi: number | null;
+  top3: number | null;
+  leader: number | null;
+  entropy: number | null;
+}) {
+  const c = concentrationLabel(hhi);
+  const entropyLabel =
+    entropy == null
+      ? { text: "—", color: "text-slate-400" }
+      : entropy >= 0.75
+        ? { text: "Сбалансированный", color: "text-emerald-600" }
+        : entropy >= 0.4
+          ? { text: "Умеренный дисбаланс", color: "text-amber-600" }
+          : { text: "Доминирование лидера", color: "text-red-600" };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 mb-4">
+        Концентрация
+      </h4>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-slate-500">HHI</p>
+          <p className="text-2xl font-bold text-slate-800">
+            {hhi != null ? Math.round(hhi) : "—"}
+          </p>
+          <p className={clsx("text-[11px] font-semibold mt-0.5", c.color)}>
+            {c.text}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500 flex items-center gap-1">
+            <Sigma size={11} /> Энтропия
+          </p>
+          <p className="text-2xl font-bold text-slate-800">
+            {entropy != null ? entropy.toFixed(2) : "—"}
+          </p>
+          <p className={clsx("text-[11px] font-semibold mt-0.5", entropyLabel.color)}>
+            {entropyLabel.text}
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100 text-sm">
+        <div>
+          <p className="text-xs text-slate-500">Лидер</p>
+          <p className="font-semibold text-slate-700">{fmtPct(leader)}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">Топ-3</p>
+          <p className="font-semibold text-slate-700">{fmtPct(top3)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BgGCard({ data }: { data: BgGBreakdown }) {
+  const bgGData = [
+    { name: "Бренд", value: data.bg_share },
+    { name: "Генерик", value: data.g_share },
+  ];
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-1.5">
+        <Pill size={14} className="text-indigo-500" />
+        Бренд vs Генерик
+      </h4>
+      <ResponsiveContainer width="100%" height={140}>
+        <PieChart>
+          <Pie
+            data={bgGData}
+            cx="50%"
+            cy="50%"
+            innerRadius={34}
+            outerRadius={58}
+            dataKey="value"
+            stroke="none"
+            label={({ value }) =>
+              Number(value ?? 0) >= 0.05
+                ? `${(Number(value) * 100).toFixed(0)}%`
+                : ""
+            }
+            labelLine={false}
+          >
+            <Cell fill="#4f46e5" />
+            <Cell fill="#10b981" />
+          </Pie>
+          <Tooltip
+            formatter={(v) => fmtPct(Number(v))}
+            contentStyle={{
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              fontSize: 12,
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex justify-center gap-3 text-[11px] mt-1">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded bg-indigo-600" />
+          Бренд {fmtPct(data.bg_share)}
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded bg-emerald-500" />
+          Генерик {fmtPct(data.g_share)}
+        </span>
+      </div>
+      {data.asp_gap_pct != null && (
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <p className="text-xs text-slate-500">Ценовой gap (ASP)</p>
+          <p
+            className={clsx(
+              "text-lg font-bold",
+              data.asp_gap_pct > 0 ? "text-indigo-700" : "text-slate-700",
+            )}
+          >
+            {data.asp_gap_pct > 0 ? "+" : ""}
+            {(data.asp_gap_pct * 100).toFixed(0)}%
+          </p>
+          <p className="text-[10px] text-slate-400">
+            Бренд дороже генерика на N%
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RegionalCard({
+  data, className,
+}: {
+  data: RegionalDistribution;
+  className?: string;
+}) {
+  const giniLabel =
+    data.gini == null
+      ? { text: "—", color: "text-slate-400" }
+      : data.gini > 0.7
+        ? { text: "Локализован", color: "text-red-600" }
+        : data.gini > 0.4
+          ? { text: "Умеренная неравномерность", color: "text-amber-600" }
+          : { text: "Равномерно", color: "text-emerald-600" };
+  const top8 = data.regions.slice(0, 8);
+
+  return (
+    <div className={clsx("bg-white rounded-xl border border-slate-200 shadow-sm p-5", className)}>
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+          <MapIcon size={14} className="text-indigo-500" />
+          Региональное распределение
+        </h4>
+        <div className="text-xs text-slate-500">
+          Gini:{" "}
+          <span className="font-semibold text-slate-700">
+            {data.gini != null ? data.gini.toFixed(2) : "—"}
+          </span>{" "}
+          <span className={clsx("font-semibold", giniLabel.color)}>
+            · {giniLabel.text}
+          </span>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={top8} layout="vertical">
+          <XAxis
+            type="number"
+            tick={{ fontSize: 10 }}
+            tickFormatter={(v) => fmtPct(v)}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            tick={{ fontSize: 10 }}
+            width={120}
+            interval={0}
+          />
+          <Tooltip
+            formatter={(value, _n, p) => {
+              const raw = (p.payload as { usd?: number })?.usd ?? 0;
+              return [`${fmtPct(Number(value))} (${fmtUsd(raw)})`, "Доля"];
+            }}
+            contentStyle={{
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              fontSize: 12,
+            }}
+          />
+          <Bar dataKey="share" fill="#6366f1" radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      {data.regions.length > 8 && (
+        <p className="text-[11px] text-slate-400 text-right mt-1">
+          + ещё {data.regions.length - 8} регионов
+        </p>
+      )}
+    </div>
+  );
+}
+
+function GrlsExtendedCard({
+  extra, activeCount,
+}: {
+  extra: GrlsExtra;
+  activeCount: number;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-1.5">
+        <FileCheck size={14} className="text-indigo-500" />
+        ГРЛС — динамика и окна
+      </h4>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-slate-50 rounded-lg p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
+            <CalendarClock size={12} /> Возраст рынка
+          </p>
+          <p className="text-3xl font-bold text-slate-800 mt-1">
+            {extra.market_age != null ? `${extra.market_age}` : "—"}
+            {extra.market_age != null && (
+              <span className="text-base font-normal text-slate-500 ml-1">
+                {extra.market_age === 1 ? "год" :
+                 extra.market_age < 5 ? "года" : "лет"}
+              </span>
+            )}
+          </p>
+          {extra.oldest_reg_year && (
+            <p className="text-[11px] text-slate-400 mt-1">
+              первая РУ: {extra.oldest_reg_year}
+            </p>
+          )}
+        </div>
+
+        <div className="bg-slate-50 rounded-lg p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
+            <AlertTriangle size={12} /> Окно истечения
+          </p>
+          <ExpiryRow label="1 год" value={extra.expiring_1y} total={activeCount} color="bg-red-500" />
+          <ExpiryRow label="2 года" value={extra.expiring_2y} total={activeCount} color="bg-amber-500" />
+          <ExpiryRow label="3 года" value={extra.expiring_3y} total={activeCount} color="bg-emerald-500" />
+        </div>
+
+        <div className="bg-slate-50 rounded-lg p-4">
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
+            Регистрации по годам
+          </p>
+          {extra.registrations_by_year.length > 0 ? (
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart data={extra.registrations_by_year}>
+                <XAxis
+                  dataKey="year"
+                  tick={{ fontSize: 9 }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tick={{ fontSize: 9 }} allowDecimals={false} width={20} />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                    fontSize: 11,
+                  }}
+                />
+                <Bar dataKey="count" fill="#4f46e5" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-xs text-slate-400 mt-2">Нет данных</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExpiryRow({
+  label, value, total, color,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  color: string;
+}) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <div className="mt-2 first:mt-3">
+      <div className="flex justify-between text-[11px] mb-1">
+        <span className="text-slate-600">{label}</span>
+        <span className="font-medium text-slate-700">
+          {value}
+          <span className="text-slate-400 ml-0.5">/ {total}</span>
+        </span>
+      </div>
+      <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+        <div
+          className={clsx("h-full rounded-full", color)}
+          style={{ width: `${Math.min(100, pct)}%` }}
+        />
+      </div>
+    </div>
   );
 }

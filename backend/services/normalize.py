@@ -38,6 +38,28 @@ def parse_bool(value) -> bool:
     return s in {"да", "yes", "y", "true", "1", "+", "v", "✓"}
 
 
+_PACK_QTY_RE = re.compile(r"(\d+(?:[.,]\d+)?)")
+
+
+def parse_pack_qty(value) -> float | None:
+    """Извлечь число из строки pack_qty (например, '30 таб.' → 30.0)."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value) if value > 0 else None
+    s = str(value).strip()
+    if not s:
+        return None
+    m = _PACK_QTY_RE.search(s)
+    if not m:
+        return None
+    try:
+        v = float(m.group(1).replace(",", "."))
+        return v if v > 0 else None
+    except ValueError:
+        return None
+
+
 def parse_float(value) -> float | None:
     if value is None or value == "":
         return None
