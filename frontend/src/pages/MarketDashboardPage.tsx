@@ -18,6 +18,7 @@ export default function MarketDashboardPage() {
   const [mnn, setMnn] = useState(searchParams.get("mnn") ?? "");
   const [selectedLf, setSelectedLf] = useState<string | null>(null);
   const [selectedDose, setSelectedDose] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,6 +28,7 @@ export default function MarketDashboardPage() {
       selectedMnn: string,
       lf: string | null,
       dose: string | null,
+      year: number | null,
     ) => {
       if (!marketId || !selectedMnn.trim()) return;
       setLoading(true);
@@ -35,7 +37,7 @@ export default function MarketDashboardPage() {
         const res = await getDashboard(
           parseInt(marketId),
           selectedMnn,
-          { lf, dose },
+          { lf, dose, year },
         );
         setData(res);
       } catch {
@@ -53,6 +55,7 @@ export default function MarketDashboardPage() {
       setMnn(newMnn);
       setSelectedLf(null);
       setSelectedDose(null);
+      setSelectedYear(null);
       if (newMnn) {
         setSearchParams({ mnn: newMnn }, { replace: true });
       } else {
@@ -62,29 +65,34 @@ export default function MarketDashboardPage() {
     [setSearchParams],
   );
 
-  // Sync MNN when URL ?mnn= changes (e.g., navigating from Overview)
   useEffect(() => {
     const urlMnn = searchParams.get("mnn") ?? "";
     if (urlMnn !== mnn) {
       setMnn(urlMnn);
       setSelectedLf(null);
       setSelectedDose(null);
+      setSelectedYear(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const handleFiltersChange = useCallback(
-    (lf: string | null, dose: string | null) => {
+    (
+      lf: string | null,
+      dose: string | null,
+      year: number | null,
+    ) => {
       setSelectedLf(lf);
       setSelectedDose(dose);
+      setSelectedYear(year);
     },
     [],
   );
 
   useEffect(() => {
     if (!mnn) return;
-    fetchDashboard(mnn, selectedLf, selectedDose);
-  }, [selectedLf, selectedDose, mnn, fetchDashboard]);
+    fetchDashboard(mnn, selectedLf, selectedDose, selectedYear);
+  }, [selectedLf, selectedDose, selectedYear, mnn, fetchDashboard]);
 
   return (
     <div className="space-y-6">
@@ -117,6 +125,8 @@ export default function MarketDashboardPage() {
           dosesFormsMap={data.doses_forms_map ?? {}}
           selectedLf={selectedLf}
           selectedDose={selectedDose}
+          availableYears={data.available_years ?? data.years ?? []}
+          selectedYear={selectedYear ?? data.selected_year}
           onChange={handleFiltersChange}
         />
       )}

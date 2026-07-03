@@ -740,7 +740,7 @@ function BgGCard({
   years: number[];
 }) {
   const yearLabels = years.length
-    ? years.slice(-3).map(String)
+    ? years.slice(-3).map((y) => (y ? String(y) : "—"))
     : ["Y1", "Y2", "Y3"];
   while (yearLabels.length < 3) yearLabels.unshift("—");
   const trendData = yearLabels.map((y, k) => ({

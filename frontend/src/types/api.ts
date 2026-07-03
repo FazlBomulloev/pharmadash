@@ -265,12 +265,18 @@ export interface Zone3Data {
 export interface DashboardResponse {
   mnn: string;
   years: number[];
+  available_years: number[];
+  selected_year: number | null;
   regions: string[];
   available_forms: string[];
   available_doses: string[];
   forms_doses_map: Record<string, string[]>;
   doses_forms_map: Record<string, string[]>;
-  applied_filter: { lf: string | null; dose: string | null };
+  applied_filter: {
+    lf: string | null;
+    dose: string | null;
+    year: number | null;
+  };
   zone1: KpiZone1;
   zone2: Zone2Data;
   atc_benchmark: AtcBenchmark[];
@@ -383,6 +389,8 @@ export interface OverviewHeader {
   market_id: number;
   name: string;
   years: number[];
+  available_years: number[];
+  selected_year: number | null;
   regions: string[];
   language: string;
   fx_rate_usd_rub: number | null;
@@ -527,6 +535,7 @@ export interface OverviewQuery {
   sector?: "all" | "ret" | "hos";
   atc3?: string | null;
   jnvlp?: "all" | "only" | "exclude";
+  year?: number | null;
 }
 
 // ─────────────── Drill-down: Producer / Country ───────────────

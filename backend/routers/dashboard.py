@@ -5,10 +5,13 @@ import re
 import time
 from collections import defaultdict
 from datetime import date
+from types import SimpleNamespace
+from typing import Any, Iterable
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select, func
+from sqlalchemy import literal, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import (
     MIN_COMPETITOR_USD,
@@ -23,6 +26,13 @@ from backend.services.scoring import (
     calculate_regulatory_score,
     get_recommendation,
     generate_drivers_and_flags,
+)
+from backend.services.year_shift import (
+    parse_years,
+    resolve_year_idx,
+    selected_year,
+    shift_items,
+    shifted_years,
 )
 
 
@@ -165,14 +175,18 @@ async def dashboard(
     mnn: str,
     lf: str | None = Query(None),
     dose: str | None = Query(None),
+    year: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
 
+    year_idx = resolve_year_idx(market, year)
+    selected = selected_year(market, year)
+
     mnn_upper = mnn.strip().upper()
-    cache_key = (market_id, mnn_upper, lf or "", dose or "")
+    cache_key = (market_id, mnn_upper, lf or "", dose or "", year_idx)
     now = time.monotonic()
     cached = _DASHBOARD_CACHE.get(cache_key)
     if cached and now - cached[0] < _DASHBOARD_CACHE_TTL_SEC:
@@ -202,13 +216,17 @@ async def dashboard(
     available_forms = sorted(forms_doses_map.keys())
     available_doses = sorted(doses_forms_map.keys())
 
+    # Сдвигаем окно годов если выбран не последний год.
+    all_items = shift_items(all_items, year_idx)
+
     items = all_items
     if lf:
         items = [i for i in items if _form_key(i) == lf]
     if dose:
         items = [i for i in items if _dose_key(i) == dose]
 
-    years = json.loads(market.years_json)
+    years = parse_years(market)
+    shifted_year_list = shifted_years(market, year_idx)
     regions = (
         json.loads(market.regions_json)
         if market.regions_json else []
@@ -223,18 +241,20 @@ async def dashboard(
         .where(PcEntry.market_id == market_id)
     )).scalar() > 0
 
-    zone1 = _build_zone1(items, years)
+    zone1 = _build_zone1(items, shifted_year_list)
     zone2 = await _build_zone2(
         items, db, market_id, real_canonical, all_items,
     )
     atc_benchmark = await _build_atc_benchmark(
-        db, market_id, items, real_canonical,
+        db, market_id, items, real_canonical, year_idx,
     )
     zone3 = _build_zone3(zone1, zone2, has_grls, has_pc)
 
     payload = {
         "mnn": real_canonical,
-        "years": years,
+        "years": shifted_year_list,
+        "available_years": years,
+        "selected_year": selected,
         "regions": regions,
         "available_forms": available_forms,
         "available_doses": available_doses,
@@ -244,7 +264,7 @@ async def dashboard(
         "doses_forms_map": {
             k: sorted(v) for k, v in doses_forms_map.items()
         },
-        "applied_filter": {"lf": lf, "dose": dose},
+        "applied_filter": {"lf": lf, "dose": dose, "year": selected},
         "zone1": zone1,
         "zone2": zone2,
         "atc_benchmark": atc_benchmark,
@@ -294,7 +314,7 @@ def _build_zone1(items, years) -> dict:
 
     status = _classify_market_status(usd_growth, un_growth)
 
-    y_labels = [str(y) for y in sorted(years)[-3:]]
+    y_labels = [str(y) if y else "—" for y in sorted(years)[-3:]]
     trend = {
         "years": y_labels,
         "usd": [usd_y1, usd_y2, usd_y3],
@@ -719,6 +739,7 @@ async def _build_atc_benchmark(
     market_id: int,
     our_items: list,
     real_canonical: str,
+    year_idx: int = 2,
 ) -> list[dict]:
     """Бенчмарки нашего МНН по каждому ATC-классу из текущей
     выборки (с учётом фильтров lf/dose).
@@ -735,12 +756,26 @@ async def _build_atc_benchmark(
     if not our_atcs:
         return []
 
-    # Один запрос — все строки рынка с непустым ATC
+    # Динамически выбираем колонки USD в зависимости от year_idx.
+    # year_idx=2 → usd_y2, usd_y3 (как есть, для growth)
+    # year_idx=1 → usd_y1 as usd_y2, usd_y2 as usd_y3 (сдвиг)
+    # year_idx=0 → 0 as usd_y2, usd_y1 as usd_y3 (Y2 отсутствует)
+    if year_idx == 2:
+        col_usd_y2 = BdpRaw.usd_y2
+        col_usd_y3 = BdpRaw.usd_y3
+    elif year_idx == 1:
+        col_usd_y2 = BdpRaw.usd_y1
+        col_usd_y3 = BdpRaw.usd_y2
+    else:
+        col_usd_y2 = literal(0.0)
+        col_usd_y3 = BdpRaw.usd_y1
+
     result = await db.execute(
         select(
             BdpRaw.mnn_canonical, BdpRaw.mnn, BdpRaw.atc,
             BdpRaw.producer, BdpRaw.producer_canonical,
-            BdpRaw.usd_y2, BdpRaw.usd_y3,
+            col_usd_y2.label("usd_y2"),
+            col_usd_y3.label("usd_y3"),
         ).where(
             BdpRaw.market_id == market_id,
             BdpRaw.atc.isnot(None),

@@ -58,10 +58,11 @@ export async function getMarketOverview(
   id: number,
   query: OverviewQuery = {},
 ): Promise<OverviewResponse> {
-  const params: Record<string, string> = {};
+  const params: Record<string, string | number> = {};
   if (query.sector && query.sector !== "all") params.sector = query.sector;
   if (query.atc3) params.atc3 = query.atc3;
   if (query.jnvlp && query.jnvlp !== "all") params.jnvlp = query.jnvlp;
+  if (query.year != null) params.year = query.year;
   const { data } = await api.get<OverviewResponse>(
     `/markets/${id}/overview`,
     { params },
@@ -153,11 +154,16 @@ export async function getMnnList(
 export async function getDashboard(
   marketId: number,
   mnn: string,
-  filters: { lf?: string | null; dose?: string | null } = {},
+  filters: {
+    lf?: string | null;
+    dose?: string | null;
+    year?: number | null;
+  } = {},
 ): Promise<DashboardResponse> {
-  const params: Record<string, string> = {};
+  const params: Record<string, string | number> = {};
   if (filters.lf) params.lf = filters.lf;
   if (filters.dose) params.dose = filters.dose;
+  if (filters.year != null) params.year = filters.year;
   const { data } = await api.get(
     `/markets/${marketId}/dashboard/${encodeURIComponent(mnn)}`,
     { params },

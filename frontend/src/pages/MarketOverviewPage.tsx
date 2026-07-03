@@ -17,6 +17,7 @@ const EMPTY_FILTERS: OverviewQuery = {
   sector: "all",
   atc3: null,
   jnvlp: "all",
+  year: null,
 };
 
 export default function MarketOverviewPage() {
@@ -78,6 +79,9 @@ export default function MarketOverviewPage() {
       <OverviewFilters
         filters={data.filters}
         value={filters}
+        availableYears={
+          data.header.available_years ?? data.header.years ?? []
+        }
         onChange={setFilters}
       />
 

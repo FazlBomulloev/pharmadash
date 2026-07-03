@@ -1,4 +1,4 @@
-import { Filter, X } from "lucide-react";
+import { Filter, X, CalendarDays } from "lucide-react";
 import clsx from "clsx";
 import type {
   OverviewFilters as FiltersData,
@@ -8,6 +8,7 @@ import type {
 interface Props {
   filters: FiltersData;
   value: OverviewQuery;
+  availableYears?: number[];
   onChange: (next: OverviewQuery) => void;
 }
 
@@ -26,15 +27,23 @@ const JNVLP_OPTIONS: {
 ];
 
 export default function OverviewFilters({
-  filters, value, onChange,
+  filters, value, availableYears = [], onChange,
 }: Props) {
+  const latestYear =
+    availableYears.length > 0
+      ? availableYears[availableYears.length - 1]
+      : null;
+  const yearIsDefault =
+    value.year == null || value.year === latestYear;
+
   const hasActive =
     (value.sector && value.sector !== "all") ||
     !!value.atc3 ||
-    (value.jnvlp && value.jnvlp !== "all");
+    (value.jnvlp && value.jnvlp !== "all") ||
+    !yearIsDefault;
 
   function reset() {
-    onChange({ sector: "all", atc3: null, jnvlp: "all" });
+    onChange({ sector: "all", atc3: null, jnvlp: "all", year: null });
   }
 
   return (
@@ -72,6 +81,39 @@ export default function OverviewFilters({
             value={value.jnvlp ?? "all"}
             onChange={(v) => onChange({ ...value, jnvlp: v })}
           />
+        )}
+
+        {availableYears.length > 1 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 flex items-center gap-1">
+              <CalendarDays size={12} />
+              Год:
+            </span>
+            <div className="flex bg-slate-100 rounded-lg p-0.5">
+              {availableYears.map((y) => {
+                const active = (value.year ?? latestYear) === y;
+                return (
+                  <button
+                    key={y}
+                    onClick={() =>
+                      onChange({
+                        ...value,
+                        year: y === latestYear ? null : y,
+                      })
+                    }
+                    className={clsx(
+                      "px-3 py-1 text-xs font-medium rounded-md transition-all tabular-nums",
+                      active
+                        ? "bg-white text-indigo-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700",
+                    )}
+                  >
+                    {y}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {hasActive && (

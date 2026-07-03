@@ -34,6 +34,13 @@ from backend.services.scoring import (
     calculate_regulatory_score,
     get_recommendation,
 )
+from backend.services.year_shift import (
+    parse_years,
+    resolve_year_idx,
+    selected_year,
+    shift_items,
+    shifted_years,
+)
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["overview"])
@@ -134,7 +141,7 @@ def _build_volume(items: list[BdpRaw], years: list[int]) -> dict:
     )
     bg_g_total = bg_usd + g_usd
 
-    y_labels = [str(y) for y in sorted(years)[-3:]]
+    y_labels = [str(y) if y else "—" for y in sorted(years)[-3:]]
 
     return {
         "usd_y1": usd_y1,
@@ -629,14 +636,23 @@ async def market_overview(
     sector: str | None = Query(None, regex="^(ret|hos|all)?$"),
     atc3: str | None = Query(None),
     jnvlp: str | None = Query(None, regex="^(all|only|exclude)?$"),
+    year: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    cache_key = (market_id, sector or "all", atc3, jnvlp or "all")
+    market = await db.get(Market, market_id)
+    if not market:
+        raise HTTPException(404, "Рынок не найден")
+    year_idx = resolve_year_idx(market, year)
+    cache_key = (
+        market_id, sector or "all", atc3, jnvlp or "all", year_idx,
+    )
     was_cached = (
         cache_key in _OVERVIEW_CACHE
         and (time.time() - _OVERVIEW_CACHE[cache_key][0]) < _CACHE_TTL_SEC
     )
-    response = await _compute_overview(db, market_id, sector, atc3, jnvlp)
+    response = await _compute_overview(
+        db, market_id, sector, atc3, jnvlp, year_idx, market,
+    )
     # Прогрев только если запрос был холодный — иначе плодим лишние задачи.
     if not was_cached:
         background_tasks.add_task(_prewarm_market_overview, market_id)
@@ -649,15 +665,20 @@ async def _compute_overview(
     sector: str | None,
     atc3: str | None,
     jnvlp: str | None,
+    year_idx: int = 2,
+    market=None,
 ):
-    cache_key = (market_id, sector or "all", atc3, jnvlp or "all")
+    cache_key = (
+        market_id, sector or "all", atc3, jnvlp or "all", year_idx,
+    )
     cached = _OVERVIEW_CACHE.get(cache_key)
     if cached and (time.time() - cached[0]) < _CACHE_TTL_SEC:
         return cached[1]
 
-    market = await db.get(Market, market_id)
-    if not market:
-        raise HTTPException(404, "Рынок не найден")
+    if market is None:
+        market = await db.get(Market, market_id)
+        if not market:
+            raise HTTPException(404, "Рынок не найден")
 
     all_bdp_items, grls_rows, pc_rows = await _load_market_rows(
         db, market_id,
@@ -665,7 +686,12 @@ async def _compute_overview(
     if not all_bdp_items:
         raise HTTPException(400, "Для рынка не загружены данные БДП")
 
-    years = json.loads(market.years_json)
+    # Сдвигаем окно годов если выбран не последний.
+    all_bdp_items = shift_items(all_bdp_items, year_idx)
+
+    years = parse_years(market)
+    shifted_year_list = shifted_years(market, year_idx)
+    selected = years[year_idx] if years else None
     regions = (
         json.loads(market.regions_json) if market.regions_json else []
     )
@@ -748,7 +774,7 @@ async def _compute_overview(
     pc_mnns = {p.mnn_canonical for p in scoped_pc if p.mnn_canonical}
 
     portfolio = _build_portfolio(bdp_items, jnvlp_mnns)
-    volume = _build_volume(bdp_items, years)
+    volume = _build_volume(bdp_items, shifted_year_list)
     decision = _build_decision(
         bdp_items, jnvlp_mnns, pc_mnns,
         has_grls=bool(scoped_grls),
@@ -759,6 +785,8 @@ async def _compute_overview(
         "market_id": market.id,
         "name": market.name,
         "years": years,
+        "available_years": years,
+        "selected_year": selected,
         "regions": regions,
         "language": market.language,
         "fx_rate_usd_rub": market.fx_rate_usd_rub,
@@ -780,6 +808,7 @@ async def _compute_overview(
             "sector": sector or "all",
             "atc3": atc3,
             "jnvlp": jnvlp or "all",
+            "year": selected,
         },
         "options": {
             "atc3": atc_options,

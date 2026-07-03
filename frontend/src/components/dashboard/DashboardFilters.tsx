@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { X, Filter } from "lucide-react";
+import { X, Filter, CalendarDays } from "lucide-react";
+import clsx from "clsx";
 
 interface Props {
   availableForms: string[];
@@ -8,7 +9,13 @@ interface Props {
   dosesFormsMap: Record<string, string[]>;
   selectedLf: string | null;
   selectedDose: string | null;
-  onChange: (lf: string | null, dose: string | null) => void;
+  availableYears: number[];
+  selectedYear: number | null;
+  onChange: (
+    lf: string | null,
+    dose: string | null,
+    year: number | null,
+  ) => void;
 }
 
 export default function DashboardFilters({
@@ -18,6 +25,8 @@ export default function DashboardFilters({
   dosesFormsMap,
   selectedLf,
   selectedDose,
+  availableYears,
+  selectedYear,
   onChange,
 }: Props) {
   const formsForCurrentDose = useMemo(() => {
@@ -36,12 +45,11 @@ export default function DashboardFilters({
 
   const handleLfChange = (value: string) => {
     const lf = value || null;
-    // если новая форма не содержит выбранную дозу — сбросить дозу
     const nextDose =
       lf && selectedDose && !formsDosesMap[lf]?.includes(selectedDose)
         ? null
         : selectedDose;
-    onChange(lf, nextDose);
+    onChange(lf, nextDose, selectedYear);
   };
 
   const handleDoseChange = (value: string) => {
@@ -50,10 +58,21 @@ export default function DashboardFilters({
       dose && selectedLf && !dosesFormsMap[dose]?.includes(selectedLf)
         ? null
         : selectedLf;
-    onChange(nextLf, dose);
+    onChange(nextLf, dose, selectedYear);
   };
 
-  const hasActive = selectedLf || selectedDose;
+  const handleYearChange = (year: number | null) => {
+    onChange(selectedLf, selectedDose, year);
+  };
+
+  const defaultYear =
+    availableYears.length > 0
+      ? availableYears[availableYears.length - 1]
+      : null;
+  const yearIsDefault =
+    selectedYear === null || selectedYear === defaultYear;
+
+  const hasActive = selectedLf || selectedDose || !yearIsDefault;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -77,9 +96,18 @@ export default function DashboardFilters({
           onChange={handleDoseChange}
         />
 
+        {availableYears.length > 1 && (
+          <YearSegControl
+            label="Год"
+            value={selectedYear ?? defaultYear}
+            options={availableYears}
+            onChange={handleYearChange}
+          />
+        )}
+
         {hasActive && (
           <button
-            onClick={() => onChange(null, null)}
+            onClick={() => onChange(null, null, null)}
             className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded-md hover:bg-slate-100"
           >
             <X size={12} />
@@ -118,5 +146,42 @@ function FilterSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function YearSegControl({
+  label, value, options, onChange,
+}: {
+  label: string;
+  value: number | null;
+  options: number[];
+  onChange: (v: number | null) => void;
+}) {
+  const latest = options[options.length - 1] ?? null;
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-slate-500 flex items-center gap-1">
+        <CalendarDays size={13} />
+        {label}:
+      </span>
+      <div className="flex bg-slate-100 rounded-lg p-0.5">
+        {options.map((y) => (
+          <button
+            key={y}
+            onClick={() =>
+              onChange(y === latest ? null : y)
+            }
+            className={clsx(
+              "px-3 py-1 text-xs font-medium rounded-md transition-all tabular-nums",
+              value === y
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-slate-500 hover:text-slate-700",
+            )}
+          >
+            {y}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
