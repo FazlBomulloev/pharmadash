@@ -103,9 +103,29 @@ export default function Zone1({ data }: { data: KpiZone1 }) {
               : undefined
           }
           tooltip={
-            data.competitor_threshold_usd
-              ? `Активный конкурент = производитель с продажами ≥ $${Math.round(data.competitor_threshold_usd).toLocaleString("ru-RU")} в последнем году (порог = max($10K, 0.1% рынка))`
-              : "Производитель с продажами ≥ 0.1% рынка или $10K"
+            <>
+              <span className="block font-semibold mb-1 text-white">
+                Как отбираются активные
+              </span>
+              <span className="block text-slate-300">
+                Производитель попадает в «активные», если его продажи в{" "}
+                последнем году ≥ порога.
+              </span>
+              <span className="block mt-2 font-mono text-[11px] text-emerald-300">
+                порог = max($10&nbsp;000, 0.1% рынка)
+              </span>
+              {data.competitor_threshold_usd != null && (
+                <span className="block mt-1.5 text-slate-400 text-[11px]">
+                  Сейчас:{" "}
+                  <span className="text-white font-medium">
+                    $
+                    {Math.round(
+                      data.competitor_threshold_usd,
+                    ).toLocaleString("ru-RU")}
+                  </span>
+                </span>
+              )}
+            </>
           }
           icon={Users}
           gradient="bg-gradient-to-br from-purple-500 to-pink-600"

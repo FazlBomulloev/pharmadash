@@ -29,7 +29,7 @@ export default function DrillDownRow({
         className={clsx(
           "border-b border-slate-100 cursor-pointer transition-colors select-none",
           expanded
-            ? "bg-indigo-50/60"
+            ? "bg-indigo-50/70"
             : "hover:bg-slate-50/60",
           rowClassName,
         )}
@@ -46,10 +46,14 @@ export default function DrillDownRow({
         {columns}
       </tr>
       {expanded && (
-        <tr className="bg-slate-50/40">
+        <tr>
           <td colSpan={colSpan} className="p-0">
-            <div className="border-l-4 border-indigo-500 bg-slate-50/80 rounded-r-lg mx-2 my-2 p-4 md:p-5 transition-all duration-200 ease-out">
-              {children}
+            <div className="mx-2 my-2 relative overflow-hidden rounded-xl ring-1 ring-slate-200/70 shadow-inner bg-gradient-to-br from-slate-50 via-white to-indigo-50/40">
+              {/* left accent gradient */}
+              <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-indigo-400 via-indigo-500 to-violet-500" />
+              {/* subtle top highlight */}
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-200/60 to-transparent" />
+              <div className="relative p-5 md:p-6">{children}</div>
             </div>
           </td>
         </tr>

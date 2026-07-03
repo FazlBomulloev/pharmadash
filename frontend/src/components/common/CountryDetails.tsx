@@ -104,16 +104,23 @@ export default function CountryDetails({
   const shareLabel = scope === "mnn" ? "Доля в МНН" : "Доля рынка";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Flag size={16} className="text-indigo-500" />
-        <h5 className="text-sm font-semibold text-slate-800 truncate">
-          {data.name}
-        </h5>
-        <span className="text-[11px] uppercase tracking-wider text-slate-400 ml-2">
-          {scope === "mnn" ? "детали в МНН" : "детали на рынке"}
-        </span>
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-200/70">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/15 ring-1 ring-emerald-500/20 flex items-center justify-center flex-shrink-0">
+          <Flag size={18} className="text-emerald-600" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h5 className="text-base font-bold text-slate-900 truncate leading-tight">
+            {data.name}
+          </h5>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/15">
+              {scope === "mnn" ? "в контексте МНН" : "на всём рынке"}
+            </span>
+            <span className="text-[11px] text-slate-400">Страна производства</span>
+          </div>
+        </div>
       </div>
 
       {/* KPI mini row */}
@@ -275,14 +282,25 @@ function MiniKpi({
   const toneCls =
     tone === "up" ? "text-emerald-600" :
     tone === "down" ? "text-red-600" :
-    "text-slate-800";
+    "text-slate-900";
+  const accentBar =
+    tone === "up" ? "bg-emerald-400" :
+    tone === "down" ? "bg-red-400" :
+    "bg-emerald-400/60";
+  const iconBg =
+    tone === "up" ? "bg-emerald-500/10 text-emerald-600" :
+    tone === "down" ? "bg-red-500/10 text-red-600" :
+    "bg-emerald-500/10 text-emerald-600";
   return (
-    <div className="bg-white rounded-lg border border-slate-200 px-3 py-2">
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500">
-        <Icon size={10} />
+    <div className="relative overflow-hidden bg-white rounded-lg ring-1 ring-slate-200/70 shadow-sm hover:shadow transition-shadow px-3 py-2.5">
+      <div className={clsx("absolute inset-x-0 top-0 h-0.5", accentBar)} />
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500">
+        <span className={clsx("w-4 h-4 rounded-md flex items-center justify-center", iconBg)}>
+          <Icon size={10} />
+        </span>
         <span className="truncate">{label}</span>
       </div>
-      <p className={clsx("text-base font-bold mt-0.5", toneCls)}>{value}</p>
+      <p className={clsx("text-lg font-bold mt-1 leading-none tabular-nums", toneCls)}>{value}</p>
     </div>
   );
 }
@@ -290,7 +308,8 @@ function MiniKpi({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h6 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
+      <h6 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2.5">
+        <span className="w-0.5 h-3 rounded-full bg-gradient-to-b from-emerald-400 to-teal-500" />
         {title}
       </h6>
       {children}
