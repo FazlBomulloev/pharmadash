@@ -34,9 +34,12 @@ export default function KpiCard({
 
   return (
     <div className="relative">
-      <div className="relative overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div className="relative rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-300">
         <div
-          className={clsx("absolute inset-0 opacity-[0.04]", gradient)}
+          className={clsx(
+            "absolute inset-0 rounded-xl opacity-[0.04] pointer-events-none",
+            gradient,
+          )}
         />
         <div className="relative p-5">
           <div className="flex items-start justify-between mb-3">
