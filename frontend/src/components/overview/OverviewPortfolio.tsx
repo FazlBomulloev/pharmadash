@@ -117,6 +117,7 @@ export default function OverviewPortfolio({
               <tr className="text-slate-500 border-b border-slate-100">
                 <th className="w-6"></th>
                 <th className="text-left py-1.5 font-medium">Производитель</th>
+                <th className="text-left py-1.5 font-medium">Страна</th>
                 <th className="text-right py-1.5 font-medium">USD</th>
                 <th className="text-right py-1.5 font-medium">Доля</th>
                 <th className="text-right py-1.5 font-medium">Y/Y</th>
@@ -132,11 +133,14 @@ export default function OverviewPortfolio({
                       prev === p.name ? null : p.name,
                     )
                   }
-                  colSpan={5}
+                  colSpan={6}
                   columns={
                     <>
                       <td className="py-1.5 font-medium text-slate-700 truncate max-w-[220px]">
                         {p.name}
+                      </td>
+                      <td className="py-1.5 text-slate-600 text-xs truncate max-w-[120px]">
+                        {p.country ?? "—"}
                       </td>
                       <td className="py-1.5 text-right">{fmtUsd(p.usd)}</td>
                       <td className="py-1.5 text-right text-slate-500">

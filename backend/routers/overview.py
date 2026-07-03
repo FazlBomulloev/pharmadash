@@ -192,14 +192,21 @@ def _build_portfolio(items: list[BdpRaw], jnvlp_mnns: set[str]) -> dict:
     ]
 
     producer_data: dict[str, dict] = defaultdict(
-        lambda: {"usd_y2": 0.0, "usd_y3": 0.0}
+        lambda: {
+            "usd_y2": 0.0, "usd_y3": 0.0,
+            "country_usd": defaultdict(float),
+        }
     )
     for i in items:
         prod = i.producer_canonical or i.producer
         if not prod:
             continue
-        producer_data[prod]["usd_y2"] += i.usd_y2
-        producer_data[prod]["usd_y3"] += i.usd_y3
+        pd = producer_data[prod]
+        pd["usd_y2"] += i.usd_y2
+        pd["usd_y3"] += i.usd_y3
+        c = (i.country_mfr or "").strip()
+        if c:
+            pd["country_usd"][c] += i.usd_y3
 
     sorted_producers = sorted(
         producer_data.items(),
@@ -212,6 +219,10 @@ def _build_portfolio(items: list[BdpRaw], jnvlp_mnns: set[str]) -> dict:
             "usd": d["usd_y3"],
             "share": _safe_div(d["usd_y3"], total) or 0,
             "growth": _safe_growth(d["usd_y3"], d["usd_y2"]),
+            "country": (
+                max(d["country_usd"].items(), key=lambda x: x[1])[0]
+                if d["country_usd"] else None
+            ),
         }
         for k, d in sorted_producers[:10]
     ]

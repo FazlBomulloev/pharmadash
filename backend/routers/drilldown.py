@@ -192,6 +192,16 @@ def _producer_kpi(
         else None
     )
 
+    country_usd: dict[str, float] = defaultdict(float)
+    for i in items:
+        c = (i.country_mfr or "").strip()
+        if c:
+            country_usd[c] += i.usd_y3
+    top_country = (
+        max(country_usd.items(), key=lambda x: x[1])[0]
+        if country_usd else None
+    )
+
     return {
         "usd_y1": usd_y1, "usd_y2": usd_y2, "usd_y3": usd_y3,
         "un_y1": un_y1, "un_y2": un_y2, "un_y3": un_y3,
@@ -201,6 +211,7 @@ def _producer_kpi(
         "asp_y3": asp_y3,
         "asp_growth": asp_growth,
         "share_of_market": _safe_div(usd_y3, scope_total_usd_y3),
+        "top_country": top_country,
         "years_labels": years_labels,
     }
 
@@ -211,11 +222,19 @@ def _producer_mnn_portfolio(
     market_total_usd_y3: float,
 ) -> list[dict]:
     """Разбивка производителя по МНН (только market-scope).
-    competitors_in_mnn берём из pre-computed aggregate."""
+    Каждая строка включает топ-1 ТМ и форму этого производителя внутри
+    данного МНН, плюс BG/G-флаг по агрегированному USD.
+    competitors_in_mnn берётся из pre-computed aggregate по всему рынку.
+    """
     producer_total_y3 = sum(i.usd_y3 for i in items)
 
     mnn_data: dict[str, dict] = defaultdict(
-        lambda: {"usd_y2": 0.0, "usd_y3": 0.0}
+        lambda: {
+            "usd_y2": 0.0, "usd_y3": 0.0,
+            "tm_usd": defaultdict(float),
+            "form_usd": defaultdict(float),
+            "bg_usd": 0.0, "g_usd": 0.0,
+        }
     )
     for i in items:
         key = _mnn_key(i)
@@ -224,14 +243,41 @@ def _producer_mnn_portfolio(
         d = mnn_data[key]
         d["usd_y2"] += i.usd_y2
         d["usd_y3"] += i.usd_y3
+        tm = (i.tm or "").strip()
+        if tm:
+            d["tm_usd"][tm] += i.usd_y3
+        form = _form_key(i)
+        d["form_usd"][form] += i.usd_y3
+        flag = (i.bg_g or "").strip().upper()
+        if flag.startswith(("B", "Б")):
+            d["bg_usd"] += i.usd_y3
+        elif flag.startswith(("G", "Г")):
+            d["g_usd"] += i.usd_y3
 
     ranked = sorted(
         mnn_data.items(), key=lambda x: x[1]["usd_y3"], reverse=True,
     )[:15]
 
-    return [
-        {
+    result: list[dict] = []
+    for name, d in ranked:
+        top_tm = (
+            max(d["tm_usd"].items(), key=lambda x: x[1])[0]
+            if d["tm_usd"] else None
+        )
+        top_form = (
+            max(d["form_usd"].items(), key=lambda x: x[1])[0]
+            if d["form_usd"] else None
+        )
+        bg_g_total = d["bg_usd"] + d["g_usd"]
+        if bg_g_total <= 0:
+            bg_g_flag = None
+        else:
+            ratio = d["bg_usd"] / bg_g_total
+            bg_g_flag = "BG" if ratio >= 0.6 else "G" if ratio <= 0.4 else "MIXED"
+        result.append({
             "mnn": name,
+            "tm": top_tm,
+            "form": top_form,
             "usd_y3": d["usd_y3"],
             "share_in_market": _safe_div(
                 d["usd_y3"], market_total_usd_y3,
@@ -241,9 +287,9 @@ def _producer_mnn_portfolio(
             ) or 0.0,
             "growth": _safe_growth(d["usd_y3"], d["usd_y2"]),
             "competitors_in_mnn": market_mnn_competitors.get(name, 0),
-        }
-        for name, d in ranked
-    ]
+            "bg_g_flag": bg_g_flag,
+        })
+    return result
 
 
 def _producer_tm_breakdown(items: Sequence[Any]) -> list[dict]:

@@ -116,11 +116,17 @@ export default function ProducerDetails({
           <h5 className="text-base font-bold text-slate-900 truncate leading-tight">
             {data.name}
           </h5>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 ring-1 ring-inset ring-indigo-500/15">
               {scope === "mnn" ? "в контексте МНН" : "на всём рынке"}
             </span>
             <span className="text-[11px] text-slate-400">Производитель</span>
+            {kpi.top_country && (
+              <span className="text-[11px] text-slate-500 inline-flex items-center gap-1">
+                <MapPin size={10} className="text-slate-400" />
+                {kpi.top_country}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -135,18 +141,21 @@ export default function ProducerDetails({
         <MiniKpi label={shareLabel} value={fmtPct(kpi.share_of_market)} icon={PieIcon} />
       </div>
 
-      {/* MNN portfolio (market scope only) */}
+      {/* MNN portfolio (market scope only) — с ТМ и формой */}
       {scope === "market" && data.mnn_portfolio && data.mnn_portfolio.length > 0 && (
-        <Section title="Портфель МНН">
+        <Section title="Портфель МНН × ТМ × форма">
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
                   <th className="text-left py-2 px-3 font-medium">МНН</th>
+                  <th className="text-left py-2 px-3 font-medium">ТМ</th>
+                  <th className="text-left py-2 px-3 font-medium">Форма</th>
+                  <th className="text-center py-2 px-3 font-medium">БГ/Г</th>
                   <th className="text-right py-2 px-3 font-medium">USD</th>
-                  <th className="text-right py-2 px-3 font-medium">Доля в производителе</th>
+                  <th className="text-right py-2 px-3 font-medium">Доля в произв-е</th>
                   <th className="text-right py-2 px-3 font-medium">Доля рынка</th>
-                  <th className="text-right py-2 px-3 font-medium">Конкурентов</th>
+                  <th className="text-right py-2 px-3 font-medium">Конкур.</th>
                   <th className="text-right py-2 px-3 font-medium">Y/Y</th>
                   <th className="w-8"></th>
                 </tr>
@@ -161,7 +170,10 @@ export default function ProducerDetails({
                     }}
                     className="border-b border-slate-100 last:border-b-0 hover:bg-indigo-50/40 cursor-pointer"
                   >
-                    <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[220px]">{m.mnn}</td>
+                    <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[200px]">{m.mnn}</td>
+                    <td className="py-1.5 px-3 text-slate-600 truncate max-w-[160px]">{m.tm ?? "—"}</td>
+                    <td className="py-1.5 px-3 text-slate-600 truncate max-w-[120px]">{m.form ?? "—"}</td>
+                    <td className="py-1.5 px-3 text-center"><BgGBadge flag={m.bg_g_flag} /></td>
                     <td className="py-1.5 px-3 text-right">{fmtUsd(m.usd_y3)}</td>
                     <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(m.share_in_producer)}</td>
                     <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(m.share_in_market)}</td>
@@ -176,8 +188,8 @@ export default function ProducerDetails({
         </Section>
       )}
 
-      {/* TM × form */}
-      {data.tm_breakdown.length > 0 && (
+      {/* TM × form (mnn-scope only — на market scope это уже включено выше) */}
+      {scope === "mnn" && data.tm_breakdown.length > 0 && (
         <Section title="ТМ × форма">
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="w-full text-sm">

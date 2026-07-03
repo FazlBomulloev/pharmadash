@@ -140,6 +140,7 @@ export interface Competitor {
   usd_growth: number | null;
   un_growth: number | null;
   bg_g_flag: BgGFlag | null;
+  country: string | null;
 }
 
 export interface NamedShare {
@@ -439,6 +440,7 @@ export interface OverviewProducer {
   usd: number;
   share: number;
   growth: number | null;
+  country: string | null;
 }
 
 export interface OverviewAtc {
@@ -553,16 +555,20 @@ export interface ProducerKpi {
   asp_y3: number | null;
   asp_growth: number | null;
   share_of_market: number | null;
+  top_country: string | null;
   years_labels: string[];
 }
 
 export interface MnnPortfolioItem {
   mnn: string;
+  tm: string | null;
+  form: string | null;
   usd_y3: number;
   share_in_market: number;
   share_in_producer: number;
   growth: number | null;
   competitors_in_mnn: number;
+  bg_g_flag: BgGFlag | null;
 }
 
 export interface TmBreakdownItem {

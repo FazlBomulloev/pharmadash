@@ -358,6 +358,7 @@ async def _build_zone2(
             "usd_y2": 0, "usd_y3": 0,
             "un_y2": 0, "un_y3": 0,
             "bg_usd_y3": 0.0, "g_usd_y3": 0.0,
+            "country_usd": defaultdict(float),
         }
     )
     for i in items:
@@ -374,6 +375,9 @@ async def _build_zone2(
             pd["bg_usd_y3"] += i.usd_y3
         elif flag.startswith(("G", "Г")):
             pd["g_usd_y3"] += i.usd_y3
+        country = (i.country_mfr or "").strip()
+        if country:
+            pd["country_usd"][country] += i.usd_y3
 
     sorted_producers = sorted(
         producer_data.items(),
@@ -400,6 +404,10 @@ async def _build_zone2(
                 bg_g_flag = "G"
             else:
                 bg_g_flag = "MIXED"
+        top_country = (
+            max(d["country_usd"].items(), key=lambda x: x[1])[0]
+            if d["country_usd"] else None
+        )
         top_competitors.append({
             "corporation": name,
             "usd_last_year": d["usd_y3"],
@@ -409,6 +417,7 @@ async def _build_zone2(
             "usd_growth": usd_gr,
             "un_growth": un_gr,
             "bg_g_flag": bg_g_flag,
+            "country": top_country,
         })
 
     shares = [c["share"] for c in top_competitors]

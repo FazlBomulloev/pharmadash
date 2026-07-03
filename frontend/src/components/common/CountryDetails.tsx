@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, TrendingDown, ArrowRight, Flag,
-  DollarSign, Package, Users, Pill, ChevronDown,
+  DollarSign, Package, Users, Pill,
 } from "lucide-react";
 import clsx from "clsx";
 import { getCountryDetails } from "../../api/client";
@@ -209,56 +209,9 @@ export default function CountryDetails({
         </Section>
       )}
 
-      {/* Forms × TM (native details/summary) */}
+      {/* Forms × TM — dropdown selector */}
       {data.forms_breakdown.length > 0 && (
-        <Section title="Формы × ТМ">
-          <div className="space-y-2">
-            {data.forms_breakdown.map((f) => (
-              <details
-                key={f.form}
-                className="group rounded-lg border border-slate-200 bg-white"
-              >
-                <summary className="cursor-pointer list-none px-3 py-2 flex items-center gap-2 text-sm hover:bg-slate-50/50 rounded-lg">
-                  <ChevronDown
-                    size={14}
-                    className="text-slate-400 transition-transform group-open:rotate-0 -rotate-90"
-                  />
-                  <span className="font-medium text-slate-700 flex-1 truncate">
-                    {f.form || "—"}
-                  </span>
-                  <span className="text-xs text-slate-500 w-20 text-right">
-                    {fmtUsd(f.usd_y3)}
-                  </span>
-                  <span className="text-xs text-slate-400 w-14 text-right">
-                    {fmtPct(f.share_in_country)}
-                  </span>
-                </summary>
-                {f.tms.length > 0 && (
-                  <div className="border-t border-slate-100 px-3 pb-2">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-[10px] uppercase tracking-wider text-slate-400">
-                          <th className="text-left py-1.5 font-medium">ТМ</th>
-                          <th className="text-right py-1.5 font-medium">USD</th>
-                          <th className="text-right py-1.5 font-medium">Доля в форме</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {f.tms.map((t) => (
-                          <tr key={t.tm} className="border-t border-slate-50">
-                            <td className="py-1 text-slate-700 truncate max-w-[220px]">{t.tm}</td>
-                            <td className="py-1 text-right">{fmtUsd(t.usd_y3)}</td>
-                            <td className="py-1 text-right text-slate-500">{fmtPct(t.share_in_form)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </details>
-            ))}
-          </div>
-        </Section>
+        <FormsTmDropdown items={data.forms_breakdown} />
       )}
     </div>
   );
@@ -330,6 +283,99 @@ function Growth({ value }: { value: number | null }) {
       {isUp ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
       {signed(value)}
     </span>
+  );
+}
+
+function FormsTmDropdown({
+  items,
+}: {
+  items: CountryDetailsData["forms_breakdown"];
+}) {
+  const [selectedForm, setSelectedForm] = useState<string>(
+    items[0]?.form ?? "",
+  );
+  const selected = useMemo(
+    () => items.find((f) => f.form === selectedForm) ?? items[0],
+    [items, selectedForm],
+  );
+  if (!selected) return null;
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2.5">
+        <h6 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 flex-1">
+          <span className="w-0.5 h-3 rounded-full bg-gradient-to-b from-emerald-400 to-teal-500" />
+          Формы × ТМ
+        </h6>
+        <select
+          value={selected.form}
+          onChange={(e) => setSelectedForm(e.target.value)}
+          className="text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md px-2.5 py-1 min-w-[160px] max-w-[280px] focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 cursor-pointer"
+        >
+          {items.map((f) => (
+            <option key={f.form} value={f.form}>
+              {f.form || "—"} · {fmtUsd(f.usd_y3)} · {fmtPct(f.share_in_country)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 text-xs">
+          <span className="text-slate-500">
+            Форма:{" "}
+            <span className="font-semibold text-slate-700">
+              {selected.form || "—"}
+            </span>
+          </span>
+          <span className="text-slate-500 flex items-center gap-3">
+            <span>
+              USD:{" "}
+              <span className="font-medium text-slate-700">
+                {fmtUsd(selected.usd_y3)}
+              </span>
+            </span>
+            <span>
+              Доля в стране:{" "}
+              <span className="font-medium text-slate-700">
+                {fmtPct(selected.share_in_country)}
+              </span>
+            </span>
+          </span>
+        </div>
+        {selected.tms.length > 0 ? (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                <th className="text-left py-1.5 px-3 font-medium">ТМ</th>
+                <th className="text-right py-1.5 px-3 font-medium">USD</th>
+                <th className="text-right py-1.5 px-3 font-medium">Доля в форме</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selected.tms.map((t) => (
+                <tr
+                  key={t.tm}
+                  className="border-b border-slate-50 last:border-b-0 hover:bg-slate-50/60"
+                >
+                  <td className="py-1.5 px-3 text-slate-700 truncate max-w-[280px]">
+                    {t.tm}
+                  </td>
+                  <td className="py-1.5 px-3 text-right">
+                    {fmtUsd(t.usd_y3)}
+                  </td>
+                  <td className="py-1.5 px-3 text-right text-slate-500">
+                    {fmtPct(t.share_in_form)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="px-3 py-3 text-xs text-slate-400">
+            У этой формы нет ТМ
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

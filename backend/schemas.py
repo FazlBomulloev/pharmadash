@@ -332,16 +332,20 @@ class ProducerKpi(BaseModel):
     asp_y3: float | None
     asp_growth: float | None
     share_of_market: float | None
+    top_country: str | None = None
     years_labels: list[str]
 
 
 class MnnPortfolioItem(BaseModel):
     mnn: str
+    tm: str | None = None
+    form: str | None = None
     usd_y3: float
     share_in_market: float
     share_in_producer: float
     growth: float | None
     competitors_in_mnn: int
+    bg_g_flag: str | None = None
 
 
 class TmBreakdownItem(BaseModel):

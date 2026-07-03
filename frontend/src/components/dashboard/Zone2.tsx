@@ -252,6 +252,9 @@ export default function Zone2({
                   <th className="text-left py-2 px-3 text-slate-500 font-medium">
                     Производитель
                   </th>
+                  <th className="text-left py-2 px-3 text-slate-500 font-medium">
+                    Страна
+                  </th>
                   <th className="text-center py-2 px-3 text-slate-500 font-medium">
                     БГ/Г
                   </th>
@@ -282,7 +285,7 @@ export default function Zone2({
                         prev === c.corporation ? null : c.corporation,
                       )
                     }
-                    colSpan={9}
+                    colSpan={10}
                     columns={
                       <>
                         <td className="py-2.5 px-3 text-slate-400">
@@ -299,6 +302,9 @@ export default function Zone2({
                             />
                             {c.corporation}
                           </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600 text-xs">
+                          {c.country ?? "—"}
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <BgGBadge flag={c.bg_g_flag} />
