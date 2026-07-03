@@ -2,9 +2,12 @@ import json
 import logging
 import math
 import re
+import time
 from collections import defaultdict
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import (
@@ -92,6 +95,29 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["dashboard"])
 
 
+# ────────────────────── dashboard cache ──────────────────────
+# Полный ответ /dashboard/{mnn}?lf&dose кешируется на 10 минут
+# как готовые JSON-байты (обходит Pydantic-валидацию при попадании
+# в кеш). Инвалидируется через invalidate_dashboard_cache(market_id).
+_DASHBOARD_CACHE: dict[tuple, tuple[float, bytes]] = {}
+_DASHBOARD_CACHE_TTL_SEC = 600
+
+
+def invalidate_dashboard_cache(market_id: int | None = None) -> None:
+    if market_id is None:
+        _DASHBOARD_CACHE.clear()
+        log.info("Кеш dashboard сброшен целиком")
+        return
+    keys = [k for k in _DASHBOARD_CACHE if k[0] == market_id]
+    for k in keys:
+        _DASHBOARD_CACHE.pop(k, None)
+    if keys:
+        log.info(
+            "Кеш dashboard сброшен для market_id=%d (%d ключей)",
+            market_id, len(keys),
+        )
+
+
 @router.get("/{market_id}/mnn-list")
 async def mnn_list(
     market_id: int,
@@ -146,6 +172,13 @@ async def dashboard(
         raise HTTPException(404, "Рынок не найден")
 
     mnn_upper = mnn.strip().upper()
+    cache_key = (market_id, mnn_upper, lf or "", dose or "")
+    now = time.monotonic()
+    cached = _DASHBOARD_CACHE.get(cache_key)
+    if cached and now - cached[0] < _DASHBOARD_CACHE_TTL_SEC:
+        return Response(
+            content=cached[1], media_type="application/json",
+        )
     stmt = select(BdpRaw).where(
         BdpRaw.market_id == market_id,
         func.upper(BdpRaw.mnn_canonical) == mnn_upper,
@@ -199,7 +232,7 @@ async def dashboard(
     )
     zone3 = _build_zone3(zone1, zone2, has_grls, has_pc)
 
-    return {
+    payload = {
         "mnn": real_canonical,
         "years": years,
         "regions": regions,
@@ -217,6 +250,11 @@ async def dashboard(
         "atc_benchmark": atc_benchmark,
         "zone3": zone3,
     }
+    body = json.dumps(
+        jsonable_encoder(payload), ensure_ascii=False,
+    ).encode("utf-8")
+    _DASHBOARD_CACHE[cache_key] = (now, body)
+    return Response(content=body, media_type="application/json")
 
 
 def _safe_growth(cur: float, prev: float) -> float | None:

@@ -6,13 +6,16 @@
   3. GET /markets/{market_id}/country/{country_name}
   4. GET /markets/{market_id}/mnn/{mnn}/country/{country_name}
 
-Все агрегации — в Python над строками BdpRaw. Кеш не добавляется.
+Оптимизация: не тянем всё БДП рынка. WHERE-фильтр по producer/country/mnn
+в SQL, выбираем только нужные колонки (не ORM instances).
 """
 import json
 import logging
 from collections import defaultdict
+from typing import Any, Sequence
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
@@ -21,6 +24,23 @@ from backend.models import Market, BdpRaw
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["drilldown"])
+
+
+# Набор колонок, нужных builder-ам. Не тянем ORM instance (20+ колонок,
+# hydrate 51K объектов — это и есть тормоз). Row поддерживает
+# attribute access, поэтому builders работают без изменений.
+BDP_COLS = (
+    BdpRaw.mnn, BdpRaw.mnn_canonical,
+    BdpRaw.tm,
+    BdpRaw.producer, BdpRaw.producer_canonical,
+    BdpRaw.sector, BdpRaw.sector_canonical,
+    BdpRaw.region,
+    BdpRaw.lf, BdpRaw.lf_canonical, BdpRaw.lf_avp,
+    BdpRaw.strength,
+    BdpRaw.country_mfr,
+    BdpRaw.usd_y1, BdpRaw.usd_y2, BdpRaw.usd_y3,
+    BdpRaw.un_y1, BdpRaw.un_y2, BdpRaw.un_y3,
+)
 
 
 # ────────────────────── helpers ──────────────────────
@@ -51,30 +71,16 @@ def _norm_mnn(name: str | None) -> str:
     return (name or "").strip().upper()
 
 
-def _producer_key(item: BdpRaw) -> str | None:
+def _producer_key(item: Any) -> str | None:
     return item.producer_canonical or item.producer
 
 
-def _mnn_key(item: BdpRaw) -> str | None:
+def _mnn_key(item: Any) -> str | None:
     return item.mnn_canonical or item.mnn
 
 
-def _form_key(item: BdpRaw) -> str:
+def _form_key(item: Any) -> str:
     return item.lf_canonical or item.lf_avp or "—"
-
-
-# ────────────────────── loaders ──────────────────────
-
-async def _load_market_items(
-    db: AsyncSession, market_id: int,
-) -> list[BdpRaw]:
-    market = await db.get(Market, market_id)
-    if not market:
-        raise HTTPException(404, "Рынок не найден")
-    result = await db.execute(
-        select(BdpRaw).where(BdpRaw.market_id == market_id)
-    )
-    return list(result.scalars().all())
 
 
 def _years_labels(market: Market) -> list[str]:
@@ -82,15 +88,94 @@ def _years_labels(market: Market) -> list[str]:
     return [str(y) for y in sorted(years)[-3:]]
 
 
+# ────────────────────── loaders (SQL-filtered, only needed cols) ──────────────────────
+
+async def _load_producer_items(
+    db: AsyncSession, market_id: int, producer_name: str,
+) -> Sequence[Any]:
+    target = _norm_producer(producer_name)
+    result = await db.execute(
+        select(*BDP_COLS).where(
+            BdpRaw.market_id == market_id,
+            or_(
+                func.lower(BdpRaw.producer_canonical) == target,
+                func.lower(BdpRaw.producer) == target,
+            ),
+        )
+    )
+    return result.all()
+
+
+async def _load_country_items(
+    db: AsyncSession, market_id: int, country_name: str,
+) -> Sequence[Any]:
+    target = _norm_country(country_name)
+    result = await db.execute(
+        select(*BDP_COLS).where(
+            BdpRaw.market_id == market_id,
+            func.upper(BdpRaw.country_mfr) == target,
+        )
+    )
+    return result.all()
+
+
+async def _load_mnn_items(
+    db: AsyncSession, market_id: int, mnn: str,
+) -> Sequence[Any]:
+    target = _norm_mnn(mnn)
+    result = await db.execute(
+        select(*BDP_COLS).where(
+            BdpRaw.market_id == market_id,
+            func.upper(BdpRaw.mnn_canonical) == target,
+        )
+    )
+    return result.all()
+
+
+async def _market_total_usd_y3(db: AsyncSession, market_id: int) -> float:
+    result = await db.execute(
+        select(func.coalesce(func.sum(BdpRaw.usd_y3), 0.0))
+        .where(BdpRaw.market_id == market_id)
+    )
+    return float(result.scalar() or 0.0)
+
+
+async def _market_totals_3y(
+    db: AsyncSession, market_id: int,
+) -> tuple[float, float, float]:
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(BdpRaw.usd_y1), 0.0),
+            func.coalesce(func.sum(BdpRaw.usd_y2), 0.0),
+            func.coalesce(func.sum(BdpRaw.usd_y3), 0.0),
+        ).where(BdpRaw.market_id == market_id)
+    )
+    row = result.one()
+    return (float(row[0]), float(row[1]), float(row[2]))
+
+
+async def _mnn_competitors_map(
+    db: AsyncSession, market_id: int,
+) -> dict[str, int]:
+    """MNN (as stored) → count distinct producers на этом МНН.
+    Один aggregate SQL — быстрее чем python-loop над всем БДП."""
+    mnn_expr = func.coalesce(BdpRaw.mnn_canonical, BdpRaw.mnn).label("m")
+    prod_expr = func.coalesce(BdpRaw.producer_canonical, BdpRaw.producer)
+    result = await db.execute(
+        select(mnn_expr, func.count(func.distinct(prod_expr)).label("c"))
+        .where(BdpRaw.market_id == market_id)
+        .group_by(mnn_expr)
+    )
+    return {row.m: int(row.c) for row in result.all()}
+
+
 # ────────────────────── producer builders ──────────────────────
 
 def _producer_kpi(
-    items: list[BdpRaw],
+    items: Sequence[Any],
     scope_total_usd_y3: float,
     years_labels: list[str],
 ) -> dict:
-    """KPI по производителю. scope_total_usd_y3 — либо весь рынок,
-    либо один МНН (в зависимости от scope'а вызова)."""
     usd_y1 = sum(i.usd_y1 for i in items)
     usd_y2 = sum(i.usd_y2 for i in items)
     usd_y3 = sum(i.usd_y3 for i in items)
@@ -107,12 +192,8 @@ def _producer_kpi(
     )
 
     return {
-        "usd_y1": usd_y1,
-        "usd_y2": usd_y2,
-        "usd_y3": usd_y3,
-        "un_y1": un_y1,
-        "un_y2": un_y2,
-        "un_y3": un_y3,
+        "usd_y1": usd_y1, "usd_y2": usd_y2, "usd_y3": usd_y3,
+        "un_y1": un_y1, "un_y2": un_y2, "un_y3": un_y3,
         "usd_growth": _safe_growth(usd_y3, usd_y2),
         "un_growth": _safe_growth(un_y3, un_y2),
         "usd_cagr_2y": _cagr(usd_y1, usd_y3, 2),
@@ -124,15 +205,12 @@ def _producer_kpi(
 
 
 def _producer_mnn_portfolio(
-    items: list[BdpRaw],
-    market_items: list[BdpRaw],
+    items: Sequence[Any],
+    market_mnn_competitors: dict[str, int],
     market_total_usd_y3: float,
 ) -> list[dict]:
-    """Разбивка производителя по МНН (только для market-scope).
-
-    competitors_in_mnn — количество уникальных производителей
-    на данном МНН во ВСЁМ рынке.
-    """
+    """Разбивка производителя по МНН (только market-scope).
+    competitors_in_mnn берём из pre-computed aggregate."""
     producer_total_y3 = sum(i.usd_y3 for i in items)
 
     mnn_data: dict[str, dict] = defaultdict(
@@ -146,23 +224,12 @@ def _producer_mnn_portfolio(
         d["usd_y2"] += i.usd_y2
         d["usd_y3"] += i.usd_y3
 
-    # Кол-во конкурентов по МНН считаем по всему рынку.
-    market_mnn_producers: dict[str, set[str]] = defaultdict(set)
-    for i in market_items:
-        mkey = _mnn_key(i)
-        pkey = _producer_key(i)
-        if mkey and pkey:
-            market_mnn_producers[mkey].add(pkey)
-
     ranked = sorted(
-        mnn_data.items(),
-        key=lambda x: x[1]["usd_y3"],
-        reverse=True,
+        mnn_data.items(), key=lambda x: x[1]["usd_y3"], reverse=True,
     )[:15]
 
-    result = []
-    for name, d in ranked:
-        result.append({
+    return [
+        {
             "mnn": name,
             "usd_y3": d["usd_y3"],
             "share_in_market": _safe_div(
@@ -172,16 +239,13 @@ def _producer_mnn_portfolio(
                 d["usd_y3"], producer_total_y3,
             ) or 0.0,
             "growth": _safe_growth(d["usd_y3"], d["usd_y2"]),
-            "competitors_in_mnn": len(
-                market_mnn_producers.get(name, set()),
-            ),
-        })
-    return result
+            "competitors_in_mnn": market_mnn_competitors.get(name, 0),
+        }
+        for name, d in ranked
+    ]
 
 
-def _producer_tm_breakdown(items: list[BdpRaw]) -> list[dict]:
-    """Разбивка производителя по (ТМ, форма, дозировка). Пустые TM
-    пропускаем. Топ-20 по USD Y3."""
+def _producer_tm_breakdown(items: Sequence[Any]) -> list[dict]:
     producer_total_y3 = sum(i.usd_y3 for i in items)
 
     grouped: dict[tuple[str, str, str], dict] = defaultdict(
@@ -198,18 +262,13 @@ def _producer_tm_breakdown(items: list[BdpRaw]) -> list[dict]:
         grouped[key]["un_y3"] += i.un_y3
 
     ranked = sorted(
-        grouped.items(),
-        key=lambda x: x[1]["usd_y3"],
-        reverse=True,
+        grouped.items(), key=lambda x: x[1]["usd_y3"], reverse=True,
     )[:20]
 
     return [
         {
-            "tm": tm,
-            "form": form,
-            "dose": dose,
-            "usd_y3": d["usd_y3"],
-            "un_y3": d["un_y3"],
+            "tm": tm, "form": form, "dose": dose,
+            "usd_y3": d["usd_y3"], "un_y3": d["un_y3"],
             "share_in_producer": _safe_div(
                 d["usd_y3"], producer_total_y3,
             ) or 0.0,
@@ -218,7 +277,7 @@ def _producer_tm_breakdown(items: list[BdpRaw]) -> list[dict]:
     ]
 
 
-def _producer_sector_split(items: list[BdpRaw]) -> dict:
+def _producer_sector_split(items: Sequence[Any]) -> dict:
     total_y3 = sum(i.usd_y3 for i in items)
     ret_usd = sum(
         i.usd_y3 for i in items
@@ -229,14 +288,13 @@ def _producer_sector_split(items: list[BdpRaw]) -> dict:
         if "HOS" in (i.sector_canonical or i.sector or "")
     )
     return {
-        "ret_usd": ret_usd,
-        "hos_usd": hos_usd,
+        "ret_usd": ret_usd, "hos_usd": hos_usd,
         "ret_share": _safe_div(ret_usd, total_y3),
         "hos_share": _safe_div(hos_usd, total_y3),
     }
 
 
-def _producer_top_regions(items: list[BdpRaw]) -> list[dict]:
+def _producer_top_regions(items: Sequence[Any]) -> list[dict]:
     producer_total_y3 = sum(i.usd_y3 for i in items)
     region_data: dict[str, float] = defaultdict(float)
     for i in items:
@@ -258,8 +316,8 @@ def _producer_top_regions(items: list[BdpRaw]) -> list[dict]:
 # ────────────────────── country builders ──────────────────────
 
 def _country_kpi(
-    items: list[BdpRaw],
-    market_items: list[BdpRaw],
+    items: Sequence[Any],
+    market_totals: tuple[float, float, float],
     years_labels: list[str],
 ) -> dict:
     usd_y1 = sum(i.usd_y1 for i in items)
@@ -269,26 +327,18 @@ def _country_kpi(
     un_y2 = sum(i.un_y2 for i in items)
     un_y3 = sum(i.un_y3 for i in items)
 
-    market_usd_y1 = sum(i.usd_y1 for i in market_items)
-    market_usd_y2 = sum(i.usd_y2 for i in market_items)
-    market_usd_y3 = sum(i.usd_y3 for i in market_items)
+    market_usd_y1, market_usd_y2, market_usd_y3 = market_totals
 
     producers = {
         _producer_key(i) for i in items if _producer_key(i)
     }
-    mnns = {
-        _mnn_key(i) for i in items if _mnn_key(i)
-    }
+    mnns = {_mnn_key(i) for i in items if _mnn_key(i)}
 
     share_y3 = _safe_div(usd_y3, market_usd_y3)
 
     return {
-        "usd_y1": usd_y1,
-        "usd_y2": usd_y2,
-        "usd_y3": usd_y3,
-        "un_y1": un_y1,
-        "un_y2": un_y2,
-        "un_y3": un_y3,
+        "usd_y1": usd_y1, "usd_y2": usd_y2, "usd_y3": usd_y3,
+        "un_y1": un_y1, "un_y2": un_y2, "un_y3": un_y3,
         "usd_growth": _safe_growth(usd_y3, usd_y2),
         "un_growth": _safe_growth(un_y3, un_y2),
         "share_y1": _safe_div(usd_y1, market_usd_y1),
@@ -302,7 +352,7 @@ def _country_kpi(
 
 
 def _country_producers(
-    items: list[BdpRaw],
+    items: Sequence[Any],
     market_total_usd_y3: float,
 ) -> list[dict]:
     country_total_y3 = sum(i.usd_y3 for i in items)
@@ -320,8 +370,7 @@ def _country_producers(
 
     ranked = sorted(
         producer_data.items(),
-        key=lambda x: x[1]["usd_y3"],
-        reverse=True,
+        key=lambda x: x[1]["usd_y3"], reverse=True,
     )[:15]
 
     return [
@@ -340,7 +389,7 @@ def _country_producers(
     ]
 
 
-def _country_mnn_portfolio(items: list[BdpRaw]) -> list[dict]:
+def _country_mnn_portfolio(items: Sequence[Any]) -> list[dict]:
     country_total_y3 = sum(i.usd_y3 for i in items)
 
     mnn_data: dict[str, dict] = defaultdict(
@@ -355,9 +404,7 @@ def _country_mnn_portfolio(items: list[BdpRaw]) -> list[dict]:
         d["usd_y3"] += i.usd_y3
 
     ranked = sorted(
-        mnn_data.items(),
-        key=lambda x: x[1]["usd_y3"],
-        reverse=True,
+        mnn_data.items(), key=lambda x: x[1]["usd_y3"], reverse=True,
     )[:15]
 
     return [
@@ -373,10 +420,10 @@ def _country_mnn_portfolio(items: list[BdpRaw]) -> list[dict]:
     ]
 
 
-def _country_forms_breakdown(items: list[BdpRaw]) -> list[dict]:
+def _country_forms_breakdown(items: Sequence[Any]) -> list[dict]:
     country_total_y3 = sum(i.usd_y3 for i in items)
 
-    form_groups: dict[str, list[BdpRaw]] = defaultdict(list)
+    form_groups: dict[str, list] = defaultdict(list)
     for i in items:
         form_groups[_form_key(i)].append(i)
 
@@ -395,8 +442,7 @@ def _country_forms_breakdown(items: list[BdpRaw]) -> list[dict]:
 
         tms = [
             {
-                "tm": tm,
-                "usd_y3": usd,
+                "tm": tm, "usd_y3": usd,
                 "share_in_form": _safe_div(usd, form_total_y3) or 0.0,
             }
             for tm, usd in sorted(
@@ -417,41 +463,6 @@ def _country_forms_breakdown(items: list[BdpRaw]) -> list[dict]:
     return result
 
 
-# ────────────────────── filter helpers ──────────────────────
-
-def _filter_by_mnn(
-    items: list[BdpRaw], mnn: str,
-) -> list[BdpRaw]:
-    target = _norm_mnn(mnn)
-    return [i for i in items if _norm_mnn(_mnn_key(i)) == target]
-
-
-def _filter_by_producer(
-    items: list[BdpRaw], producer_name: str,
-) -> tuple[list[BdpRaw], str | None]:
-    """Возвращает (отфильтрованные строки, реальное имя производителя).
-    Реальное имя — из первой найденной строки (canonical/raw)."""
-    target = _norm_producer(producer_name)
-    matched = [
-        i for i in items
-        if _norm_producer(_producer_key(i)) == target
-    ]
-    real_name = _producer_key(matched[0]) if matched else None
-    return matched, real_name
-
-
-def _filter_by_country(
-    items: list[BdpRaw], country_name: str,
-) -> tuple[list[BdpRaw], str | None]:
-    target = _norm_country(country_name)
-    matched = [
-        i for i in items
-        if _norm_country(i.country_mfr) == target
-    ]
-    real_name = matched[0].country_mfr if matched else None
-    return matched, real_name
-
-
 # ────────────────────── endpoints: producer ──────────────────────
 
 @router.get("/{market_id}/producer/{producer_name}")
@@ -463,15 +474,14 @@ async def producer_market_scope(
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
-    market_items = await _load_market_items(db, market_id)
-    if not market_items:
-        raise HTTPException(404, "Нет данных БДП для рынка")
 
-    items, real_name = _filter_by_producer(market_items, producer_name)
+    items = await _load_producer_items(db, market_id, producer_name)
     if not items:
         raise HTTPException(404, "Производитель не найден в рынке")
 
-    market_total_usd_y3 = sum(i.usd_y3 for i in market_items)
+    real_name = _producer_key(items[0])
+    market_total_usd_y3 = await _market_total_usd_y3(db, market_id)
+    mnn_competitors = await _mnn_competitors_map(db, market_id)
     years_labels = _years_labels(market)
 
     return {
@@ -480,7 +490,7 @@ async def producer_market_scope(
             items, market_total_usd_y3, years_labels,
         ),
         "mnn_portfolio": _producer_mnn_portfolio(
-            items, market_items, market_total_usd_y3,
+            items, mnn_competitors, market_total_usd_y3,
         ),
         "tm_breakdown": _producer_tm_breakdown(items),
         "sector_split": _producer_sector_split(items),
@@ -498,20 +508,22 @@ async def producer_mnn_scope(
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
-    market_items = await _load_market_items(db, market_id)
-    if not market_items:
-        raise HTTPException(404, "Нет данных БДП для рынка")
 
-    mnn_items = _filter_by_mnn(market_items, mnn)
+    mnn_items = await _load_mnn_items(db, market_id, mnn)
     if not mnn_items:
         raise HTTPException(404, "МНН не найден в рынке")
 
-    items, real_name = _filter_by_producer(mnn_items, producer_name)
+    target = _norm_producer(producer_name)
+    items = [
+        i for i in mnn_items
+        if _norm_producer(_producer_key(i)) == target
+    ]
     if not items:
         raise HTTPException(
             404, "Производитель не найден в выбранном МНН",
         )
 
+    real_name = _producer_key(items[0])
     mnn_total_usd_y3 = sum(i.usd_y3 for i in mnn_items)
     years_labels = _years_labels(market)
 
@@ -538,20 +550,19 @@ async def country_market_scope(
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
-    market_items = await _load_market_items(db, market_id)
-    if not market_items:
-        raise HTTPException(404, "Нет данных БДП для рынка")
 
-    items, real_name = _filter_by_country(market_items, country_name)
+    items = await _load_country_items(db, market_id, country_name)
     if not items:
         raise HTTPException(404, "Страна не найдена в рынке")
 
-    market_total_usd_y3 = sum(i.usd_y3 for i in market_items)
+    real_name = items[0].country_mfr
+    market_totals = await _market_totals_3y(db, market_id)
+    market_total_usd_y3 = market_totals[2]
     years_labels = _years_labels(market)
 
     return {
         "name": real_name or country_name,
-        "kpi": _country_kpi(items, market_items, years_labels),
+        "kpi": _country_kpi(items, market_totals, years_labels),
         "producers": _country_producers(items, market_total_usd_y3),
         "mnn_portfolio": _country_mnn_portfolio(items),
         "forms_breakdown": _country_forms_breakdown(items),
@@ -568,28 +579,32 @@ async def country_mnn_scope(
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
-    market_items = await _load_market_items(db, market_id)
-    if not market_items:
-        raise HTTPException(404, "Нет данных БДП для рынка")
 
-    mnn_items = _filter_by_mnn(market_items, mnn)
+    mnn_items = await _load_mnn_items(db, market_id, mnn)
     if not mnn_items:
         raise HTTPException(404, "МНН не найден в рынке")
 
-    items, real_name = _filter_by_country(mnn_items, country_name)
+    target = _norm_country(country_name)
+    items = [
+        i for i in mnn_items
+        if _norm_country(i.country_mfr) == target
+    ]
     if not items:
         raise HTTPException(
             404, "Страна не найдена в выбранном МНН",
         )
 
-    mnn_total_usd_y3 = sum(i.usd_y3 for i in mnn_items)
+    real_name = items[0].country_mfr
+    mnn_usd_y1 = sum(i.usd_y1 for i in mnn_items)
+    mnn_usd_y2 = sum(i.usd_y2 for i in mnn_items)
+    mnn_usd_y3 = sum(i.usd_y3 for i in mnn_items)
+    mnn_totals = (mnn_usd_y1, mnn_usd_y2, mnn_usd_y3)
     years_labels = _years_labels(market)
 
-    # scope: КПС считаем внутри выбранного МНН (market_items → mnn_items)
     return {
         "name": real_name or country_name,
-        "kpi": _country_kpi(items, mnn_items, years_labels),
-        "producers": _country_producers(items, mnn_total_usd_y3),
+        "kpi": _country_kpi(items, mnn_totals, years_labels),
+        "producers": _country_producers(items, mnn_usd_y3),
         "mnn_portfolio": None,
         "forms_breakdown": _country_forms_breakdown(items),
     }

@@ -1,6 +1,7 @@
 import logging
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from backend.database import init_db
 
@@ -32,6 +33,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def timing_middleware(request: Request, call_next):
+    t0 = time.perf_counter()
+    response = await call_next(request)
+    dt_ms = (time.perf_counter() - t0) * 1000
+    if request.url.path.startswith("/api") and dt_ms >= 100:
+        log.info(
+            "%s %s → %d %.0fms",
+            request.method, request.url.path,
+            response.status_code, dt_ms,
+        )
+    return response
 
 from backend.routers import (  # noqa: E402
     markets, tables, dashboard, references, dictionary, overview,

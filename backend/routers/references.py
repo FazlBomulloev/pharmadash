@@ -21,6 +21,7 @@ from backend.services.parsers.grls_parser import (
 )
 from backend.services.canonicalize import apply_canonical_to_rows
 from backend.routers.overview import invalidate_overview_cache
+from backend.routers.dashboard import invalidate_dashboard_cache
 
 log = logging.getLogger(__name__)
 router = APIRouter(
@@ -139,6 +140,7 @@ async def apply_pc_mapping(
     db.add_all(pc_objects)
     await db.commit()
     invalidate_overview_cache(market_id)
+    invalidate_dashboard_cache(market_id)
 
     return {
         "ok": True,
@@ -162,6 +164,7 @@ async def delete_pc(market_id: int, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(PcMapping).where(PcMapping.market_id == market_id))
     await db.commit()
     invalidate_overview_cache(market_id)
+    invalidate_dashboard_cache(market_id)
     fp = _pc_path(market_id)
     if fp.exists():
         fp.unlink()
@@ -303,6 +306,7 @@ async def apply_grls_mapping(
     db.add_all(grls_objects)
     await db.commit()
     invalidate_overview_cache(market_id)
+    invalidate_dashboard_cache(market_id)
 
     return {
         "ok": True,
@@ -334,5 +338,6 @@ async def delete_grls(market_id: int, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(GrlsMapping).where(GrlsMapping.market_id == market_id))
     await db.commit()
     invalidate_overview_cache(market_id)
+    invalidate_dashboard_cache(market_id)
     _cleanup_grls(market_id)
     return {"ok": True}

@@ -29,6 +29,7 @@ from backend.schemas import (
 )
 from backend.services.normalize import parse_date as _parse_date
 from backend.routers.overview import invalidate_overview_cache
+from backend.routers.dashboard import invalidate_dashboard_cache
 from backend.services.parsers.bdp_parser import (
     get_sheets_and_columns,
     read_columns_at_row,
@@ -149,6 +150,7 @@ async def update_market_fx(
     await db.refresh(market)
 
     invalidate_overview_cache(market_id)
+    invalidate_dashboard_cache(market_id)
     return await get_market(market_id, db)
 
 
@@ -203,6 +205,7 @@ async def delete_market(
     await db.delete(market)
     await db.commit()
     invalidate_overview_cache(market_id)
+    invalidate_dashboard_cache(market_id)
 
     fp = _upload_path(market_id)
     if fp.exists():
@@ -419,6 +422,7 @@ async def apply_mapping(
         market.name, len(rows), len(avp_rows), len(kap_rows),
     )
     invalidate_overview_cache(market_id)
+    invalidate_dashboard_cache(market_id)
 
     return {
         "ok": True,

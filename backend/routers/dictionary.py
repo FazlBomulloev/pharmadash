@@ -28,6 +28,7 @@ from backend.services.parsers.base import (
 )
 from backend.services.parsers.dict_parser import parse_dict_import
 from backend.routers.overview import invalidate_overview_cache
+from backend.routers.dashboard import invalidate_dashboard_cache
 
 
 # Какие колонки в каких таблицах хранят raw-значения и их canonical
@@ -351,6 +352,7 @@ async def recanonicalize(
 
     for mid in touched_market_ids:
         invalidate_overview_cache(mid)
+        invalidate_dashboard_cache(mid)
 
     log.info(
         "Recanonicalize %s: updated %d (matched %d, unmatched %d) "
