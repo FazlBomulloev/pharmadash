@@ -123,6 +123,8 @@ export interface KpiZone1 {
   asp_last_year: number | null;
   asp_growth: number | null;
   active_competitors: number;
+  total_producers: number;
+  competitor_threshold_usd: number | null;
   market_status: string;
   trend: TrendData;
 }
@@ -192,6 +194,7 @@ export interface Zone2Data {
   ret_share: number | null;
   hos_share: number | null;
   top_competitors: Competitor[];
+  total_producers: number;
   top3_share: number | null;
   hhi: number | null;
   entropy_normalized: number | null;

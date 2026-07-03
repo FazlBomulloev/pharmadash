@@ -7,6 +7,8 @@ interface Props {
   value: string;
   change?: number | null;
   changeLabel?: string;
+  hint?: string;
+  tooltip?: string;
   icon: LucideIcon;
   gradient: string;
 }
@@ -21,6 +23,8 @@ export default function KpiCard({
   value,
   change,
   changeLabel,
+  hint,
+  tooltip,
   icon: Icon,
   gradient,
 }: Props) {
@@ -28,7 +32,10 @@ export default function KpiCard({
   const isDown = change != null && change < 0;
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-300">
+    <div
+      className="relative overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-300"
+      title={tooltip}
+    >
       <div
         className={clsx(
           "absolute inset-0 opacity-[0.04]",
@@ -50,6 +57,9 @@ export default function KpiCard({
           </div>
         </div>
         <p className="text-2xl font-bold text-slate-800 mb-1">{value}</p>
+        {hint && (
+          <p className="text-xs text-slate-500 mb-1">{hint}</p>
+        )}
         {change != null && (
           <div className="flex items-center gap-1.5">
             {isUp && <TrendingUp size={14} className="text-emerald-500" />}

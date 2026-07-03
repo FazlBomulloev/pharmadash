@@ -215,9 +215,16 @@ export default function Zone2({ data }: { data: Zone2Data }) {
       {/* Top Competitors */}
       {data.top_competitors.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h4 className="text-sm font-semibold text-slate-700 mb-4">
-            Топ-10 конкурентов
-          </h4>
+          <div className="flex items-baseline justify-between mb-4">
+            <h4 className="text-sm font-semibold text-slate-700">
+              Топ-{data.top_competitors.length} производителей
+            </h4>
+            {data.total_producers > data.top_competitors.length && (
+              <span className="text-xs text-slate-400">
+                из {data.total_producers} всего
+              </span>
+            )}
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

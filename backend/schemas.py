@@ -133,6 +133,8 @@ class KpiZone1(BaseModel):
     asp_last_year: float | None
     asp_growth: float | None
     active_competitors: int
+    total_producers: int = 0
+    competitor_threshold_usd: float | None = None
     market_status: str
     trend: dict
 
@@ -141,6 +143,7 @@ class Zone2Data(BaseModel):
     ret_share: float | None
     hos_share: float | None
     top_competitors: list[dict]
+    total_producers: int = 0
     top3_share: float | None
     hhi: float | None
     leader_share: float | None

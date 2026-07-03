@@ -95,8 +95,18 @@ export default function Zone1({ data }: { data: KpiZone1 }) {
           gradient="bg-gradient-to-br from-amber-500 to-orange-600"
         />
         <KpiCard
-          label="Конкуренты"
+          label="Активные конкуренты"
           value={String(data.active_competitors)}
+          hint={
+            data.total_producers
+              ? `значимых из ${data.total_producers} всего`
+              : undefined
+          }
+          tooltip={
+            data.competitor_threshold_usd
+              ? `Активный конкурент = производитель с продажами ≥ $${Math.round(data.competitor_threshold_usd).toLocaleString("ru-RU")} в последнем году (порог = max($10K, 0.1% рынка))`
+              : "Производитель с продажами ≥ 0.1% рынка или $10K"
+          }
           icon={Users}
           gradient="bg-gradient-to-br from-purple-500 to-pink-600"
         />

@@ -252,6 +252,7 @@ def _build_zone1(items, years) -> dict:
     active = sum(
         1 for s in producer_sales.values() if s >= threshold
     )
+    total_producers = sum(1 for s in producer_sales.values() if s > 0)
 
     status = _classify_market_status(usd_growth, un_growth)
 
@@ -270,6 +271,8 @@ def _build_zone1(items, years) -> dict:
         "asp_last_year": asp_y3,
         "asp_growth": asp_growth,
         "active_competitors": active,
+        "total_producers": total_producers,
+        "competitor_threshold_usd": threshold,
         "market_status": status,
         "trend": trend,
     }
@@ -587,6 +590,7 @@ async def _build_zone2(
         "ret_share": ret_share,
         "hos_share": hos_share,
         "top_competitors": top_competitors,
+        "total_producers": len(sorted_producers),
         "top3_share": top3_share,
         "hhi": hhi,
         "entropy_normalized": entropy_normalized,
