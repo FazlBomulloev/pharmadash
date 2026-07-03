@@ -23,10 +23,14 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import clsx from "clsx";
+import { useState } from "react";
 import type {
   Zone2Data, FormConcentration, RegionalDistribution,
   BgGBreakdown, GrlsExtra,
 } from "../../types/api";
+import DrillDownRow from "../common/DrillDownRow";
+import { ProducerDetailsLoader } from "../common/ProducerDetails";
+import { CountryDetailsLoader } from "../common/CountryDetails";
 
 const PIE_COLORS = [
   "#4f46e5",
@@ -70,7 +74,16 @@ function concentrationLabel(hhi: number | null): {
   return { text: "Высокая", color: "text-red-600" };
 }
 
-export default function Zone2({ data }: { data: Zone2Data }) {
+export default function Zone2({
+  data, marketId, mnn,
+}: {
+  data: Zone2Data;
+  marketId: number;
+  mnn: string;
+}) {
+  const [expandedProducer, setExpandedProducer] = useState<string | null>(null);
+  const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
+
   const sectorData = [
     { name: "Розница (RET)", value: data.ret_share ?? 0 },
     { name: "Госпитальный (HOS)", value: data.hos_share ?? 0 },
@@ -229,6 +242,7 @@ export default function Zone2({ data }: { data: Zone2Data }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200">
+                  <th className="w-6"></th>
                   <th className="text-left py-2 px-3 text-slate-500 font-medium">
                     #
                   </th>
@@ -254,53 +268,69 @@ export default function Zone2({ data }: { data: Zone2Data }) {
               </thead>
               <tbody>
                 {data.top_competitors.map((c, i) => (
-                  <tr
+                  <DrillDownRow
                     key={c.corporation}
-                    className="border-b border-slate-100 hover:bg-slate-50/50"
+                    expanded={expandedProducer === c.corporation}
+                    onToggle={() =>
+                      setExpandedProducer((prev) =>
+                        prev === c.corporation ? null : c.corporation,
+                      )
+                    }
+                    colSpan={8}
+                    columns={
+                      <>
+                        <td className="py-2.5 px-3 text-slate-400">
+                          {i + 1}
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-slate-700">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{
+                                backgroundColor:
+                                  PIE_COLORS[i % PIE_COLORS.length],
+                              }}
+                            />
+                            {c.corporation}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {fmtUsd(c.usd_last_year)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-indigo-500"
+                                style={{
+                                  width: `${Math.min(c.share * 100, 100)}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="w-12 text-right">
+                              {fmtPct(c.share)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {c.asp != null ? `$${c.asp.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <GrowthBadge value={c.usd_growth} />
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <GrowthBadge value={c.un_growth} />
+                        </td>
+                      </>
+                    }
                   >
-                    <td className="py-2.5 px-3 text-slate-400">
-                      {i + 1}
-                    </td>
-                    <td className="py-2.5 px-3 font-medium text-slate-700">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{
-                            backgroundColor:
-                              PIE_COLORS[i % PIE_COLORS.length],
-                          }}
-                        />
-                        {c.corporation}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      {fmtUsd(c.usd_last_year)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-indigo-500"
-                            style={{
-                              width: `${Math.min(c.share * 100, 100)}%`,
-                            }}
-                          />
-                        </div>
-                        <span className="w-12 text-right">
-                          {fmtPct(c.share)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      {c.asp != null ? `$${c.asp.toFixed(2)}` : "—"}
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <GrowthBadge value={c.usd_growth} />
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <GrowthBadge value={c.un_growth} />
-                    </td>
-                  </tr>
+                    <ProducerDetailsLoader
+                      marketId={marketId}
+                      name={c.corporation}
+                      mnn={mnn}
+                      scope="mnn"
+                    />
+                  </DrillDownRow>
                 ))}
               </tbody>
             </table>
@@ -356,7 +386,15 @@ export default function Zone2({ data }: { data: Zone2Data }) {
         )}
 
         {data.countries.length > 0 && (
-          <CountriesPie countries={data.countries} />
+          <CountriesPie
+            countries={data.countries}
+            marketId={marketId}
+            mnn={mnn}
+            expandedCountry={expandedCountry}
+            onToggleCountry={(name) =>
+              setExpandedCountry((prev) => (prev === name ? null : name))
+            }
+          />
         )}
       </div>
     </div>
@@ -364,9 +402,13 @@ export default function Zone2({ data }: { data: Zone2Data }) {
 }
 
 function CountriesPie({
-  countries,
+  countries, marketId, mnn, expandedCountry, onToggleCountry,
 }: {
   countries: Zone2Data["countries"];
+  marketId: number;
+  mnn: string;
+  expandedCountry: string | null;
+  onToggleCountry: (name: string) => void;
 }) {
   const top = countries.slice(0, 8);
   return (
@@ -385,6 +427,58 @@ function CountriesPie({
           mode="un"
           title="По продажам, UN"
         />
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-slate-500">
+              <th className="w-6"></th>
+              <th className="text-left py-2 px-3 font-medium">Страна</th>
+              <th className="text-right py-2 px-3 font-medium">USD</th>
+              <th className="text-right py-2 px-3 font-medium">Доля USD</th>
+              <th className="text-right py-2 px-3 font-medium">Доля UN</th>
+            </tr>
+          </thead>
+          <tbody>
+            {countries.map((c, idx) => (
+              <DrillDownRow
+                key={c.name}
+                expanded={expandedCountry === c.name}
+                onToggle={() => onToggleCountry(c.name)}
+                colSpan={5}
+                columns={
+                  <>
+                    <td className="py-2 px-3 font-medium text-slate-700">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block w-2 h-2 rounded flex-shrink-0"
+                          style={{
+                            background: PIE_COLORS[idx % PIE_COLORS.length],
+                          }}
+                        />
+                        <span className="truncate">{c.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 px-3 text-right">{fmtUsd(c.usd)}</td>
+                    <td className="py-2 px-3 text-right text-slate-500">
+                      {fmtPct(c.share)}
+                    </td>
+                    <td className="py-2 px-3 text-right text-slate-500">
+                      {fmtPct(c.un_share ?? null)}
+                    </td>
+                  </>
+                }
+              >
+                <CountryDetailsLoader
+                  marketId={marketId}
+                  name={c.name}
+                  mnn={mnn}
+                  scope="mnn"
+                />
+              </DrillDownRow>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

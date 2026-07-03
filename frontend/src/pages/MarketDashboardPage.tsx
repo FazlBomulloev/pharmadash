@@ -149,7 +149,11 @@ export default function MarketDashboardPage() {
             </>
           )}
           <div className="border-t border-slate-200" />
-          <Zone2 data={data.zone2} />
+          <Zone2
+            data={data.zone2}
+            marketId={parseInt(marketId ?? "0")}
+            mnn={data.mnn}
+          />
           <div className="border-t border-slate-200" />
           <Zone3 data={data.zone3} />
         </div>

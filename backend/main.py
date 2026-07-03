@@ -35,6 +35,7 @@ app.add_middleware(
 
 from backend.routers import (  # noqa: E402
     markets, tables, dashboard, references, dictionary, overview,
+    drilldown,
 )
 
 app.include_router(markets.router, prefix="/api")
@@ -43,3 +44,4 @@ app.include_router(dashboard.router, prefix="/api")
 app.include_router(references.router, prefix="/api")
 app.include_router(dictionary.router, prefix="/api")
 app.include_router(overview.router, prefix="/api")
+app.include_router(drilldown.router, prefix="/api")

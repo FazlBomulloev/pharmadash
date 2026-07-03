@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -6,6 +7,9 @@ import {
 import { TrendingUp, TrendingDown, ArrowRight, Shield } from "lucide-react";
 import clsx from "clsx";
 import type { OverviewPortfolio as PortfolioData } from "../../types/api";
+import DrillDownRow from "../common/DrillDownRow";
+import { ProducerDetailsLoader } from "../common/ProducerDetails";
+import { CountryDetailsLoader } from "../common/CountryDetails";
 
 const PIE_COLORS = [
   "#4f46e5", "#7c3aed", "#a78bfa", "#06b6d4",
@@ -34,6 +38,8 @@ export default function OverviewPortfolio({
   marketId: number;
 }) {
   const navigate = useNavigate();
+  const [expandedProducer, setExpandedProducer] = useState<string | null>(null);
+  const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
 
   return (
     <section className="space-y-4">
@@ -109,6 +115,7 @@ export default function OverviewPortfolio({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-slate-500 border-b border-slate-100">
+                <th className="w-6"></th>
                 <th className="text-left py-1.5 font-medium">Производитель</th>
                 <th className="text-right py-1.5 font-medium">USD</th>
                 <th className="text-right py-1.5 font-medium">Доля</th>
@@ -117,18 +124,36 @@ export default function OverviewPortfolio({
             </thead>
             <tbody>
               {data.top_producers.map((p) => (
-                <tr key={p.name} className="border-b border-slate-50">
-                  <td className="py-1.5 font-medium text-slate-700 truncate max-w-[220px]">
-                    {p.name}
-                  </td>
-                  <td className="py-1.5 text-right">{fmtUsd(p.usd)}</td>
-                  <td className="py-1.5 text-right text-slate-500">
-                    {fmtPct(p.share)}
-                  </td>
-                  <td className="py-1.5 text-right">
-                    <Growth value={p.growth} />
-                  </td>
-                </tr>
+                <DrillDownRow
+                  key={p.name}
+                  expanded={expandedProducer === p.name}
+                  onToggle={() =>
+                    setExpandedProducer((prev) =>
+                      prev === p.name ? null : p.name,
+                    )
+                  }
+                  colSpan={5}
+                  columns={
+                    <>
+                      <td className="py-1.5 font-medium text-slate-700 truncate max-w-[220px]">
+                        {p.name}
+                      </td>
+                      <td className="py-1.5 text-right">{fmtUsd(p.usd)}</td>
+                      <td className="py-1.5 text-right text-slate-500">
+                        {fmtPct(p.share)}
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <Growth value={p.growth} />
+                      </td>
+                    </>
+                  }
+                >
+                  <ProducerDetailsLoader
+                    marketId={marketId}
+                    name={p.name}
+                    scope="market"
+                  />
+                </DrillDownRow>
               ))}
             </tbody>
           </table>
@@ -220,30 +245,62 @@ export default function OverviewPortfolio({
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <ul className="mt-3 space-y-1 max-h-44 overflow-auto">
-              {data.countries.map((c, idx) => (
-                <li
-                  key={c.name}
-                  className="flex items-center gap-2 text-xs"
-                >
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded flex-shrink-0"
-                    style={{
-                      background: PIE_COLORS[idx % PIE_COLORS.length],
-                    }}
-                  />
-                  <span className="flex-1 text-slate-700 truncate">
-                    {c.name}
-                  </span>
-                  <span className="text-slate-500 font-medium">
-                    {fmtPct(c.share)}
-                  </span>
-                  <span className="text-slate-400 w-14 text-right">
-                    {fmtUsd(c.usd)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-slate-500 border-b border-slate-100">
+                    <th className="w-6"></th>
+                    <th className="text-left py-1.5 font-medium">Страна</th>
+                    <th className="text-right py-1.5 font-medium">USD</th>
+                    <th className="text-right py-1.5 font-medium">Доля USD</th>
+                    <th className="text-right py-1.5 font-medium">Доля UN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.countries.map((c, idx) => (
+                    <DrillDownRow
+                      key={c.name}
+                      expanded={expandedCountry === c.name}
+                      onToggle={() =>
+                        setExpandedCountry((prev) =>
+                          prev === c.name ? null : c.name,
+                        )
+                      }
+                      colSpan={5}
+                      columns={
+                        <>
+                          <td className="py-1.5 font-medium text-slate-700">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="inline-block w-2 h-2 rounded flex-shrink-0"
+                                style={{
+                                  background:
+                                    PIE_COLORS[idx % PIE_COLORS.length],
+                                }}
+                              />
+                              <span className="truncate">{c.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-1.5 text-right">{fmtUsd(c.usd)}</td>
+                          <td className="py-1.5 text-right text-slate-500">
+                            {fmtPct(c.share)}
+                          </td>
+                          <td className="py-1.5 text-right text-slate-500">
+                            {fmtPct(c.un_share)}
+                          </td>
+                        </>
+                      }
+                    >
+                      <CountryDetailsLoader
+                        marketId={marketId}
+                        name={c.name}
+                        scope="market"
+                      />
+                    </DrillDownRow>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

@@ -21,6 +21,8 @@ import type {
   OverviewQuery,
   UnrecognizedResponse,
   RecanonicalizeResponse,
+  ProducerDetails,
+  CountryDetails,
 } from "../types/api";
 
 const api = axios.create({ baseURL: "/api" });
@@ -295,5 +297,31 @@ export async function recanonicalizeDict(
   const { data } = await api.post("/dictionary/recanonicalize", null, {
     params: { field_type },
   });
+  return data;
+}
+
+// ─────────────────── Drill-down: Producer / Country ───────────────────
+
+export async function getProducerDetails(
+  marketId: number,
+  name: string,
+  mnn?: string | null,
+): Promise<ProducerDetails> {
+  const url = mnn
+    ? `/markets/${marketId}/mnn/${encodeURIComponent(mnn)}/producer/${encodeURIComponent(name)}`
+    : `/markets/${marketId}/producer/${encodeURIComponent(name)}`;
+  const { data } = await api.get<ProducerDetails>(url);
+  return data;
+}
+
+export async function getCountryDetails(
+  marketId: number,
+  name: string,
+  mnn?: string | null,
+): Promise<CountryDetails> {
+  const url = mnn
+    ? `/markets/${marketId}/mnn/${encodeURIComponent(mnn)}/country/${encodeURIComponent(name)}`
+    : `/markets/${marketId}/country/${encodeURIComponent(name)}`;
+  const { data } = await api.get<CountryDetails>(url);
   return data;
 }

@@ -315,3 +315,109 @@ class OverviewResponse(BaseModel):
     grls: OverviewGrls | None
     pc: OverviewPc | None
     decision: OverviewDecision
+
+
+# --- Drill-down schemas (Producer / Country) ---
+
+class ProducerKpi(BaseModel):
+    usd_y1: float
+    usd_y2: float
+    usd_y3: float
+    un_y1: float
+    un_y2: float
+    un_y3: float
+    usd_growth: float | None
+    un_growth: float | None
+    usd_cagr_2y: float | None
+    asp_y3: float | None
+    asp_growth: float | None
+    share_of_market: float | None
+    years_labels: list[str]
+
+
+class MnnPortfolioItem(BaseModel):
+    mnn: str
+    usd_y3: float
+    share_in_market: float
+    share_in_producer: float
+    growth: float | None
+    competitors_in_mnn: int
+
+
+class TmBreakdownItem(BaseModel):
+    tm: str
+    form: str
+    dose: str
+    usd_y3: float
+    un_y3: float
+    share_in_producer: float
+
+
+class SectorSplit(BaseModel):
+    ret_usd: float
+    hos_usd: float
+    ret_share: float | None
+    hos_share: float | None
+
+
+class RegionItem(BaseModel):
+    region: str
+    usd_y3: float
+    share_in_producer: float
+
+
+class ProducerDetails(BaseModel):
+    name: str
+    kpi: ProducerKpi
+    mnn_portfolio: list[MnnPortfolioItem] | None = None
+    tm_breakdown: list[TmBreakdownItem]
+    sector_split: SectorSplit
+    top_regions: list[RegionItem]
+
+
+class CountryKpi(BaseModel):
+    usd_y1: float
+    usd_y2: float
+    usd_y3: float
+    un_y1: float
+    un_y2: float
+    un_y3: float
+    usd_growth: float | None
+    un_growth: float | None
+    share_y1: float | None
+    share_y2: float | None
+    share_y3: float | None
+    share_of_market: float | None
+    producers_count: int
+    mnns_count: int
+    years_labels: list[str]
+
+
+class CountryProducer(BaseModel):
+    name: str
+    usd_y3: float
+    share_in_country: float
+    share_in_market: float
+    growth: float | None
+
+
+class CountryMnnItem(BaseModel):
+    mnn: str
+    usd_y3: float
+    share_in_country: float
+    growth: float | None
+
+
+class CountryFormItem(BaseModel):
+    form: str
+    usd_y3: float
+    share_in_country: float
+    tms: list[dict]
+
+
+class CountryDetails(BaseModel):
+    name: str
+    kpi: CountryKpi
+    producers: list[CountryProducer]
+    mnn_portfolio: list[CountryMnnItem] | None = None
+    forms_breakdown: list[CountryFormItem]

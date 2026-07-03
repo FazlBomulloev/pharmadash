@@ -520,3 +520,115 @@ export interface OverviewQuery {
   atc3?: string | null;
   jnvlp?: "all" | "only" | "exclude";
 }
+
+// ─────────────── Drill-down: Producer / Country ───────────────
+
+export interface ProducerKpi {
+  usd_y1: number;
+  usd_y2: number;
+  usd_y3: number;
+  un_y1: number;
+  un_y2: number;
+  un_y3: number;
+  usd_growth: number | null;
+  un_growth: number | null;
+  usd_cagr_2y: number | null;
+  asp_y3: number | null;
+  asp_growth: number | null;
+  share_of_market: number | null;
+  years_labels: string[];
+}
+
+export interface MnnPortfolioItem {
+  mnn: string;
+  usd_y3: number;
+  share_in_market: number;
+  share_in_producer: number;
+  growth: number | null;
+  competitors_in_mnn: number;
+}
+
+export interface TmBreakdownItem {
+  tm: string;
+  form: string;
+  dose: string;
+  usd_y3: number;
+  un_y3: number;
+  share_in_producer: number;
+}
+
+export interface SectorSplit {
+  ret_usd: number;
+  hos_usd: number;
+  ret_share: number;
+  hos_share: number;
+}
+
+export interface RegionItem {
+  region: string;
+  usd_y3: number;
+  share_in_producer: number;
+}
+
+export interface ProducerDetails {
+  name: string;
+  kpi: ProducerKpi;
+  mnn_portfolio?: MnnPortfolioItem[];
+  tm_breakdown: TmBreakdownItem[];
+  sector_split: SectorSplit;
+  top_regions: RegionItem[];
+}
+
+export interface CountryKpi {
+  usd_y1: number;
+  usd_y2: number;
+  usd_y3: number;
+  un_y1: number;
+  un_y2: number;
+  un_y3: number;
+  usd_growth: number | null;
+  un_growth: number | null;
+  share_y1: number | null;
+  share_y2: number | null;
+  share_y3: number | null;
+  share_of_market: number | null;
+  producers_count: number;
+  mnns_count: number;
+  years_labels: string[];
+}
+
+export interface CountryProducer {
+  name: string;
+  usd_y3: number;
+  share_in_country: number;
+  share_in_market: number;
+  growth: number | null;
+}
+
+export interface CountryMnnItem {
+  mnn: string;
+  usd_y3: number;
+  share_in_country: number;
+  growth: number | null;
+}
+
+export interface CountryFormTm {
+  tm: string;
+  usd_y3: number;
+  share_in_form: number;
+}
+
+export interface CountryFormItem {
+  form: string;
+  usd_y3: number;
+  share_in_country: number;
+  tms: CountryFormTm[];
+}
+
+export interface CountryDetails {
+  name: string;
+  kpi: CountryKpi;
+  producers: CountryProducer[];
+  mnn_portfolio?: CountryMnnItem[];
+  forms_breakdown: CountryFormItem[];
+}

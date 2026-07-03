@@ -1,0 +1,322 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  TrendingUp, TrendingDown, ArrowRight, Building2,
+  DollarSign, Package, LineChart, PieChart as PieIcon, MapPin,
+} from "lucide-react";
+import clsx from "clsx";
+import { getProducerDetails } from "../../api/client";
+import type { ProducerDetails as ProducerDetailsData } from "../../types/api";
+import LoadingSpinner from "./LoadingSpinner";
+
+export type DrillScope = "market" | "mnn";
+
+/* ─────────────── formatters ─────────────── */
+
+function fmtUsd(v: number | null): string {
+  if (v == null) return "—";
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
+function fmtUn(v: number | null): string {
+  if (v == null) return "—";
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+  return v.toFixed(0);
+}
+function fmtPct(v: number | null): string {
+  if (v == null) return "—";
+  return `${(v * 100).toFixed(1)}%`;
+}
+function signed(v: number | null): string {
+  if (v == null) return "—";
+  const s = (v * 100).toFixed(1);
+  return v >= 0 ? `+${s}%` : `${s}%`;
+}
+
+/* ─────────────── Loader wrapper (fetches, renders spinner/error/panel) ─────────────── */
+
+export function ProducerDetailsLoader({
+  marketId, name, mnn, scope,
+}: {
+  marketId: number;
+  name: string;
+  mnn?: string | null;
+  scope: DrillScope;
+}) {
+  const [data, setData] = useState<ProducerDetailsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    setData(null);
+    getProducerDetails(marketId, name, scope === "mnn" ? (mnn ?? null) : null)
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const msg =
+          (e as { response?: { data?: { detail?: string } } })
+            ?.response?.data?.detail ?? "Не удалось загрузить данные производителя";
+        setError(String(msg));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [marketId, name, mnn, scope]);
+
+  if (loading) {
+    return (
+      <div className="py-6 flex flex-col items-center gap-2 text-slate-500">
+        <LoadingSpinner size="md" />
+        <span className="text-xs">Загрузка…</span>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+        {error}
+      </div>
+    );
+  }
+  if (!data) return null;
+  return <ProducerDetails data={data} scope={scope} marketId={marketId} />;
+}
+
+/* ─────────────── Main content panel ─────────────── */
+
+export default function ProducerDetails({
+  data, scope, marketId,
+}: {
+  data: ProducerDetailsData;
+  scope: DrillScope;
+  marketId: number;
+}) {
+  const navigate = useNavigate();
+  const kpi = data.kpi;
+  const shareLabel = scope === "mnn" ? "Доля в МНН" : "Доля рынка";
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Building2 size={16} className="text-indigo-500" />
+        <h5 className="text-sm font-semibold text-slate-800 truncate">
+          {data.name}
+        </h5>
+        <span className="text-[11px] uppercase tracking-wider text-slate-400 ml-2">
+          {scope === "mnn" ? "детали в МНН" : "детали на рынке"}
+        </span>
+      </div>
+
+      {/* KPI mini row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <MiniKpi label={`USD ${kpi.years_labels[2] ?? "Y3"}`} value={fmtUsd(kpi.usd_y3)} icon={DollarSign} />
+        <MiniKpi label={`UN ${kpi.years_labels[2] ?? "Y3"}`} value={fmtUn(kpi.un_y3)} icon={Package} />
+        <MiniKpi label="USD рост" value={signed(kpi.usd_growth)} tone={growthTone(kpi.usd_growth)} icon={LineChart} />
+        <MiniKpi label="CAGR 2y" value={signed(kpi.usd_cagr_2y)} tone={growthTone(kpi.usd_cagr_2y)} icon={LineChart} />
+        <MiniKpi label="ASP" value={kpi.asp_y3 != null ? `$${kpi.asp_y3.toFixed(2)}` : "—"} icon={DollarSign} />
+        <MiniKpi label={shareLabel} value={fmtPct(kpi.share_of_market)} icon={PieIcon} />
+      </div>
+
+      {/* MNN portfolio (market scope only) */}
+      {scope === "market" && data.mnn_portfolio && data.mnn_portfolio.length > 0 && (
+        <Section title="Портфель МНН">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <th className="text-left py-2 px-3 font-medium">МНН</th>
+                  <th className="text-right py-2 px-3 font-medium">USD</th>
+                  <th className="text-right py-2 px-3 font-medium">Доля в производителе</th>
+                  <th className="text-right py-2 px-3 font-medium">Доля рынка</th>
+                  <th className="text-right py-2 px-3 font-medium">Конкурентов</th>
+                  <th className="text-right py-2 px-3 font-medium">Y/Y</th>
+                  <th className="w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.mnn_portfolio.map((m) => (
+                  <tr
+                    key={m.mnn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/market/${marketId}/dashboard?mnn=${encodeURIComponent(m.mnn)}`);
+                    }}
+                    className="border-b border-slate-100 last:border-b-0 hover:bg-indigo-50/40 cursor-pointer"
+                  >
+                    <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[220px]">{m.mnn}</td>
+                    <td className="py-1.5 px-3 text-right">{fmtUsd(m.usd_y3)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(m.share_in_producer)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(m.share_in_market)}</td>
+                    <td className="py-1.5 px-3 text-right">{m.competitors_in_mnn}</td>
+                    <td className="py-1.5 px-3 text-right"><Growth value={m.growth} /></td>
+                    <td className="py-1.5 pr-3 text-right"><ArrowRight size={12} className="text-slate-300 inline" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* TM × form × dose */}
+      {data.tm_breakdown.length > 0 && (
+        <Section title="ТМ × форма × доза">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <th className="text-left py-2 px-3 font-medium">ТМ</th>
+                  <th className="text-left py-2 px-3 font-medium">Форма</th>
+                  <th className="text-left py-2 px-3 font-medium">Доза</th>
+                  <th className="text-right py-2 px-3 font-medium">USD</th>
+                  <th className="text-right py-2 px-3 font-medium">UN</th>
+                  <th className="text-right py-2 px-3 font-medium">Доля произв-я</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.tm_breakdown.map((t, i) => (
+                  <tr key={`${t.tm}-${t.form}-${t.dose}-${i}`} className="border-b border-slate-100 last:border-b-0 hover:bg-white">
+                    <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[200px]">{t.tm}</td>
+                    <td className="py-1.5 px-3 text-slate-600">{t.form || "—"}</td>
+                    <td className="py-1.5 px-3 text-slate-600">{t.dose || "—"}</td>
+                    <td className="py-1.5 px-3 text-right">{fmtUsd(t.usd_y3)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-500">{fmtUn(t.un_y3)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(t.share_in_producer)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* Sector + top regions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Section title="Сектор (RET / HOS)">
+          <SectorBar retShare={data.sector_split.ret_share} hosShare={data.sector_split.hos_share} />
+          <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
+            <div className="flex justify-between px-2 py-1.5 rounded bg-white/60">
+              <span className="text-slate-500">RET USD</span>
+              <span className="font-medium">{fmtUsd(data.sector_split.ret_usd)}</span>
+            </div>
+            <div className="flex justify-between px-2 py-1.5 rounded bg-white/60">
+              <span className="text-slate-500">HOS USD</span>
+              <span className="font-medium">{fmtUsd(data.sector_split.hos_usd)}</span>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Топ-регионы">
+          {data.top_regions.length > 0 ? (
+            <ul className="space-y-1.5">
+              {data.top_regions.map((r) => (
+                <li key={r.region} className="flex items-center gap-2 text-xs">
+                  <MapPin size={11} className="text-indigo-400 flex-shrink-0" />
+                  <span className="flex-1 truncate text-slate-700">{r.region}</span>
+                  <span className="text-slate-500 font-medium">{fmtPct(r.share_in_producer)}</span>
+                  <span className="text-slate-400 w-14 text-right">{fmtUsd(r.usd_y3)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-slate-400">Нет данных</p>
+          )}
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────── helpers ─────────────── */
+
+function growthTone(v: number | null): "up" | "down" | "flat" {
+  if (v == null || v === 0) return "flat";
+  return v > 0 ? "up" : "down";
+}
+
+function MiniKpi({
+  label, value, icon: Icon, tone,
+}: {
+  label: string;
+  value: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  tone?: "up" | "down" | "flat";
+}) {
+  const toneCls =
+    tone === "up" ? "text-emerald-600" :
+    tone === "down" ? "text-red-600" :
+    "text-slate-800";
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 px-3 py-2">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500">
+        <Icon size={10} />
+        <span className="truncate">{label}</span>
+      </div>
+      <p className={clsx("text-base font-bold mt-0.5", toneCls)}>{value}</p>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h6 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
+        {title}
+      </h6>
+      {children}
+    </div>
+  );
+}
+
+function Growth({ value }: { value: number | null }) {
+  if (value == null) return <span className="text-slate-300">—</span>;
+  const isUp = value >= 0;
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center gap-0.5 text-xs font-medium",
+        isUp ? "text-emerald-600" : "text-red-600",
+      )}
+    >
+      {isUp ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+      {signed(value)}
+    </span>
+  );
+}
+
+function SectorBar({ retShare, hosShare }: { retShare: number; hosShare: number }) {
+  const ret = Math.max(0, Math.min(1, retShare));
+  const hos = Math.max(0, Math.min(1, hosShare));
+  const total = ret + hos;
+  const retPct = total > 0 ? (ret / total) * 100 : 0;
+  const hosPct = total > 0 ? (hos / total) * 100 : 0;
+  return (
+    <div>
+      <div className="h-4 w-full rounded-full overflow-hidden bg-slate-100 flex">
+        <div className="h-full bg-indigo-500 flex items-center justify-center text-[10px] text-white font-medium" style={{ width: `${retPct}%` }}>
+          {retPct >= 15 ? `${retPct.toFixed(0)}%` : ""}
+        </div>
+        <div className="h-full bg-emerald-500 flex items-center justify-center text-[10px] text-white font-medium" style={{ width: `${hosPct}%` }}>
+          {hosPct >= 15 ? `${hosPct.toFixed(0)}%` : ""}
+        </div>
+      </div>
+      <div className="flex justify-between text-[11px] mt-1.5 text-slate-500">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-sm bg-indigo-500" /> RET {fmtPct(retShare)}
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-sm bg-emerald-500" /> HOS {fmtPct(hosShare)}
+        </span>
+      </div>
+    </div>
+  );
+}
