@@ -347,7 +347,6 @@ class MnnPortfolioItem(BaseModel):
 class TmBreakdownItem(BaseModel):
     tm: str
     form: str
-    dose: str
     usd_y3: float
     un_y3: float
     share_in_producer: float

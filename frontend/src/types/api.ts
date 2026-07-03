@@ -551,7 +551,6 @@ export interface MnnPortfolioItem {
 export interface TmBreakdownItem {
   tm: string;
   form: string;
-  dose: string;
   usd_y3: number;
   un_y3: number;
   share_in_producer: number;

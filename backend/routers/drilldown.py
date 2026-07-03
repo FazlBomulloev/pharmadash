@@ -248,7 +248,7 @@ def _producer_mnn_portfolio(
 def _producer_tm_breakdown(items: Sequence[Any]) -> list[dict]:
     producer_total_y3 = sum(i.usd_y3 for i in items)
 
-    grouped: dict[tuple[str, str, str], dict] = defaultdict(
+    grouped: dict[tuple[str, str], dict] = defaultdict(
         lambda: {"usd_y3": 0.0, "un_y3": 0.0}
     )
     for i in items:
@@ -256,8 +256,7 @@ def _producer_tm_breakdown(items: Sequence[Any]) -> list[dict]:
         if not tm:
             continue
         form = _form_key(i)
-        dose = (i.strength or "").strip() or "—"
-        key = (tm, form, dose)
+        key = (tm, form)
         grouped[key]["usd_y3"] += i.usd_y3
         grouped[key]["un_y3"] += i.un_y3
 
@@ -267,13 +266,13 @@ def _producer_tm_breakdown(items: Sequence[Any]) -> list[dict]:
 
     return [
         {
-            "tm": tm, "form": form, "dose": dose,
+            "tm": tm, "form": form,
             "usd_y3": d["usd_y3"], "un_y3": d["un_y3"],
             "share_in_producer": _safe_div(
                 d["usd_y3"], producer_total_y3,
             ) or 0.0,
         }
-        for (tm, form, dose), d in ranked
+        for (tm, form), d in ranked
     ]
 
 

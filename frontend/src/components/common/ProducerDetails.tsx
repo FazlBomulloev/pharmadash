@@ -174,16 +174,15 @@ export default function ProducerDetails({
         </Section>
       )}
 
-      {/* TM × form × dose */}
+      {/* TM × form */}
       {data.tm_breakdown.length > 0 && (
-        <Section title="ТМ × форма × доза">
+        <Section title="ТМ × форма">
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
                   <th className="text-left py-2 px-3 font-medium">ТМ</th>
                   <th className="text-left py-2 px-3 font-medium">Форма</th>
-                  <th className="text-left py-2 px-3 font-medium">Доза</th>
                   <th className="text-right py-2 px-3 font-medium">USD</th>
                   <th className="text-right py-2 px-3 font-medium">UN</th>
                   <th className="text-right py-2 px-3 font-medium">Доля произв-я</th>
@@ -191,10 +190,9 @@ export default function ProducerDetails({
               </thead>
               <tbody>
                 {data.tm_breakdown.map((t, i) => (
-                  <tr key={`${t.tm}-${t.form}-${t.dose}-${i}`} className="border-b border-slate-100 last:border-b-0 hover:bg-white">
+                  <tr key={`${t.tm}-${t.form}-${i}`} className="border-b border-slate-100 last:border-b-0 hover:bg-white">
                     <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[200px]">{t.tm}</td>
                     <td className="py-1.5 px-3 text-slate-600">{t.form || "—"}</td>
-                    <td className="py-1.5 px-3 text-slate-600">{t.dose || "—"}</td>
                     <td className="py-1.5 px-3 text-right">{fmtUsd(t.usd_y3)}</td>
                     <td className="py-1.5 px-3 text-right text-slate-500">{fmtUn(t.un_y3)}</td>
                     <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(t.share_in_producer)}</td>
