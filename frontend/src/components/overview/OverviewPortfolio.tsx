@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
   PieChart, Pie, Cell,
 } from "recharts";
-import { TrendingUp, TrendingDown, ArrowRight, Shield } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 import type { OverviewPortfolio as PortfolioData } from "../../types/api";
 import DrillDownRow from "../common/DrillDownRow";
@@ -77,11 +77,8 @@ export default function OverviewPortfolio({
                   }
                   className="border-b border-slate-50 hover:bg-indigo-50/30 cursor-pointer"
                 >
-                  <td className="py-1.5 font-medium text-slate-700 flex items-center gap-1.5">
-                    {m.jnvlp && (
-                      <Shield size={12} className="text-red-500" />
-                    )}
-                    <span className="truncate max-w-[220px]">{m.mnn}</span>
+                  <td className="py-1.5 font-medium text-slate-700">
+                    <span className="truncate max-w-[220px] block">{m.mnn}</span>
                   </td>
                   <td className="py-1.5 text-right">{fmtUsd(m.usd)}</td>
                   <td className="py-1.5 text-right text-slate-500">

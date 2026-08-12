@@ -4,7 +4,7 @@
   1. header  — шапка, FX-курс, счётчики
   2. volume  — общий объём БДП
   3. portfolio — топ МНН, топ производители, ATC, страны
-  4. grls    — РУ, ЖНВЛП, окна истечения
+  4. grls    — РУ, регистранты, окна истечения
   5. pc      — покрытие, цена за единицу (в USD), индексация
   6. decision — распределение МНН по DE-рекомендациям
 
@@ -47,7 +47,7 @@ router = APIRouter(prefix="/markets", tags=["overview"])
 
 
 # ────────────────────── overview cache ──────────────────────
-# Полный ответ кешируется по (market_id, sector, atc3, jnvlp).
+# Полный ответ кешируется по (market_id, sector, atc3).
 # Инвалидируется через invalidate_overview_cache(market_id) при любых
 # изменениях BDP/PC/GRLS/FX этого рынка.
 _OVERVIEW_CACHE: dict[tuple, tuple[float, dict]] = {}
@@ -165,7 +165,7 @@ def _build_volume(items: list[BdpRaw], years: list[int]) -> dict:
     }
 
 
-def _build_portfolio(items: list[BdpRaw], jnvlp_mnns: set[str]) -> dict:
+def _build_portfolio(items: list[BdpRaw]) -> dict:
     total = sum(i.usd_y3 for i in items)
 
     mnn_data: dict[str, dict] = defaultdict(
@@ -184,7 +184,6 @@ def _build_portfolio(items: list[BdpRaw], jnvlp_mnns: set[str]) -> dict:
             "usd": d["usd_y3"],
             "share": _safe_div(d["usd_y3"], total) or 0,
             "growth": _safe_growth(d["usd_y3"], d["usd_y2"]),
-            "jnvlp": k in jnvlp_mnns,
         }
         for k, d in sorted(
             mnn_data.items(), key=lambda x: x[1]["usd_y3"], reverse=True
@@ -329,18 +328,6 @@ def _build_grls(
     )
     foreign_share = _safe_div(foreign_count, registrants_count)
 
-    # JNVLP: МНН с >=1 активным РУ в ЖНВЛП и связанная доля денег
-    jnvlp_mnns: set[str] = {
-        g.mnn_canonical for g in active
-        if g.jnvlp and g.mnn_canonical
-    }
-    total_usd = sum(i.usd_y3 for i in bdp_items)
-    jnvlp_usd = sum(
-        i.usd_y3 for i in bdp_items
-        if (i.mnn_canonical or "") in jnvlp_mnns
-    )
-    jnvlp_money_share = _safe_div(jnvlp_usd, total_usd)
-
     return {
         "active_count": active_count,
         "registrants_count": registrants_count,
@@ -349,9 +336,7 @@ def _build_grls(
         "expiring_2y": expiring_2y,
         "expiring_3y": expiring_3y,
         "foreign_share": foreign_share,
-        "jnvlp_money_share": jnvlp_money_share,
-        "jnvlp_mnn_count": len(jnvlp_mnns),
-    }, jnvlp_mnns
+    }
 
 
 def _build_pc(
@@ -438,7 +423,6 @@ def _build_pc(
 
 def _score_single_mnn(
     items: list[BdpRaw],
-    jnvlp_mnns: set[str],
     pc_mnns: set[str],
     has_grls: bool,
     has_pc: bool,
@@ -493,14 +477,13 @@ def _score_single_mnn(
         strengths_count=len(strengths),
     )
     reg, _ = calculate_regulatory_score(
-        jnvlp_flag=mnn_key in jnvlp_mnns,
         grls_active_count=1 if has_grls else 0,
         grls_registrants=1 if has_grls else 0,
         pc_flag=mnn_key in pc_mnns,
         has_grls=has_grls, has_pc=has_pc,
     )
     raw_total = econ + struct + reg
-    total_score = round(raw_total / (50 + 30 + 20) * 100, 1)
+    total_score = round(raw_total / (50 + 30 + 15) * 100, 1)
     rec, color = get_recommendation(total_score)
 
     return {
@@ -514,7 +497,6 @@ def _score_single_mnn(
 
 def _build_decision(
     items: list[BdpRaw],
-    jnvlp_mnns: set[str],
     pc_mnns: set[str],
     has_grls: bool,
     has_pc: bool,
@@ -526,7 +508,7 @@ def _build_decision(
 
     scores = [
         _score_single_mnn(
-            its, jnvlp_mnns, pc_mnns, has_grls, has_pc, key,
+            its, pc_mnns, has_grls, has_pc, key,
         )
         for key, its in by_mnn.items()
     ]
@@ -566,7 +548,7 @@ async def _load_market_rows(db: AsyncSession, market_id: int):
 
     grls_q = select(
         GrlsEntry.mnn_canonical, GrlsEntry.ru_holder,
-        GrlsEntry.ru_holder_canonical, GrlsEntry.jnvlp,
+        GrlsEntry.ru_holder_canonical,
         GrlsEntry.status, GrlsEntry.reg_date, GrlsEntry.expire_date,
     ).where(GrlsEntry.market_id == market_id)
 
@@ -598,12 +580,10 @@ def _collect_atc3_options(items) -> list[dict]:
 
 # Комбинации фильтров, которые прогреваются в фоне после первого
 # холодного запроса (без atc3 — он user-specific).
-_PREWARM_COMBOS: list[tuple[str | None, str | None, str | None]] = [
-    (None, None, None),
-    ("ret", None, None),
-    ("hos", None, None),
-    (None, None, "only"),
-    (None, None, "exclude"),
+_PREWARM_COMBOS: list[tuple[str | None, str | None]] = [
+    (None, None),
+    ("ret", None),
+    ("hos", None),
 ]
 
 # По одному активному прогреву на market_id — чтобы не плодить
@@ -627,14 +607,14 @@ async def _prewarm_market_overview(market_id: int) -> None:
         return  # уже идёт прогрев, не дублируем
     async with lock:
         async with async_session() as db:
-            for sector, atc3, jnvlp in _PREWARM_COMBOS:
-                key = (market_id, sector or "all", atc3, jnvlp or "all")
+            for sector, atc3 in _PREWARM_COMBOS:
+                key = (market_id, sector or "all", atc3)
                 cached = _OVERVIEW_CACHE.get(key)
                 if cached and (time.time() - cached[0]) < _CACHE_TTL_SEC:
                     continue
                 try:
                     await _compute_overview(
-                        db, market_id, sector, atc3, jnvlp,
+                        db, market_id, sector, atc3,
                     )
                 except Exception as e:
                     log.warning("Prewarm %s упал: %s", key, e)
@@ -646,7 +626,6 @@ async def market_overview(
     background_tasks: BackgroundTasks,
     sector: str | None = Query(None, regex="^(ret|hos|all)?$"),
     atc3: str | None = Query(None),
-    jnvlp: str | None = Query(None, regex="^(all|only|exclude)?$"),
     year: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -655,14 +634,14 @@ async def market_overview(
         raise HTTPException(404, "Рынок не найден")
     year_idx = resolve_year_idx(market, year)
     cache_key = (
-        market_id, sector or "all", atc3, jnvlp or "all", year_idx,
+        market_id, sector or "all", atc3, year_idx,
     )
     was_cached = (
         cache_key in _OVERVIEW_CACHE
         and (time.time() - _OVERVIEW_CACHE[cache_key][0]) < _CACHE_TTL_SEC
     )
     response = await _compute_overview(
-        db, market_id, sector, atc3, jnvlp, year_idx, market,
+        db, market_id, sector, atc3, year_idx, market,
     )
     # Прогрев только если запрос был холодный — иначе плодим лишние задачи.
     if not was_cached:
@@ -675,12 +654,11 @@ async def _compute_overview(
     market_id: int,
     sector: str | None,
     atc3: str | None,
-    jnvlp: str | None,
     year_idx: int = 2,
     market=None,
 ):
     cache_key = (
-        market_id, sector or "all", atc3, jnvlp or "all", year_idx,
+        market_id, sector or "all", atc3, year_idx,
     )
     cached = _OVERVIEW_CACHE.get(cache_key)
     if cached and (time.time() - cached[0]) < _CACHE_TTL_SEC:
@@ -710,15 +688,6 @@ async def _compute_overview(
     # ── ATC options строим до фильтра, чтобы селектор был стабильным ──
     atc_options = _collect_atc3_options(all_bdp_items)
 
-    # ── Для JNVLP-фильтра нужно знать ЖНВЛП-МНН до построения блоков ──
-    active_grls_all = [
-        g for g in grls_rows if g.status in GRLS_ACTIVE_STATUSES
-    ]
-    jnvlp_mnns_all: set[str] = {
-        g.mnn_canonical for g in active_grls_all
-        if g.jnvlp and g.mnn_canonical
-    }
-
     # ── применяем фильтры к BDP ──
     bdp_items = list(all_bdp_items)
     if sector == "ret":
@@ -736,17 +705,6 @@ async def _compute_overview(
         atc3_up = atc3.strip().upper()
         bdp_items = [
             i for i in bdp_items if _atc3(i.atc) == atc3_up
-        ]
-
-    if jnvlp == "only":
-        bdp_items = [
-            i for i in bdp_items
-            if (i.mnn_canonical or "") in jnvlp_mnns_all
-        ]
-    elif jnvlp == "exclude":
-        bdp_items = [
-            i for i in bdp_items
-            if (i.mnn_canonical or "") not in jnvlp_mnns_all
         ]
 
     if not bdp_items:
@@ -776,18 +734,18 @@ async def _compute_overview(
         1 for g in scoped_grls if g.status in GRLS_ACTIVE_STATUSES
     )
 
-    grls_block, jnvlp_mnns = (
+    grls_block = (
         _build_grls(scoped_grls, bdp_items)
-        if scoped_grls else (None, set())
+        if scoped_grls else None
     )
 
     pc_block = _build_pc(scoped_pc, bdp_items, market.fx_rate_usd_rub)
     pc_mnns = {p.mnn_canonical for p in scoped_pc if p.mnn_canonical}
 
-    portfolio = _build_portfolio(bdp_items, jnvlp_mnns)
+    portfolio = _build_portfolio(bdp_items)
     volume = _build_volume(bdp_items, shifted_year_list)
     decision = _build_decision(
-        bdp_items, jnvlp_mnns, pc_mnns,
+        bdp_items, pc_mnns,
         has_grls=bool(scoped_grls),
         has_pc=bool(scoped_pc),
     )
@@ -818,12 +776,10 @@ async def _compute_overview(
         "applied": {
             "sector": sector or "all",
             "atc3": atc3,
-            "jnvlp": jnvlp or "all",
             "year": selected,
         },
         "options": {
             "atc3": atc_options,
-            "has_jnvlp_data": bool(jnvlp_mnns_all),
         },
     }
 

@@ -1,14 +1,10 @@
 import { NavLink, useParams } from "react-router-dom";
 import {
   LayoutDashboard,
-  Table2,
   Upload,
   FlaskConical,
   ChevronLeft,
   ChevronRight,
-  BarChart3,
-  DollarSign,
-  ShieldCheck,
   BookOpen,
   Compass,
 } from "lucide-react";
@@ -45,26 +41,6 @@ function marketItems(marketId: string) {
       label: "Дашборд",
       icon: LayoutDashboard,
       to: `/market/${marketId}/dashboard`,
-    },
-    {
-      label: "АВП",
-      icon: Table2,
-      to: `/market/${marketId}/avp`,
-    },
-    {
-      label: "КАП",
-      icon: BarChart3,
-      to: `/market/${marketId}/kap`,
-    },
-    {
-      label: "Предельные цены",
-      icon: DollarSign,
-      to: `/market/${marketId}/references/pc`,
-    },
-    {
-      label: "ГРЛС",
-      icon: ShieldCheck,
-      to: `/market/${marketId}/references/grls`,
     },
   ];
 }

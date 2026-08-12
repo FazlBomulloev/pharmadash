@@ -36,7 +36,6 @@ const GRLS_FIELDS = [
   { key: "ru_holder", label: "Юр. лицо РУ", required: false },
   { key: "lf_full", label: "Формы выпуска", required: false },
   { key: "dosage", label: "Дозировка", required: false },
-  { key: "jnvlp", label: "Флаг ЖНВЛП", required: true },
   { key: "ru_number", label: "Номер РУ", required: false },
   { key: "reg_date", label: "Дата регистрации", required: false },
   { key: "expire_date", label: "Дата окончания", required: false },
@@ -51,9 +50,14 @@ const steps = [
   { label: "Готово", icon: CheckCircle2 },
 ];
 
-export default function MarketReferencePage({ source }: { source: "pc" | "grls" }) {
-  const { marketId } = useParams<{ marketId: string }>();
-  const mid = Number(marketId);
+interface Props {
+  source: "pc" | "grls";
+  marketId?: number;
+}
+
+export default function MarketReferencePage({ source, marketId: marketIdProp }: Props) {
+  const { marketId: marketIdParam } = useParams<{ marketId: string }>();
+  const mid = marketIdProp ?? Number(marketIdParam);
   const fields = source === "pc" ? PC_FIELDS : GRLS_FIELDS;
   const title = source === "pc" ? "Предельные цены (РС)" : "ГРЛС";
   const accept = source === "grls" ? ".xlsx,.zip" : ".xlsx";

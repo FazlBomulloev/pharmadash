@@ -8,8 +8,6 @@ const titles: Record<string, string> = {
 function resolveTitle(pathname: string): string {
   if (titles[pathname]) return titles[pathname];
   if (pathname.includes("/dashboard")) return "Дашборд МНН";
-  if (pathname.includes("/avp")) return "Таблица АВП";
-  if (pathname.includes("/kap")) return "Таблица КАП";
   return "PharmDash";
 }
 

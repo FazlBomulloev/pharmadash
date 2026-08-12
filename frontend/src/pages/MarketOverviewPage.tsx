@@ -16,7 +16,6 @@ import OverviewDecision from "../components/overview/OverviewDecision";
 const EMPTY_FILTERS: OverviewQuery = {
   sector: "all",
   atc3: null,
-  jnvlp: "all",
   year: null,
 };
 

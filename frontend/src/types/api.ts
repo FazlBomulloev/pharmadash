@@ -42,71 +42,8 @@ export interface MappingRequest {
 export interface MappingResult {
   ok: boolean;
   bdp_count: number;
-  avp_count: number;
-  kap_count: number;
   regions: string[];
   unrecognized?: UnrecognizedMap;
-}
-
-export interface AvpRow {
-  id: number;
-  mnn: string;
-  lf_avp: string;
-  total_usd_y1: number;
-  total_usd_y2: number;
-  total_usd_y3: number;
-  total_un_y1: number;
-  total_un_y2: number;
-  total_un_y3: number;
-  hos_usd_y3: number;
-  ret_usd_y3: number;
-  competitors_total: number;
-  competitors_hos: number;
-  competitors_ret: number;
-  usd_growth: number | null;
-  un_growth: number | null;
-  region_usd: Record<string, Record<string, number>> | null;
-  region_un: Record<string, Record<string, number>> | null;
-  region_competitors: Record<string, number> | null;
-  region_shares: Record<string, number> | null;
-}
-
-export interface KapRow {
-  id: number;
-  mnn: string;
-  lf_avp: string;
-  atc: string | null;
-  competitors_count: number;
-  main_competitor_ret: string | null;
-  main_competitor_total: string | null;
-  un_hos_y1: number;
-  un_hos_y2: number;
-  un_hos_y3: number;
-  un_ret_y1: number;
-  un_ret_y2: number;
-  un_ret_y3: number;
-  usd_hos_y1: number;
-  usd_hos_y2: number;
-  usd_hos_y3: number;
-  usd_ret_y1: number;
-  usd_ret_y2: number;
-  usd_ret_y3: number;
-  un_growth: number | null;
-  usd_growth: number | null;
-  bg_count: number;
-  g_count: number;
-  bg_share: number | null;
-  region_shares: Record<string, number> | null;
-  region_competitors: Record<string, number> | null;
-}
-
-export interface TableResponse<T> {
-  rows: T[];
-  total: number;
-  offset: number;
-  limit: number;
-  years: number[];
-  regions: string[];
 }
 
 export interface TrendData {
@@ -214,12 +151,10 @@ export interface Zone2Data {
   concentration_by_form: FormConcentration[];
   regional_distribution: RegionalDistribution | null;
   bg_g_breakdown: BgGBreakdown | null;
-  znvlp: string;
   grls: string;
   grls_active_count: number;
   grls_registrants: number;
   grls_extra: GrlsExtra | null;
-  jnvlp_flag: boolean;
   pc_flag: boolean;
   pc_stats: PcStats | null;
 }
@@ -432,7 +367,6 @@ export interface OverviewMnn {
   usd: number;
   share: number;
   growth: number | null;
-  jnvlp: boolean;
 }
 
 export interface OverviewProducer {
@@ -474,8 +408,6 @@ export interface OverviewGrls {
   expiring_2y: number;
   expiring_3y: number;
   foreign_share: number | null;
-  jnvlp_money_share: number | null;
-  jnvlp_mnn_count: number;
 }
 
 export interface OverviewPcUnitStats {
@@ -512,14 +444,12 @@ export interface OverviewDecision {
 export interface OverviewFiltersApplied {
   sector: "all" | "ret" | "hos";
   atc3: string | null;
-  jnvlp: "all" | "only" | "exclude";
 }
 
 export interface OverviewFilters {
   applied: OverviewFiltersApplied;
   options: {
     atc3: { atc: string; share: number }[];
-    has_jnvlp_data: boolean;
   };
 }
 
@@ -536,7 +466,6 @@ export interface OverviewResponse {
 export interface OverviewQuery {
   sector?: "all" | "ret" | "hos";
   atc3?: string | null;
-  jnvlp?: "all" | "only" | "exclude";
   year?: number | null;
 }
 

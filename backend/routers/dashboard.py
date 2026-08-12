@@ -544,12 +544,6 @@ async def _build_zone2(
         for g in active_grls
         if g.ru_holder_canonical or g.ru_holder
     })
-    jnvlp_flag = any(g.jnvlp for g in active_grls)
-
-    znvlp_text = (
-        "Да (ЖНВЛП)" if jnvlp_flag
-        else ("Нет" if grls_rows else "Не определено")
-    )
     grls_text = (
         f"{grls_active_count} активных РУ, {grls_registrants} регистрантов"
         if grls_rows else "Не определено"
@@ -723,12 +717,10 @@ async def _build_zone2(
         "concentration_by_form": concentration_by_form,
         "regional_distribution": regional_distribution,
         "bg_g_breakdown": bg_g_breakdown,
-        "znvlp": znvlp_text,
         "grls": grls_text,
         "grls_active_count": grls_active_count,
         "grls_registrants": grls_registrants,
         "grls_extra": grls_extra,
-        "jnvlp_flag": jnvlp_flag,
         "pc_flag": pc_flag,
         "pc_stats": pc_stats,
     }
@@ -918,7 +910,6 @@ def _build_zone3(
     )
 
     reg_score, reg_details = calculate_regulatory_score(
-        jnvlp_flag=zone2.get("jnvlp_flag", False),
         grls_active_count=zone2.get("grls_active_count", 0),
         grls_registrants=zone2.get("grls_registrants", 0),
         pc_flag=zone2.get("pc_flag", False),
@@ -926,9 +917,9 @@ def _build_zone3(
         has_pc=has_pc,
     )
 
-    # Пропорция из 100 (50 эконом + 30 структура + 20 регулирование)
+    # Пропорция из 100 (50 эконом + 30 структура + 15 регулирование)
     raw_total = econ_score + struct_score + reg_score
-    max_possible = 50 + 30 + 20
+    max_possible = 50 + 30 + 15
     total_score = round(raw_total / max_possible * 100, 1)
 
     recommendation, color = get_recommendation(total_score)
@@ -941,7 +932,6 @@ def _build_zone3(
         top3_share=zone2["top3_share"],
         hhi=zone2["hhi"],
         active_competitors=zone1["active_competitors"],
-        jnvlp_flag=zone2.get("jnvlp_flag", False),
         pc_flag=zone2.get("pc_flag", False),
         grls_registrants=zone2.get("grls_registrants", 0),
         has_grls=has_grls,

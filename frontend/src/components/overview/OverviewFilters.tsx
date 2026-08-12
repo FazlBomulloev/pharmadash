@@ -18,14 +18,6 @@ const SECTOR_OPTIONS: { value: "all" | "ret" | "hos"; label: string }[] = [
   { value: "hos", label: "Госпиталь" },
 ];
 
-const JNVLP_OPTIONS: {
-  value: "all" | "only" | "exclude"; label: string;
-}[] = [
-  { value: "all", label: "Все" },
-  { value: "only", label: "Только ЖНВЛП" },
-  { value: "exclude", label: "Без ЖНВЛП" },
-];
-
 export default function OverviewFilters({
   filters, value, availableYears = [], onChange,
 }: Props) {
@@ -39,11 +31,10 @@ export default function OverviewFilters({
   const hasActive =
     (value.sector && value.sector !== "all") ||
     !!value.atc3 ||
-    (value.jnvlp && value.jnvlp !== "all") ||
     !yearIsDefault;
 
   function reset() {
-    onChange({ sector: "all", atc3: null, jnvlp: "all", year: null });
+    onChange({ sector: "all", atc3: null, year: null });
   }
 
   return (
@@ -73,15 +64,6 @@ export default function OverviewFilters({
             })),
           ]}
         />
-
-        {filters.options.has_jnvlp_data && (
-          <SegControl
-            label="ЖНВЛП"
-            options={JNVLP_OPTIONS}
-            value={value.jnvlp ?? "all"}
-            onChange={(v) => onChange({ ...value, jnvlp: v })}
-          />
-        )}
 
         {availableYears.length > 1 && (
           <div className="flex items-center gap-2">

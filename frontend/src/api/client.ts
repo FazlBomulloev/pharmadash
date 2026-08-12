@@ -6,9 +6,6 @@ import type {
   UploadResponse,
   MappingRequest,
   MappingResult,
-  TableResponse,
-  AvpRow,
-  KapRow,
   DashboardResponse,
   MnnListResponse,
   ReferenceMappingResult,
@@ -61,7 +58,6 @@ export async function getMarketOverview(
   const params: Record<string, string | number> = {};
   if (query.sector && query.sector !== "all") params.sector = query.sector;
   if (query.atc3) params.atc3 = query.atc3;
-  if (query.jnvlp && query.jnvlp !== "all") params.jnvlp = query.jnvlp;
   if (query.year != null) params.year = query.year;
   const { data } = await api.get<OverviewResponse>(
     `/markets/${id}/overview`,
@@ -103,42 +99,6 @@ export async function applyMapping(
     body,
   );
   return data;
-}
-
-export async function getAvp(
-  marketId: number,
-  params: {
-    offset?: number;
-    limit?: number;
-    search?: string;
-    sort_by?: string;
-    sort_dir?: string;
-  } = {},
-): Promise<TableResponse<AvpRow>> {
-  const { data } = await api.get(`/markets/${marketId}/avp`, { params });
-  return data;
-}
-
-export async function getKap(
-  marketId: number,
-  params: {
-    offset?: number;
-    limit?: number;
-    search?: string;
-    sort_by?: string;
-    sort_dir?: string;
-  } = {},
-): Promise<TableResponse<KapRow>> {
-  const { data } = await api.get(`/markets/${marketId}/kap`, { params });
-  return data;
-}
-
-export function exportAvpUrl(marketId: number): string {
-  return `/api/markets/${marketId}/avp/export`;
-}
-
-export function exportKapUrl(marketId: number): string {
-  return `/api/markets/${marketId}/kap/export`;
 }
 
 export async function getMnnList(

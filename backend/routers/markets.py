@@ -15,7 +15,7 @@ from datetime import date
 from backend.config import UPLOAD_DIR, FX_RATE_USD_RUB_DEFAULT
 from backend.database import get_db
 from backend.models import (
-    Market, FieldMapping, BdpRaw, Avp, Kap,
+    Market, FieldMapping, BdpRaw,
     PcEntry, GrlsEntry,
 )
 from backend.schemas import (
@@ -328,12 +328,6 @@ async def apply_mapping(
     await db.execute(
         delete(BdpRaw).where(BdpRaw.market_id == market_id)
     )
-    await db.execute(
-        delete(Avp).where(Avp.market_id == market_id)
-    )
-    await db.execute(
-        delete(Kap).where(Kap.market_id == market_id)
-    )
 
     for item in body.mappings:
         db.add(FieldMapping(
@@ -396,39 +390,15 @@ async def apply_mapping(
         len(rows), regions,
     )
 
-    from backend.services.transform import (
-        build_avp,
-        build_kap,
-    )
-
-    log.info("Трансформация БДП → АВП...")
-    avp_rows = build_avp(rows, regions)
-    avp_objects = [
-        Avp(market_id=market_id, **r) for r in avp_rows
-    ]
-    db.add_all(avp_objects)
-
-    log.info("Трансформация БДП → КАП...")
-    kap_rows = build_kap(rows, regions)
-    kap_objects = [
-        Kap(market_id=market_id, **r) for r in kap_rows
-    ]
-    db.add_all(kap_objects)
-
     await db.commit()
 
-    log.info(
-        "Рынок %s: %d БДП, %d АВП, %d КАП",
-        market.name, len(rows), len(avp_rows), len(kap_rows),
-    )
+    log.info("Рынок %s: %d БДП", market.name, len(rows))
     invalidate_overview_cache(market_id)
     invalidate_dashboard_cache(market_id)
 
     return {
         "ok": True,
         "bdp_count": len(rows),
-        "avp_count": len(avp_rows),
-        "kap_count": len(kap_rows),
         "regions": regions,
         "unrecognized": unrecognized,
     }

@@ -294,7 +294,6 @@ async def apply_grls_mapping(
             lf_full=r.get("lf_full"),
             lf_canonical=r.get("lf_canonical"),
             dosage=r.get("dosage"),
-            jnvlp=r.get("jnvlp", False),
             ru_number=r.get("ru_number"),
             reg_date=r.get("reg_date"),
             expire_date=r.get("expire_date"),

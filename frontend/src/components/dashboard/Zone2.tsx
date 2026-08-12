@@ -15,7 +15,6 @@ import {
 import {
   TrendingUp,
   TrendingDown,
-  Shield,
   FileCheck,
   DollarSign,
   Sigma,
@@ -145,20 +144,7 @@ export default function Zone2({
           <h4 className="text-sm font-semibold text-slate-700 mb-4">
             Регуляторика
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className={clsx(
-              "flex items-center gap-3 p-3 rounded-lg",
-              data.jnvlp_flag ? "bg-red-50" : "bg-emerald-50",
-            )}>
-              <Shield size={20} className={
-                data.jnvlp_flag ? "text-red-500" : "text-emerald-500"
-              } />
-              <div>
-                <p className="text-xs text-slate-500">ЖНВЛП</p>
-                <p className="text-sm font-medium text-slate-700">{data.znvlp}</p>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
               <FileCheck size={20} className="text-slate-400" />
               <div>

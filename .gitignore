@@ -9,6 +9,7 @@ venv/
 # SQLite
 *.db
 *.db-journal
+*.db.bak*
 
 # Environment
 .env

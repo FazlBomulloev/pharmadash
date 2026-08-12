@@ -2,7 +2,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
 } from "recharts";
 import {
-  ShieldCheck, Users, AlertTriangle, Globe2, Shield,
+  ShieldCheck, Users, AlertTriangle, Globe2,
 } from "lucide-react";
 import clsx from "clsx";
 import type { OverviewGrls as GrlsData } from "../../types/api";
@@ -16,10 +16,10 @@ export default function OverviewGrls({ data }: { data: GrlsData }) {
   return (
     <section className="space-y-4">
       <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-        ГРЛС и ЖНВЛП
+        ГРЛС
       </h3>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Stat
           icon={ShieldCheck}
           label="Активных РУ"
@@ -37,12 +37,6 @@ export default function OverviewGrls({ data }: { data: GrlsData }) {
           label="Иностранные"
           value={fmtPct(data.foreign_share)}
           color="purple"
-        />
-        <Stat
-          icon={Shield}
-          label="МНН в ЖНВЛП"
-          value={data.jnvlp_mnn_count.toString()}
-          color={data.jnvlp_mnn_count > 0 ? "red" : "slate"}
         />
       </div>
 
@@ -104,41 +98,6 @@ export default function OverviewGrls({ data }: { data: GrlsData }) {
           />
         </div>
       </div>
-
-      <div
-        className={clsx(
-          "rounded-xl border p-5",
-          (data.jnvlp_money_share ?? 0) > 0.5
-            ? "bg-red-50 border-red-200"
-            : (data.jnvlp_money_share ?? 0) > 0.3
-              ? "bg-amber-50 border-amber-200"
-              : "bg-emerald-50 border-emerald-200",
-        )}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wider font-semibold text-slate-600">
-              Доля денег рынка под ЖНВЛП
-            </p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">
-              {fmtPct(data.jnvlp_money_share)}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              Сумма USD по МНН, у которых есть хотя бы один активный РУ в ЖНВЛП
-            </p>
-          </div>
-          <Shield
-            size={48}
-            className={clsx(
-              (data.jnvlp_money_share ?? 0) > 0.5
-                ? "text-red-300"
-                : (data.jnvlp_money_share ?? 0) > 0.3
-                  ? "text-amber-300"
-                  : "text-emerald-300",
-            )}
-          />
-        </div>
-      </div>
     </section>
   );
 }
@@ -149,13 +108,12 @@ function Stat({
   icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   value: string;
-  color: "indigo" | "emerald" | "purple" | "red" | "slate";
+  color: "indigo" | "emerald" | "purple" | "slate";
 }) {
   const colors = {
     indigo: "bg-indigo-50 text-indigo-600",
     emerald: "bg-emerald-50 text-emerald-600",
     purple: "bg-purple-50 text-purple-600",
-    red: "bg-red-50 text-red-600",
     slate: "bg-slate-50 text-slate-500",
   };
   return (

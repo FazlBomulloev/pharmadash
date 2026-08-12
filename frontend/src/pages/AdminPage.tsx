@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload,
@@ -10,6 +10,11 @@ import {
   ArrowLeft,
   Plus,
   X,
+  Database,
+  DollarSign,
+  ShieldCheck,
+  FlaskConical,
+  ChevronDown,
 } from "lucide-react";
 import clsx from "clsx";
 import {
@@ -17,6 +22,7 @@ import {
   uploadFile,
   getColumns,
   applyMapping,
+  getMarkets,
 } from "../api/client";
 import type {
   Market,
@@ -24,6 +30,10 @@ import type {
   MappingResult,
 } from "../types/api";
 import UnrecognizedBanner from "../components/common/UnrecognizedBanner";
+import MarketReferencePage from "./MarketReferencePage";
+
+type Tab = "bdp" | "pc" | "grls";
+type MarketMode = "new" | "existing" | null;
 
 const SYSTEM_FIELDS = [
   { key: "mnn", label: "МНН", required: true },
@@ -44,8 +54,7 @@ const SYSTEM_FIELDS = [
   { key: "un_y3", label: "Продажи UN (год 3)", required: true },
 ];
 
-const steps = [
-  { label: "Рынок", icon: Plus },
+const bdpSteps = [
   { label: "Файл", icon: Upload },
   { label: "Лист", icon: FileSpreadsheet },
   { label: "Маппинг", icon: Columns3 },
@@ -54,26 +63,64 @@ const steps = [
 
 export default function AdminPage() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
 
+  // ── Market picker ──────────────────────────────
+  const [mode, setMode] = useState<MarketMode>(null);
+  const [market, setMarket] = useState<Market | null>(null);
+  const [existingMarkets, setExistingMarkets] = useState<Market[]>([]);
+  const [loadingMarkets, setLoadingMarkets] = useState(false);
+
+  // Create-new-market form
   const [name, setName] = useState("");
   const [yearsStr, setYearsStr] = useState("2022,2023,2024");
   const [language, setLanguage] = useState<"ru" | "en">("ru");
-  const [market, setMarket] = useState<Market | null>(null);
 
+  // ── Tabs ───────────────────────────────────────
+  const [tab, setTab] = useState<Tab>("bdp");
+
+  // ── BDP wizard state ──────────────────────────
+  const [bdpStep, setBdpStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [uploadData, setUploadData] = useState<UploadResponse | null>(
     null,
   );
-
   const [selectedSheet, setSelectedSheet] = useState("");
   const [headerRow, setHeaderRow] = useState(1);
   const [columns, setColumns] = useState<string[]>([]);
-
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<MappingResult | null>(null);
+
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (mode === "existing" && existingMarkets.length === 0 && !loadingMarkets) {
+      setLoadingMarkets(true);
+      getMarkets()
+        .then(setExistingMarkets)
+        .catch(() => setError("Не удалось загрузить список рынков"))
+        .finally(() => setLoadingMarkets(false));
+    }
+  }, [mode, existingMarkets.length, loadingMarkets]);
+
+  function resetBdpWizard() {
+    setBdpStep(0);
+    setFile(null);
+    setUploadData(null);
+    setSelectedSheet("");
+    setHeaderRow(1);
+    setColumns([]);
+    setMappings({});
+    setResult(null);
+  }
+
+  function switchMarket() {
+    setMarket(null);
+    setMode(null);
+    setTab("bdp");
+    resetBdpWizard();
+    setError("");
+  }
 
   async function handleCreateMarket() {
     setError("");
@@ -88,7 +135,8 @@ export default function AdminPage() {
     try {
       const m = await createMarket({ name: name.trim(), years, language });
       setMarket(m);
-      setStep(1);
+      setTab("bdp");
+      resetBdpWizard();
     } catch (e: unknown) {
       const msg =
         e instanceof Error ? e.message : "Ошибка создания рынка";
@@ -105,7 +153,7 @@ export default function AdminPage() {
       if (data.sheets.length > 0) {
         setSelectedSheet(data.sheets[0]);
       }
-      setStep(2);
+      setBdpStep(1);
     } catch {
       setError("Ошибка загрузки файла");
     }
@@ -117,7 +165,7 @@ export default function AdminPage() {
     try {
       const data = await getColumns(market.id, selectedSheet, headerRow);
       setColumns(data.columns);
-      setStep(3);
+      setBdpStep(2);
     } catch {
       setError("Ошибка чтения колонок");
     }
@@ -148,7 +196,7 @@ export default function AdminPage() {
         ),
       });
       setResult(res);
-      setStep(4);
+      setBdpStep(3);
     } catch {
       setError("Ошибка маппинга / трансформации");
     } finally {
@@ -156,69 +204,45 @@ export default function AdminPage() {
     }
   }
 
-  return (
-    <div className="max-w-4xl mx-auto">
-      {/* Stepper */}
-      <div className="flex items-center justify-between mb-8">
-        {steps.map((s, i) => (
-          <div key={i} className="flex items-center flex-1 last:flex-none">
-            <div className="flex items-center gap-2">
-              <div
-                className={clsx(
-                  "w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300",
-                  i < step
-                    ? "bg-emerald-500 text-white"
-                    : i === step
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                      : "bg-slate-100 text-slate-400",
-                )}
-              >
-                {i < step ? (
-                  <CheckCircle2 size={20} />
-                ) : (
-                  <s.icon size={18} />
-                )}
-              </div>
-              <span
-                className={clsx(
-                  "text-sm font-medium hidden sm:block",
-                  i <= step ? "text-slate-700" : "text-slate-400",
-                )}
-              >
-                {s.label}
-              </span>
-            </div>
-            {i < steps.length - 1 && (
-              <div
-                className={clsx(
-                  "flex-1 h-px mx-4",
-                  i < step ? "bg-emerald-300" : "bg-slate-200",
-                )}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
-          <X size={16} />
-          {error}
+  // ── Render: Market picker if no market ─────────
+  if (!market) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold text-slate-800">
+            Загрузка данных
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Выберите рынок или создайте новый — затем загрузите БДП, ПЦ или ГРЛС
+          </p>
         </div>
-      )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
-        {/* Step 0: Create Market */}
-        {step === 0 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-1">
-                Создание рынка
-              </h2>
-              <p className="text-sm text-slate-500">
-                Укажите название и годы данных
-              </p>
-            </div>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+            <X size={16} />
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ModeCard
+            active={mode === "new"}
+            icon={Plus}
+            title="Создать новый рынок"
+            description="Определите название и годы, затем загрузите БДП"
+            onClick={() => setMode("new")}
+          />
+          <ModeCard
+            active={mode === "existing"}
+            icon={FlaskConical}
+            title="Использовать существующий"
+            description="Догрузить БДП, ПЦ или ГРЛС в уже созданный рынок"
+            onClick={() => setMode("existing")}
+          />
+        </div>
+
+        {mode === "new" && (
+          <div className="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Название рынка
@@ -264,291 +288,561 @@ export default function AdminPage() {
               onClick={handleCreateMarket}
               className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
             >
-              Создать
+              Создать и перейти к загрузке
               <ArrowRight size={18} />
             </button>
           </div>
         )}
 
-        {/* Step 1: Upload */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-1">
-                Загрузка файла БДП
-              </h2>
-              <p className="text-sm text-slate-500">
-                Выберите Excel-файл (.xlsx)
+        {mode === "existing" && (
+          <div className="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            {loadingMarkets ? (
+              <div className="flex items-center gap-2 text-sm text-slate-500 justify-center py-6">
+                <Loader2 size={16} className="animate-spin" />
+                Загрузка списка рынков…
+              </div>
+            ) : existingMarkets.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">
+                Пока нет ни одного рынка. Создайте новый.
               </p>
-            </div>
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const f = e.dataTransfer.files[0];
-                if (f) setFile(f);
-              }}
-              className={clsx(
-                "border-2 border-dashed rounded-xl p-12 text-center transition-colors cursor-pointer",
-                file
-                  ? "border-emerald-300 bg-emerald-50/50"
-                  : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30",
-              )}
-              onClick={() =>
-                document.getElementById("file-input")?.click()
-              }
-            >
-              <input
-                id="file-input"
-                type="file"
-                accept=".xlsx"
-                className="hidden"
-                onChange={(e) =>
-                  setFile(e.target.files?.[0] ?? null)
-                }
-              />
-              {file ? (
-                <div className="flex flex-col items-center gap-2">
-                  <FileSpreadsheet
-                    size={40}
-                    className="text-emerald-500"
-                  />
-                  <p className="text-sm font-medium text-slate-700">
-                    {file.name}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {(file.size / 1024 / 1024).toFixed(1)} МБ
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <Upload size={40} className="text-slate-400" />
-                  <p className="text-sm text-slate-600">
-                    Перетащите файл или нажмите для выбора
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    Только .xlsx файлы
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(0)}
-                className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
-              >
-                <ArrowLeft size={16} />
-                Назад
-              </button>
-              <button
-                onClick={handleUpload}
-                disabled={!file}
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                Загрузить
-                <ArrowRight size={18} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Select sheet */}
-        {step === 2 && uploadData && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-1">
-                Выбор листа
-              </h2>
-              <p className="text-sm text-slate-500">
-                Укажите лист и строку заголовков
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Лист
-              </label>
-              <select
-                value={selectedSheet}
-                onChange={(e) => setSelectedSheet(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm bg-white"
-              >
-                {uploadData.sheets.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Строка заголовков
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={headerRow}
-                onChange={(e) =>
-                  setHeaderRow(parseInt(e.target.value, 10) || 1)
-                }
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(1)}
-                className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
-              >
-                <ArrowLeft size={16} />
-                Назад
-              </button>
-              <button
-                onClick={handleSelectSheet}
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-              >
-                Далее
-                <ArrowRight size={18} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Mapping */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-1">
-                Маппинг полей
-              </h2>
-              <p className="text-sm text-slate-500">
-                Сопоставьте поля системы с колонками файла
-              </p>
-            </div>
-            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
-              {SYSTEM_FIELDS.map((f) => (
-                <div
-                  key={f.key}
-                  className="flex items-center gap-4"
-                >
-                  <label className="w-52 text-sm text-slate-700 flex-shrink-0">
-                    {f.label}
-                    {f.required && (
-                      <span className="text-red-400 ml-0.5">*</span>
-                    )}
-                  </label>
-                  <select
-                    value={mappings[f.key] ?? ""}
-                    onChange={(e) =>
-                      setMappings((m) => ({
-                        ...m,
-                        [f.key]: e.target.value,
-                      }))
-                    }
-                    className={clsx(
-                      "flex-1 px-3 py-2 rounded-lg border text-sm bg-white outline-none transition-all",
-                      mappings[f.key]
-                        ? "border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                        : "border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100",
-                    )}
+            ) : (
+              <div className="space-y-2">
+                {existingMarkets.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setMarket(m)}
+                    className="w-full flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors text-left group"
                   >
-                    <option value="">— не выбрано —</option>
-                    {columns.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStep(2)}
-                className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
-              >
-                <ArrowLeft size={16} />
-                Назад
-              </button>
-              <button
-                onClick={handleApplyMapping}
-                disabled={processing}
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {processing ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Обработка...
-                  </>
-                ) : (
-                  <>
-                    Применить
-                    <ArrowRight size={18} />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 4: Done */}
-        {step === 4 && result && market && (
-          <div className="text-center space-y-6 py-4">
-            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-              <CheckCircle2 size={40} className="text-emerald-500" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-2">
-                Данные загружены!
-              </h2>
-              <p className="text-sm text-slate-500">
-                Рынок «{market.name}» готов к анализу
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
-              <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-2xl font-bold text-slate-800">
-                  {result.bdp_count}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">БДП строк</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-2xl font-bold text-slate-800">
-                  {result.avp_count}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">АВП строк</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-4">
-                <p className="text-2xl font-bold text-slate-800">
-                  {result.kap_count}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">КАП строк</p>
-              </div>
-            </div>
-            {result.unrecognized && Object.keys(result.unrecognized).length > 0 && (
-              <div className="text-left space-y-2">
-                {Object.entries(result.unrecognized).map(([ft, vals]) => vals.length > 0 && (
-                  <UnrecognizedBanner key={ft} fieldType={ft} values={vals} />
+                    <div>
+                      <p className="font-medium text-slate-800 group-hover:text-indigo-700">
+                        {m.name}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {m.years.join(", ")}
+                        {m.mnn_count != null && (
+                          <> · {m.mnn_count.toLocaleString("ru-RU")} МНН</>
+                        )}
+                        {m.has_pc && <> · ПЦ ✓</>}
+                        {m.has_grls && <> · ГРЛС ✓</>}
+                      </p>
+                    </div>
+                    <ArrowRight
+                      size={18}
+                      className="text-slate-300 group-hover:text-indigo-500 transition-colors"
+                    />
+                  </button>
                 ))}
               </div>
             )}
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => navigate("/")}
-                className="px-6 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                К рынкам
-              </button>
-              <button
-                onClick={() =>
-                  navigate(`/market/${market.id}/dashboard`)
-                }
-                className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
-              >
-                Открыть дашборд
-                <ArrowRight size={16} />
-              </button>
-            </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ── Render: tabs when market chosen ────────────
+  return (
+    <div className="max-w-4xl mx-auto">
+      <MarketContextBar market={market} onSwitch={switchMarket} />
+
+      <div className="flex items-center gap-1 border-b border-slate-200 mb-6">
+        <TabButton
+          active={tab === "bdp"}
+          icon={Database}
+          label="БДП"
+          onClick={() => setTab("bdp")}
+        />
+        <TabButton
+          active={tab === "pc"}
+          icon={DollarSign}
+          label="Предельные цены"
+          hint={market.has_pc ? "загружено" : undefined}
+          onClick={() => setTab("pc")}
+        />
+        <TabButton
+          active={tab === "grls"}
+          icon={ShieldCheck}
+          label="ГРЛС"
+          hint={market.has_grls ? "загружено" : undefined}
+          onClick={() => setTab("grls")}
+        />
+      </div>
+
+      {error && tab === "bdp" && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+          <X size={16} />
+          {error}
+        </div>
+      )}
+
+      {tab === "bdp" && (
+        <div>
+          <BdpStepper step={bdpStep} />
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
+            {bdpStep === 0 && (
+              <BdpUploadStep
+                file={file}
+                onFile={setFile}
+                onNext={handleUpload}
+              />
+            )}
+            {bdpStep === 1 && uploadData && (
+              <BdpSheetStep
+                sheets={uploadData.sheets}
+                selectedSheet={selectedSheet}
+                headerRow={headerRow}
+                onSheetChange={setSelectedSheet}
+                onRowChange={setHeaderRow}
+                onBack={() => setBdpStep(0)}
+                onNext={handleSelectSheet}
+              />
+            )}
+            {bdpStep === 2 && (
+              <BdpMappingStep
+                columns={columns}
+                mappings={mappings}
+                onChange={setMappings}
+                onBack={() => setBdpStep(1)}
+                onApply={handleApplyMapping}
+                processing={processing}
+              />
+            )}
+            {bdpStep === 3 && result && (
+              <BdpDoneStep
+                market={market}
+                result={result}
+                onOpenDashboard={() =>
+                  navigate(`/market/${market.id}/dashboard`)
+                }
+                onLoadAnother={resetBdpWizard}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "pc" && (
+        <MarketReferencePage source="pc" marketId={market.id} />
+      )}
+
+      {tab === "grls" && (
+        <MarketReferencePage source="grls" marketId={market.id} />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════ Sub-components ═══════════════════════
+
+function ModeCard({
+  active, icon: Icon, title, description, onClick,
+}: {
+  active: boolean;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        "text-left p-5 rounded-xl border-2 transition-all",
+        active
+          ? "border-indigo-500 bg-indigo-50/50 shadow-sm"
+          : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30",
+      )}
+    >
+      <Icon
+        size={22}
+        className={clsx(
+          "mb-3",
+          active ? "text-indigo-600" : "text-slate-400",
+        )}
+      />
+      <p className={clsx(
+        "font-semibold mb-1",
+        active ? "text-indigo-700" : "text-slate-800",
+      )}>
+        {title}
+      </p>
+      <p className="text-xs text-slate-500 leading-relaxed">
+        {description}
+      </p>
+    </button>
+  );
+}
+
+function MarketContextBar({
+  market, onSwitch,
+}: {
+  market: Market;
+  onSwitch: () => void;
+}) {
+  return (
+    <div className="mb-6 flex items-center justify-between bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+          <FlaskConical size={18} className="text-indigo-600" />
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+            Активный рынок
+          </p>
+          <p className="font-semibold text-slate-800">
+            {market.name}
+            <span className="text-xs font-normal text-slate-400 ml-2">
+              {market.years.join(", ")}
+            </span>
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={onSwitch}
+        className="text-xs font-medium text-slate-500 hover:text-indigo-600 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors flex items-center gap-1"
+      >
+        Сменить рынок
+        <ChevronDown size={12} />
+      </button>
+    </div>
+  );
+}
+
+function TabButton({
+  active, icon: Icon, label, hint, onClick,
+}: {
+  active: boolean;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  hint?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
+        active
+          ? "border-indigo-600 text-indigo-700"
+          : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300",
+      )}
+    >
+      <Icon size={16} />
+      {label}
+      {hint && (
+        <span className={clsx(
+          "text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded",
+          active ? "bg-indigo-100 text-indigo-700" : "bg-emerald-50 text-emerald-600",
+        )}>
+          {hint}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function BdpStepper({ step }: { step: number }) {
+  return (
+    <div className="flex items-center justify-between mb-6">
+      {bdpSteps.map((s, i) => (
+        <div key={i} className="flex items-center flex-1 last:flex-none">
+          <div className="flex items-center gap-2">
+            <div
+              className={clsx(
+                "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300",
+                i < step
+                  ? "bg-emerald-500 text-white"
+                  : i === step
+                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                    : "bg-slate-100 text-slate-400",
+              )}
+            >
+              {i < step ? <CheckCircle2 size={18} /> : <s.icon size={16} />}
+            </div>
+            <span
+              className={clsx(
+                "text-sm font-medium hidden sm:block",
+                i <= step ? "text-slate-700" : "text-slate-400",
+              )}
+            >
+              {s.label}
+            </span>
+          </div>
+          {i < bdpSteps.length - 1 && (
+            <div
+              className={clsx(
+                "flex-1 h-px mx-4",
+                i < step ? "bg-emerald-300" : "bg-slate-200",
+              )}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BdpUploadStep({
+  file, onFile, onNext,
+}: {
+  file: File | null;
+  onFile: (f: File | null) => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-800 mb-1">
+          Загрузка файла БДП
+        </h2>
+        <p className="text-sm text-slate-500">
+          Excel (.xlsx). Перезаписывает существующий БДП рынка.
+        </p>
+      </div>
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const f = e.dataTransfer.files[0];
+          if (f) onFile(f);
+        }}
+        className={clsx(
+          "border-2 border-dashed rounded-xl p-12 text-center transition-colors cursor-pointer",
+          file
+            ? "border-emerald-300 bg-emerald-50/50"
+            : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30",
+        )}
+        onClick={() =>
+          document.getElementById("bdp-file-input")?.click()
+        }
+      >
+        <input
+          id="bdp-file-input"
+          type="file"
+          accept=".xlsx"
+          className="hidden"
+          onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+        />
+        {file ? (
+          <div className="flex flex-col items-center gap-2">
+            <FileSpreadsheet size={40} className="text-emerald-500" />
+            <p className="text-sm font-medium text-slate-700">{file.name}</p>
+            <p className="text-xs text-slate-400">
+              {(file.size / 1024 / 1024).toFixed(1)} МБ
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <Upload size={40} className="text-slate-400" />
+            <p className="text-sm text-slate-600">
+              Перетащите файл или нажмите для выбора
+            </p>
+            <p className="text-xs text-slate-400">Только .xlsx файлы</p>
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onNext}
+        disabled={!file}
+        className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        Загрузить
+        <ArrowRight size={18} />
+      </button>
+    </div>
+  );
+}
+
+function BdpSheetStep({
+  sheets, selectedSheet, headerRow, onSheetChange, onRowChange, onBack, onNext,
+}: {
+  sheets: string[];
+  selectedSheet: string;
+  headerRow: number;
+  onSheetChange: (s: string) => void;
+  onRowChange: (n: number) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-800 mb-1">
+          Выбор листа
+        </h2>
+        <p className="text-sm text-slate-500">
+          Укажите лист и строку заголовков
+        </p>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          Лист
+        </label>
+        <select
+          value={selectedSheet}
+          onChange={(e) => onSheetChange(e.target.value)}
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm bg-white"
+        >
+          {sheets.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          Строка заголовков
+        </label>
+        <input
+          type="number"
+          min={1}
+          value={headerRow}
+          onChange={(e) => onRowChange(parseInt(e.target.value, 10) || 1)}
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+        />
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={onBack}
+          className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
+        >
+          <ArrowLeft size={16} />
+          Назад
+        </button>
+        <button
+          onClick={onNext}
+          className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+        >
+          Далее
+          <ArrowRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BdpMappingStep({
+  columns, mappings, onChange, onBack, onApply, processing,
+}: {
+  columns: string[];
+  mappings: Record<string, string>;
+  onChange: (m: Record<string, string>) => void;
+  onBack: () => void;
+  onApply: () => void;
+  processing: boolean;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-800 mb-1">
+          Маппинг полей
+        </h2>
+        <p className="text-sm text-slate-500">
+          Сопоставьте поля системы с колонками файла
+        </p>
+      </div>
+      <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
+        {SYSTEM_FIELDS.map((f) => (
+          <div key={f.key} className="flex items-center gap-4">
+            <label className="w-52 text-sm text-slate-700 flex-shrink-0">
+              {f.label}
+              {f.required && <span className="text-red-400 ml-0.5">*</span>}
+            </label>
+            <select
+              value={mappings[f.key] ?? ""}
+              onChange={(e) =>
+                onChange({ ...mappings, [f.key]: e.target.value })
+              }
+              className={clsx(
+                "flex-1 px-3 py-2 rounded-lg border text-sm bg-white outline-none transition-all",
+                mappings[f.key]
+                  ? "border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  : "border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100",
+              )}
+            >
+              <option value="">— не выбрано —</option>
+              {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={onBack}
+          className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
+        >
+          <ArrowLeft size={16} />
+          Назад
+        </button>
+        <button
+          onClick={onApply}
+          disabled={processing}
+          className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {processing ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Обработка...
+            </>
+          ) : (
+            <>
+              Применить
+              <ArrowRight size={18} />
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BdpDoneStep({
+  market, result, onOpenDashboard, onLoadAnother,
+}: {
+  market: Market;
+  result: MappingResult;
+  onOpenDashboard: () => void;
+  onLoadAnother: () => void;
+}) {
+  return (
+    <div className="text-center space-y-6 py-4">
+      <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+        <CheckCircle2 size={40} className="text-emerald-500" />
+      </div>
+      <div>
+        <h2 className="text-xl font-semibold text-slate-800 mb-2">
+          БДП загружен!
+        </h2>
+        <p className="text-sm text-slate-500">
+          Рынок «{market.name}» готов к анализу
+        </p>
+      </div>
+      <div className="max-w-xs mx-auto">
+        <div className="bg-slate-50 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-slate-800">
+            {result.bdp_count}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">БДП строк</p>
+        </div>
+      </div>
+      {result.unrecognized && Object.keys(result.unrecognized).length > 0 && (
+        <div className="text-left space-y-2">
+          {Object.entries(result.unrecognized).map(([ft, vals]) => vals.length > 0 && (
+            <UnrecognizedBanner key={ft} fieldType={ft} values={vals} />
+          ))}
+        </div>
+      )}
+      <div className="flex gap-3 justify-center">
+        <button
+          onClick={onLoadAnother}
+          className="px-6 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+        >
+          Загрузить ещё
+        </button>
+        <button
+          onClick={onOpenDashboard}
+          className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
+        >
+          Открыть дашборд
+          <ArrowRight size={16} />
+        </button>
       </div>
     </div>
   );

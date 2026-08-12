@@ -140,7 +140,6 @@ def calculate_structure_score(
 
 
 def calculate_regulatory_score(
-    jnvlp_flag: bool = False,
     grls_active_count: int = 0,
     grls_registrants: int = 0,
     pc_flag: bool = False,
@@ -148,14 +147,6 @@ def calculate_regulatory_score(
     has_pc: bool = False,
 ) -> tuple[float, list[dict]]:
     details = []
-
-    if not has_grls:
-        s1, v1 = 3, "Нет данных GRLS"
-    elif not jnvlp_flag:
-        s1, v1 = 5, "Не в ЖНВЛП"
-    else:
-        s1, v1 = 1, "ЖНВЛП — ценовое регулирование"
-    details.append({"metric": "ЖНВЛП", "value": v1, "score": s1, "max": 5})
 
     if not has_grls:
         s2, v2 = 3, "Нет данных"
@@ -185,7 +176,7 @@ def calculate_regulatory_score(
         s4, v4 = 3, "В действующем РС"
     details.append({"metric": "Риск ценового регулирования", "value": v4, "score": s4, "max": 5})
 
-    return s1 + s2 + s3 + s4, details
+    return s2 + s3 + s4, details
 
 
 def get_recommendation(total_score: float) -> tuple[str, str]:
@@ -203,7 +194,6 @@ def generate_drivers_and_flags(
     top3_share: float | None,
     hhi: float | None,
     active_competitors: int,
-    jnvlp_flag: bool = False,
     pc_flag: bool = False,
     grls_registrants: int = 0,
     has_grls: bool = False,
@@ -277,9 +267,6 @@ def generate_drivers_and_flags(
             "text": "Мало конкурентов — возможен закрытый рынок",
         })
 
-    if has_grls and jnvlp_flag:
-        flags.append({"type": "regulatory", "text": "Препарат в ЖНВЛП (ценовое регулирование)"})
-
     if has_pc and pc_flag:
         flags.append({"type": "regulatory", "text": "Действующая предельная цена — риск маржинальности"})
 
@@ -289,7 +276,7 @@ def generate_drivers_and_flags(
             "text": f"Высокая регистрационная насыщенность ({grls_registrants} регистрантов)",
         })
 
-    if has_grls and not jnvlp_flag and has_pc and not pc_flag:
+    if has_grls and has_pc and not pc_flag:
         drivers.append({"type": "positive", "text": "Регуляторно чистый продукт"})
 
     checks.append("Проверить форму завода, цену, GMP/БЭ")

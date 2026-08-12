@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 from openpyxl import load_workbook
 from backend.services.normalize import (
-    normalize_mnn, normalize_str, parse_bool, parse_date,
+    normalize_mnn, normalize_str, parse_date,
 )
 from backend.services.parsers.base import (
     iter_data_rows, build_col_index, read_columns_at_row,
@@ -22,15 +22,14 @@ log = logging.getLogger(__name__)
 
 GRLS_FIELDS = [
     "mnn", "tm", "ru_holder", "lf_full", "dosage",
-    "jnvlp", "ru_number",
+    "ru_number",
     "reg_date", "expire_date", "cancel_date",
     "status",
 ]
 
-REQUIRED_GRLS_FIELDS = ["mnn", "jnvlp"]
+REQUIRED_GRLS_FIELDS = ["mnn"]
 
 STRING_FIELDS = {"tm", "ru_holder", "lf_full", "dosage", "ru_number", "status"}
-BOOL_FIELDS = {"jnvlp"}
 DATE_FIELDS = {"reg_date", "expire_date", "cancel_date"}
 
 
@@ -57,8 +56,6 @@ def parse_grls_rows(
                 record["mnn_raw"] = normalize_mnn(raw)
             elif field in STRING_FIELDS:
                 record[field] = normalize_str(raw) or None
-            elif field in BOOL_FIELDS:
-                record[field] = parse_bool(raw)
             elif field in DATE_FIELDS:
                 record[field] = parse_date(raw)
 
@@ -67,8 +64,6 @@ def parse_grls_rows(
 
         if not record.get("mnn_raw"):
             continue
-        if "jnvlp" not in record:
-            record["jnvlp"] = False
         if not record.get("status"):
             continue
 

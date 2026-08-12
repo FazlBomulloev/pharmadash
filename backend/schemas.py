@@ -53,78 +53,6 @@ class PreviewResponse(BaseModel):
     total_rows: int
 
 
-class TableQuery(BaseModel):
-    offset: int = 0
-    limit: int = 50
-    search: str | None = None
-    sort_by: str | None = None
-    sort_dir: str = "asc"
-    filters: dict[str, str] | None = None
-
-
-class AvpRow(BaseModel):
-    id: int
-    mnn: str
-    lf_avp: str
-    total_usd_y1: float
-    total_usd_y2: float
-    total_usd_y3: float
-    total_un_y1: float
-    total_un_y2: float
-    total_un_y3: float
-    hos_usd_y3: float
-    ret_usd_y3: float
-    competitors_total: int
-    competitors_hos: int
-    competitors_ret: int
-    usd_growth: float | None
-    un_growth: float | None
-    region_usd: dict | None = None
-    region_un: dict | None = None
-    region_competitors: dict | None = None
-    region_shares: dict | None = None
-
-    model_config = {"from_attributes": True}
-
-
-class KapRow(BaseModel):
-    id: int
-    mnn: str
-    lf_avp: str
-    atc: str | None
-    competitors_count: int
-    main_competitor_ret: str | None
-    main_competitor_total: str | None
-    un_hos_y1: float
-    un_hos_y2: float
-    un_hos_y3: float
-    un_ret_y1: float
-    un_ret_y2: float
-    un_ret_y3: float
-    usd_hos_y1: float
-    usd_hos_y2: float
-    usd_hos_y3: float
-    usd_ret_y1: float
-    usd_ret_y2: float
-    usd_ret_y3: float
-    un_growth: float | None
-    usd_growth: float | None
-    bg_count: int
-    g_count: int
-    bg_share: float | None
-    region_shares: dict | None = None
-    region_competitors: dict | None = None
-
-    model_config = {"from_attributes": True}
-
-
-class TableResponse(BaseModel):
-    rows: list[AvpRow] | list[KapRow]
-    total: int
-    offset: int
-    limit: int
-
-
 class KpiZone1(BaseModel):
     usd_last_year: float
     un_last_year: float
@@ -150,11 +78,9 @@ class Zone2Data(BaseModel):
     forms: list[dict]
     strengths: list[dict]
     countries: list[dict]
-    znvlp: str
     grls: str
     grls_active_count: int = 0
     grls_registrants: int = 0
-    jnvlp_flag: bool = False
     pc_flag: bool = False
     pc_stats: dict | None = None
 
@@ -290,8 +216,6 @@ class OverviewGrls(BaseModel):
     expiring_2y: int
     expiring_3y: int
     foreign_share: float | None
-    jnvlp_money_share: float | None
-    jnvlp_mnn_count: int
 
 
 class OverviewPc(BaseModel):

@@ -93,7 +93,6 @@ SCORE_THRESHOLDS = {
         },
     },
     "regulatory": {
-        "znvlp": {"not_znvlp": 5, "znvlp_ok": 3, "znvlp_pressure": 1},
         "grls_registrations": {"active": 6, "few": 3, "none": 1},
         "grls_crowding": {"moderate": 4, "too_many": 2, "monopoly": 1},
         "access_risk": {"low": 5, "medium": 3, "high": 1},
