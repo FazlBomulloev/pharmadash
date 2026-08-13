@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { getDashboard } from "../api/client";
 import type { DashboardResponse } from "../types/api";
@@ -13,16 +13,49 @@ import LoadingSpinner from "../components/common/LoadingSpinner";
 import EmptyState from "../components/common/EmptyState";
 import { Search } from "lucide-react";
 
+interface UrlState {
+  mnn: string;
+  lf: string | null;
+  dose: string | null;
+  year: number | null;
+}
+
+function readUrl(params: URLSearchParams): UrlState {
+  const yearRaw = params.get("year");
+  const yearNum = yearRaw ? parseInt(yearRaw, 10) : NaN;
+  return {
+    mnn: params.get("mnn") ?? "",
+    lf: params.get("lf") || null,
+    dose: params.get("dose") || null,
+    year: Number.isFinite(yearNum) ? yearNum : null,
+  };
+}
+
+function writeUrl(s: UrlState): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (s.mnn) out.mnn = s.mnn;
+  if (s.lf) out.lf = s.lf;
+  if (s.dose) out.dose = s.dose;
+  if (s.year != null) out.year = String(s.year);
+  return out;
+}
+
 export default function MarketDashboardPage() {
   const { marketId } = useParams<{ marketId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [mnn, setMnn] = useState(searchParams.get("mnn") ?? "");
-  const [selectedLf, setSelectedLf] = useState<string | null>(null);
-  const [selectedDose, setSelectedDose] = useState<string | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const state = useMemo(() => readUrl(searchParams), [searchParams]);
+  const { mnn, lf: selectedLf, dose: selectedDose, year: selectedYear } = state;
+
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const patch = useCallback(
+    (patch: Partial<UrlState>) => {
+      setSearchParams(writeUrl({ ...state, ...patch }), { replace: true });
+    },
+    [state, setSearchParams],
+  );
 
   const fetchDashboard = useCallback(
     async (
@@ -53,29 +86,13 @@ export default function MarketDashboardPage() {
 
   const handleMnnChange = useCallback(
     (newMnn: string) => {
-      setMnn(newMnn);
-      setSelectedLf(null);
-      setSelectedDose(null);
-      setSelectedYear(null);
-      if (newMnn) {
-        setSearchParams({ mnn: newMnn }, { replace: true });
-      } else {
-        setSearchParams({}, { replace: true });
-      }
+      // Changing MNN drops filters since they depend on the MNN's own dictionary.
+      setSearchParams(writeUrl({ mnn: newMnn, lf: null, dose: null, year: null }), {
+        replace: true,
+      });
     },
     [setSearchParams],
   );
-
-  useEffect(() => {
-    const urlMnn = searchParams.get("mnn") ?? "";
-    if (urlMnn !== mnn) {
-      setMnn(urlMnn);
-      setSelectedLf(null);
-      setSelectedDose(null);
-      setSelectedYear(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   const handleFiltersChange = useCallback(
     (
@@ -83,17 +100,18 @@ export default function MarketDashboardPage() {
       dose: string | null,
       year: number | null,
     ) => {
-      setSelectedLf(lf);
-      setSelectedDose(dose);
-      setSelectedYear(year);
+      patch({ lf, dose, year });
     },
-    [],
+    [patch],
   );
 
   useEffect(() => {
-    if (!mnn) return;
+    if (!mnn) {
+      setData(null);
+      return;
+    }
     fetchDashboard(mnn, selectedLf, selectedDose, selectedYear);
-  }, [selectedLf, selectedDose, selectedYear, mnn, fetchDashboard]);
+  }, [mnn, selectedLf, selectedDose, selectedYear, fetchDashboard]);
 
   return (
     <div className="space-y-6">
