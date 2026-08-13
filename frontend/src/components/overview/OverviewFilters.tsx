@@ -38,9 +38,9 @@ export default function OverviewFilters({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           <Filter size={14} />
           Фильтры
         </div>
@@ -67,11 +67,11 @@ export default function OverviewFilters({
 
         {availableYears.length > 1 && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 flex items-center gap-1">
+            <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <CalendarDays size={12} />
               Год:
             </span>
-            <div className="flex bg-slate-100 rounded-lg p-0.5" role="group" aria-label="Год">
+            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5" role="group" aria-label="Год">
               {availableYears.map((y) => {
                 const active = (value.year ?? latestYear) === y;
                 return (
@@ -87,8 +87,8 @@ export default function OverviewFilters({
                     className={clsx(
                       "px-3 py-1 text-xs font-medium rounded-md transition-all tabular-nums",
                       active
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700",
+                        ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
                     )}
                   >
                     {y}
@@ -102,7 +102,7 @@ export default function OverviewFilters({
         {hasActive && (
           <button
             onClick={reset}
-            className="ml-auto flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+            className="ml-auto flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
           >
             <X size={12} />
             Сбросить
@@ -123,8 +123,8 @@ function SegControl<T extends string>({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-slate-500">{label}:</span>
-      <div className="flex bg-slate-100 rounded-lg p-0.5" role="group" aria-label={label}>
+      <span className="text-xs text-slate-500 dark:text-slate-400">{label}:</span>
+      <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5" role="group" aria-label={label}>
         {options.map((o) => {
           const active = value === o.value;
           return (
@@ -135,8 +135,8 @@ function SegControl<T extends string>({
               className={clsx(
                 "px-3 py-1 text-xs font-medium rounded-md transition-all",
                 active
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700",
+                  ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
               )}
             >
               {o.label}
@@ -158,11 +158,11 @@ function Select({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-slate-500">{label}:</span>
+      <span className="text-xs text-slate-500 dark:text-slate-400">{label}:</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="text-xs font-medium bg-slate-100 border-0 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+        className="text-xs font-medium bg-slate-100 dark:bg-slate-800 dark:text-slate-200 border-0 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

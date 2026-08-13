@@ -7,6 +7,7 @@ import {
 import clsx from "clsx";
 import type { OverviewGrls as GrlsData } from "../../types/api";
 import ScopeChip from "../common/ScopeChip";
+import { useChartTheme } from "../../hooks/useChartTheme";
 
 function fmtPct(v: number | null): string {
   if (v == null) return "—";
@@ -14,9 +15,10 @@ function fmtPct(v: number | null): string {
 }
 
 export default function OverviewGrls({ data }: { data: GrlsData }) {
+  const chart = useChartTheme();
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
         ГРЛС
         <ScopeChip scope="market" />
       </h3>
@@ -44,8 +46,8 @@ export default function OverviewGrls({ data }: { data: GrlsData }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {data.registrations_by_year.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 lg:col-span-2">
-            <h4 className="text-sm font-semibold text-slate-700 mb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 lg:col-span-2">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">
               Регистрации РУ по годам
             </h4>
             <ResponsiveContainer width="100%" height={220}>
@@ -55,29 +57,34 @@ export default function OverviewGrls({ data }: { data: GrlsData }) {
               >
                 <XAxis
                   dataKey="year"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: chart.axisTick }}
+                  stroke={chart.axis}
                   interval="preserveStartEnd"
                   angle={-45}
                   textAnchor="end"
                   height={50}
                 />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <YAxis tick={{ fontSize: 10, fill: chart.axisTick }} stroke={chart.axis} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{
                     borderRadius: 8,
-                    border: "1px solid #e2e8f0",
+                    border: `1px solid ${chart.tooltipBorder}`,
+                    backgroundColor: chart.tooltipBg,
+                    color: chart.tooltipText,
                     fontSize: 12,
                   }}
+                  labelStyle={{ color: chart.tooltipText }}
+                  itemStyle={{ color: chart.tooltipText }}
                 />
-                <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill={chart.series.indigo} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-            <AlertTriangle size={16} className="text-amber-500" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+            <AlertTriangle size={16} className="text-amber-500 dark:text-amber-400" />
             Окно истечения РУ
           </h4>
           <ExpiryRow
@@ -113,13 +120,13 @@ function Stat({
   color: "indigo" | "emerald" | "purple" | "slate";
 }) {
   const colors = {
-    indigo: "bg-indigo-50 text-indigo-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    purple: "bg-purple-50 text-purple-600",
-    slate: "bg-slate-50 text-slate-500",
+    indigo: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400",
+    emerald: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400",
+    purple: "bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400",
+    slate: "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
   };
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
       <div
         className={clsx(
           "inline-flex items-center justify-center w-8 h-8 rounded-lg mb-2",
@@ -128,8 +135,8 @@ function Stat({
       >
         <Icon size={16} />
       </div>
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-xl font-bold text-slate-800">{value}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{value}</p>
     </div>
   );
 }
@@ -146,12 +153,12 @@ function ExpiryRow({
   return (
     <div className="mb-3 last:mb-0">
       <div className="flex justify-between text-xs mb-1">
-        <span className="text-slate-600">{label}</span>
-        <span className="font-medium text-slate-700">
-          {value} <span className="text-slate-400">/ {total}</span>
+        <span className="text-slate-600 dark:text-slate-300">{label}</span>
+        <span className="font-medium text-slate-700 dark:text-slate-200">
+          {value} <span className="text-slate-400 dark:text-slate-500">/ {total}</span>
         </span>
       </div>
-      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
         <div
           className={clsx("h-full rounded-full transition-all", color)}
           style={{ width: `${Math.min(100, pct)}%` }}

@@ -9,6 +9,7 @@ import type {
   OverviewDecisionItem,
 } from "../../types/api";
 import ScopeChip from "../common/ScopeChip";
+import { useChartTheme } from "../../hooks/useChartTheme";
 
 const COLOR_MAP: Record<string, string> = {
   green: "#10b981",
@@ -37,6 +38,7 @@ export default function OverviewDecision({
   marketId: number;
 }) {
   const navigate = useNavigate();
+  const chart = useChartTheme();
   const pieData = Object.entries(data.distribution).map(([color, count]) => ({
     name: COLOR_LABEL[color] ?? color,
     value: count,
@@ -46,14 +48,14 @@ export default function OverviewDecision({
 
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
         Сводка Decision Engine
         <ScopeChip scope="market" />
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h4 className="text-sm font-semibold text-slate-700 mb-3">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">
             Распределение МНН ({total})
           </h4>
           <ResponsiveContainer width="100%" height={200}>
@@ -75,9 +77,13 @@ export default function OverviewDecision({
               <Tooltip
                 contentStyle={{
                   borderRadius: 8,
-                  border: "1px solid #e2e8f0",
+                  border: `1px solid ${chart.tooltipBorder}`,
+                  backgroundColor: chart.tooltipBg,
+                  color: chart.tooltipText,
                   fontSize: 12,
                 }}
+                labelStyle={{ color: chart.tooltipText }}
+                itemStyle={{ color: chart.tooltipText }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -91,9 +97,9 @@ export default function OverviewDecision({
                   />
                   {d.name}
                 </span>
-                <span className="font-semibold text-slate-700">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
                   {d.value}
-                  <span className="text-slate-400 ml-1">
+                  <span className="text-slate-400 dark:text-slate-500 ml-1">
                     ({total > 0 ? ((d.value / total) * 100).toFixed(0) : 0}%)
                   </span>
                 </span>
@@ -112,7 +118,7 @@ export default function OverviewDecision({
               `/market/${marketId}/dashboard?mnn=${encodeURIComponent(mnn)}`,
             )
           }
-          iconColor="text-emerald-600 bg-emerald-50"
+          iconColor="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
         />
 
         <DecisionList
@@ -125,7 +131,7 @@ export default function OverviewDecision({
               `/market/${marketId}/dashboard?mnn=${encodeURIComponent(mnn)}`,
             )
           }
-          iconColor="text-red-600 bg-red-50"
+          iconColor="text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40"
         />
       </div>
     </section>
@@ -143,8 +149,8 @@ function DecisionList({
   iconColor: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
         <span
           className={clsx(
             "inline-flex items-center justify-center w-6 h-6 rounded",
@@ -160,19 +166,19 @@ function DecisionList({
           <button
             key={item.mnn}
             onClick={() => onClickItem(item.mnn)}
-            className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 transition-colors group"
+            className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group"
           >
             <span
               className="inline-block w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{ background: COLOR_MAP[item.color] ?? "#94a3b8" }}
             />
-            <span className="flex-1 truncate text-sm text-slate-700 group-hover:text-indigo-600">
+            <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
               {item.mnn}
             </span>
-            <span className="text-xs font-semibold text-slate-600">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
               {item.total_score.toFixed(0)}
             </span>
-            <span className="text-[11px] text-slate-400 w-14 text-right">
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 w-14 text-right">
               {fmtUsd(item.usd)}
             </span>
           </button>

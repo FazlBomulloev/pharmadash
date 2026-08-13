@@ -6,6 +6,7 @@ import clsx from "clsx";
 import type { OverviewVolume as VolumeData } from "../../types/api";
 import ScopeChip from "../common/ScopeChip";
 import SplitBar from "../common/SplitBar";
+import { useChartTheme } from "../../hooks/useChartTheme";
 
 function fmtUsd(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`;
@@ -29,6 +30,7 @@ function signed(v: number | null): string {
 }
 
 export default function OverviewVolume({ data }: { data: VolumeData }) {
+  const chart = useChartTheme();
   const trend = data.years_labels.map((y, idx) => ({
     year: y,
     usd: [data.usd_y1, data.usd_y2, data.usd_y3][idx] ?? 0,
@@ -46,7 +48,7 @@ export default function OverviewVolume({ data }: { data: VolumeData }) {
 
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
         Объём рынка
         <ScopeChip scope="market" />
       </h3>
@@ -97,15 +99,17 @@ export default function OverviewVolume({ data }: { data: VolumeData }) {
             title="Динамика USD"
             data={trend}
             dataKey="usd"
-            color="#4f46e5"
+            color={chart.series.indigo}
             tickFmt={fmtUsd}
+            chart={chart}
           />
           <TrendMini
             title="Динамика UN"
             data={trend}
             dataKey="un"
-            color="#10b981"
+            color={chart.series.emerald}
             tickFmt={fmtUn}
+            chart={chart}
           />
         </div>
 
@@ -130,18 +134,18 @@ function Kpi({
   subtitle?: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
         <Icon size={14} />
         {label}
       </div>
-      <p className="text-2xl font-bold text-slate-800 mt-1">{primary}</p>
+      <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">{primary}</p>
       <div className="flex items-center gap-3 mt-1">
         {growth !== undefined && growth !== null && (
           <span
             className={clsx(
               "flex items-center gap-1 text-xs font-medium",
-              growth >= 0 ? "text-emerald-600" : "text-red-600",
+              growth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
             )}
           >
             {growth >= 0 ? (
@@ -153,7 +157,7 @@ function Kpi({
           </span>
         )}
         {subtitle && (
-          <span className="text-[11px] text-slate-400">{subtitle}</span>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</span>
         )}
       </div>
     </div>
@@ -161,22 +165,24 @@ function Kpi({
 }
 
 function TrendMini({
-  title, data, dataKey, color, tickFmt,
+  title, data, dataKey, color, tickFmt, chart,
 }: {
   title: string;
   data: { year: string; usd: number; un: number }[];
   dataKey: "usd" | "un";
   color: string;
   tickFmt: (v: number) => string;
+  chart: ReturnType<typeof useChartTheme>;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h4 className="text-sm font-semibold text-slate-700 mb-3">{title}</h4>
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">{title}</h4>
       <ResponsiveContainer width="100%" height={200}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-          <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+          <XAxis dataKey="year" tick={{ fontSize: 11, fill: chart.axisTick }} stroke={chart.axis} />
           <YAxis
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 10, fill: chart.axisTick }}
+            stroke={chart.axis}
             tickFormatter={tickFmt}
             width={54}
           />
@@ -184,9 +190,13 @@ function TrendMini({
             formatter={(v) => tickFmt(Number(v))}
             contentStyle={{
               borderRadius: 8,
-              border: "1px solid #e2e8f0",
+              border: `1px solid ${chart.tooltipBorder}`,
+              backgroundColor: chart.tooltipBg,
+              color: chart.tooltipText,
               fontSize: 12,
             }}
+            labelStyle={{ color: chart.tooltipText }}
+            itemStyle={{ color: chart.tooltipText }}
           />
           <Line
             type="monotone"

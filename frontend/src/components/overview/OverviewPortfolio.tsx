@@ -11,6 +11,7 @@ import DrillDownRow from "../common/DrillDownRow";
 import { ProducerDetailsLoader } from "../common/ProducerDetails";
 import { CountryDetailsLoader } from "../common/CountryDetails";
 import ScopeChip from "../common/ScopeChip";
+import { useChartTheme } from "../../hooks/useChartTheme";
 
 const PIE_COLORS = [
   "#4f46e5", "#7c3aed", "#a78bfa", "#06b6d4",
@@ -39,29 +40,30 @@ export default function OverviewPortfolio({
   marketId: number;
 }) {
   const navigate = useNavigate();
+  const chart = useChartTheme();
   const [expandedProducer, setExpandedProducer] = useState<string | null>(null);
   const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
 
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
         Структура портфеля
         <ScopeChip scope="market" />
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-slate-700">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Топ-10 МНН
             </h4>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-400 dark:text-slate-500">
               клик — открыть дашборд
             </span>
           </div>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-slate-500 border-b border-slate-100">
+              <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                 <th className="text-left py-1.5 font-medium">МНН</th>
                 <th className="text-right py-1.5 font-medium">USD</th>
                 <th className="text-right py-1.5 font-medium">Доля</th>
@@ -77,13 +79,13 @@ export default function OverviewPortfolio({
                       `/market/${marketId}/dashboard?mnn=${encodeURIComponent(m.mnn)}`,
                     )
                   }
-                  className="border-b border-slate-50 hover:bg-indigo-50/30 cursor-pointer"
+                  className="border-b border-slate-50 dark:border-slate-800 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 cursor-pointer"
                 >
-                  <td className="py-1.5 font-medium text-slate-700">
+                  <td className="py-1.5 font-medium text-slate-700 dark:text-slate-200">
                     <span className="truncate max-w-[220px] block">{m.mnn}</span>
                   </td>
-                  <td className="py-1.5 text-right">{fmtUsd(m.usd)}</td>
-                  <td className="py-1.5 text-right text-slate-500">
+                  <td className="py-1.5 text-right text-slate-800 dark:text-slate-100">{fmtUsd(m.usd)}</td>
+                  <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">
                     {fmtPct(m.share)}
                   </td>
                   <td className="py-1.5 text-right">
@@ -95,25 +97,25 @@ export default function OverviewPortfolio({
           </table>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-slate-700">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Топ-10 производителей
             </h4>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
               HHI:{" "}
-              <span className="font-semibold text-slate-700">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
                 {data.hhi != null ? Math.round(data.hhi) : "—"}
               </span>{" "}
               · Top-3:{" "}
-              <span className="font-semibold text-slate-700">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
                 {fmtPct(data.top3_share)}
               </span>
             </div>
           </div>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-slate-500 border-b border-slate-100">
+              <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                 <th className="w-6"></th>
                 <th className="text-left py-1.5 font-medium">Производитель</th>
                 <th className="text-left py-1.5 font-medium">Страна</th>
@@ -135,14 +137,14 @@ export default function OverviewPortfolio({
                   colSpan={6}
                   columns={
                     <>
-                      <td className="py-1.5 font-medium text-slate-700 truncate max-w-[220px]">
+                      <td className="py-1.5 font-medium text-slate-700 dark:text-slate-200 truncate max-w-[220px]">
                         {p.name}
                       </td>
-                      <td className="py-1.5 text-slate-600 text-xs truncate max-w-[120px]">
+                      <td className="py-1.5 text-slate-600 dark:text-slate-300 text-xs truncate max-w-[120px]">
                         {p.country ?? "—"}
                       </td>
-                      <td className="py-1.5 text-right">{fmtUsd(p.usd)}</td>
-                      <td className="py-1.5 text-right text-slate-500">
+                      <td className="py-1.5 text-right text-slate-800 dark:text-slate-100">{fmtUsd(p.usd)}</td>
+                      <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">
                         {fmtPct(p.share)}
                       </td>
                       <td className="py-1.5 text-right">
@@ -165,8 +167,8 @@ export default function OverviewPortfolio({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {data.atc_distribution.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h4 className="text-sm font-semibold text-slate-700 mb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">
               Распределение по классам ATC
             </h4>
             <ResponsiveContainer width="100%" height={Math.max(260, data.atc_distribution.length * 22)}>
@@ -177,13 +179,15 @@ export default function OverviewPortfolio({
               >
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: chart.axisTick }}
+                  stroke={chart.axis}
                   tickFormatter={fmtUsd}
                 />
                 <YAxis
                   type="category"
                   dataKey="atc"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: chart.axisTick }}
+                  stroke={chart.axis}
                   width={140}
                   interval={0}
                 />
@@ -191,19 +195,23 @@ export default function OverviewPortfolio({
                   formatter={(v) => fmtUsd(Number(v))}
                   contentStyle={{
                     borderRadius: 8,
-                    border: "1px solid #e2e8f0",
+                    border: `1px solid ${chart.tooltipBorder}`,
+                    backgroundColor: chart.tooltipBg,
+                    color: chart.tooltipText,
                     fontSize: 12,
                   }}
+                  labelStyle={{ color: chart.tooltipText }}
+                  itemStyle={{ color: chart.tooltipText }}
                 />
-                <Bar dataKey="usd" fill="#4f46e5" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="usd" fill={chart.series.indigo} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
 
         {data.countries.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h4 className="text-sm font-semibold text-slate-700 mb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">
               Страны производства (по USD)
             </h4>
             <div className="flex items-center gap-4 flex-wrap">
@@ -241,9 +249,13 @@ export default function OverviewPortfolio({
                     }}
                     contentStyle={{
                       borderRadius: 8,
-                      border: "1px solid #e2e8f0",
+                      border: `1px solid ${chart.tooltipBorder}`,
+                      backgroundColor: chart.tooltipBg,
+                      color: chart.tooltipText,
                       fontSize: 12,
                     }}
+                    labelStyle={{ color: chart.tooltipText }}
+                    itemStyle={{ color: chart.tooltipText }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -251,7 +263,7 @@ export default function OverviewPortfolio({
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-slate-500 border-b border-slate-100">
+                  <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                     <th className="w-6"></th>
                     <th className="text-left py-1.5 font-medium">Страна</th>
                     <th className="text-right py-1.5 font-medium">USD</th>
@@ -272,7 +284,7 @@ export default function OverviewPortfolio({
                       colSpan={5}
                       columns={
                         <>
-                          <td className="py-1.5 font-medium text-slate-700">
+                          <td className="py-1.5 font-medium text-slate-700 dark:text-slate-200">
                             <div className="flex items-center gap-2">
                               <span
                                 className="inline-block w-2 h-2 rounded flex-shrink-0"
@@ -284,11 +296,11 @@ export default function OverviewPortfolio({
                               <span className="truncate">{c.name}</span>
                             </div>
                           </td>
-                          <td className="py-1.5 text-right">{fmtUsd(c.usd)}</td>
-                          <td className="py-1.5 text-right text-slate-500">
+                          <td className="py-1.5 text-right text-slate-800 dark:text-slate-100">{fmtUsd(c.usd)}</td>
+                          <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">
                             {fmtPct(c.share)}
                           </td>
-                          <td className="py-1.5 text-right text-slate-500">
+                          <td className="py-1.5 text-right text-slate-500 dark:text-slate-400">
                             {fmtPct(c.un_share)}
                           </td>
                         </>
@@ -313,13 +325,13 @@ export default function OverviewPortfolio({
 
 function Growth({ value }: { value: number | null }) {
   if (value == null)
-    return <span className="text-slate-300">—</span>;
+    return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const isUp = value >= 0;
   return (
     <span
       className={clsx(
         "inline-flex items-center gap-0.5 text-xs font-medium",
-        isUp ? "text-emerald-600" : "text-red-600",
+        isUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
       )}
     >
       {isUp ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
