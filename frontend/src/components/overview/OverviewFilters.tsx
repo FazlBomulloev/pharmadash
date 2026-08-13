@@ -71,7 +71,7 @@ export default function OverviewFilters({
               <CalendarDays size={12} />
               Год:
             </span>
-            <div className="flex bg-slate-100 rounded-lg p-0.5">
+            <div className="flex bg-slate-100 rounded-lg p-0.5" role="group" aria-label="Год">
               {availableYears.map((y) => {
                 const active = (value.year ?? latestYear) === y;
                 return (
@@ -83,6 +83,7 @@ export default function OverviewFilters({
                         year: y === latestYear ? null : y,
                       })
                     }
+                    aria-pressed={active}
                     className={clsx(
                       "px-3 py-1 text-xs font-medium rounded-md transition-all tabular-nums",
                       active
@@ -123,21 +124,25 @@ function SegControl<T extends string>({
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs text-slate-500">{label}:</span>
-      <div className="flex bg-slate-100 rounded-lg p-0.5">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            className={clsx(
-              "px-3 py-1 text-xs font-medium rounded-md transition-all",
-              value === o.value
-                ? "bg-white text-indigo-600 shadow-sm"
-                : "text-slate-500 hover:text-slate-700",
-            )}
-          >
-            {o.label}
-          </button>
-        ))}
+      <div className="flex bg-slate-100 rounded-lg p-0.5" role="group" aria-label={label}>
+        {options.map((o) => {
+          const active = value === o.value;
+          return (
+            <button
+              key={o.value}
+              onClick={() => onChange(o.value)}
+              aria-pressed={active}
+              className={clsx(
+                "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                active
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700",
+              )}
+            >
+              {o.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

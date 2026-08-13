@@ -164,23 +164,27 @@ function YearSegControl({
         <CalendarDays size={13} />
         {label}:
       </span>
-      <div className="flex bg-slate-100 rounded-lg p-0.5">
-        {options.map((y) => (
-          <button
-            key={y}
-            onClick={() =>
-              onChange(y === latest ? null : y)
-            }
-            className={clsx(
-              "px-3 py-1 text-xs font-medium rounded-md transition-all tabular-nums",
-              value === y
-                ? "bg-white text-indigo-600 shadow-sm"
-                : "text-slate-500 hover:text-slate-700",
-            )}
-          >
-            {y}
-          </button>
-        ))}
+      <div className="flex bg-slate-100 rounded-lg p-0.5" role="group" aria-label={label}>
+        {options.map((y) => {
+          const active = value === y;
+          return (
+            <button
+              key={y}
+              onClick={() =>
+                onChange(y === latest ? null : y)
+              }
+              aria-pressed={active}
+              className={clsx(
+                "px-3 py-1 text-xs font-medium rounded-md transition-all tabular-nums",
+                active
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700",
+              )}
+            >
+              {y}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
