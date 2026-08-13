@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { getDashboard } from "../api/client";
 import type { DashboardResponse } from "../types/api";
 import MnnSearch from "../components/dashboard/MnnSearch";
+import MnnScoreHeader from "../components/dashboard/MnnScoreHeader";
 import DashboardFilters from "../components/dashboard/DashboardFilters";
 import Zone1 from "../components/dashboard/Zone1";
 import Zone2 from "../components/dashboard/Zone2";
@@ -96,18 +97,20 @@ export default function MarketDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="sticky top-0 z-30 -mx-6 px-6 pt-6 pb-4 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200 space-y-3">
         <MnnSearch
           marketId={parseInt(marketId ?? "0")}
           value={mnn}
           onChange={handleMnnChange}
         />
         {data && (
-          <div className="px-4 py-2 bg-indigo-50 rounded-lg">
-            <span className="text-sm font-semibold text-indigo-700">
-              {data.mnn}
-            </span>
-          </div>
+          <MnnScoreHeader
+            mnn={data.mnn}
+            zone1={data.zone1}
+            zone2={data.zone2}
+            zone3={data.zone3}
+            atcBenchmark={data.atc_benchmark}
+          />
         )}
       </div>
 
@@ -166,7 +169,9 @@ export default function MarketDashboardPage() {
             years={data.years}
           />
           <div className="border-t border-slate-200" />
-          <Zone3 data={data.zone3} />
+          <div id="mnn-zone3-details">
+            <Zone3 data={data.zone3} />
+          </div>
         </div>
       )}
     </div>
