@@ -14,6 +14,10 @@ function fmtPct(v: number | null): string {
   const s = (v * 100).toFixed(1);
   return v >= 0 ? `+${s}%` : `${s}%`;
 }
+function fmtNum(v: number | null): string {
+  if (v == null) return "—";
+  return Math.round(v).toString();
+}
 
 export default function AtcBenchmark({ data }: { data: Data }) {
   return (
@@ -42,55 +46,39 @@ export default function AtcBenchmark({ data }: { data: Data }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <BulletMetric
           label="USD Y3"
-          ours={fmtUsd(data.our.usd)}
-          median={fmtUsd(data.class_stats.usd_median)}
-          p75={fmtUsd(data.class_stats.usd_p75)}
-          above={
-            data.our.usd != null &&
-            data.class_stats.usd_median != null
-              ? data.our.usd > data.class_stats.usd_median
-              : null
-          }
+          ours={data.our.usd}
+          median={data.class_stats.usd_median}
+          p75={data.class_stats.usd_p75}
+          max={data.class_stats.usd_max}
+          fmt={fmtUsd}
+          higherIsBetter
         />
-        <Metric
+        <BulletMetric
           label="Рост USD"
-          ours={fmtPct(data.our.growth)}
-          median={fmtPct(data.class_stats.growth_median)}
-          above={
-            data.our.growth != null && data.class_stats.growth_median != null
-              ? data.our.growth > data.class_stats.growth_median
-              : null
-          }
-          ourIcon={data.our.growth}
+          ours={data.our.growth}
+          median={data.class_stats.growth_median}
+          fmt={fmtPct}
+          symmetric
+          showGrowthIcon
+          higherIsBetter
         />
-        <Metric
+        <BulletMetric
           label="HHI"
-          ours={data.our.hhi != null ? Math.round(data.our.hhi).toString() : "—"}
-          median={
-            data.class_stats.hhi_median != null
-              ? Math.round(data.class_stats.hhi_median).toString()
-              : "—"
-          }
-          // Низкий HHI лучше — инвертируем
-          above={
-            data.our.hhi != null && data.class_stats.hhi_median != null
-              ? data.our.hhi < data.class_stats.hhi_median
-              : null
-          }
-          aboveLabel="ниже"
-          belowLabel="выше"
+          ours={data.our.hhi}
+          median={data.class_stats.hhi_median}
+          fmt={fmtNum}
+          max={10000}
+          higherIsBetter={false}
         />
-        <Metric
-          label="Конкурентов"
-          ours={data.our.competitors.toString()}
-          median={
-            data.class_stats.competitors_median != null
-              ? data.class_stats.competitors_median.toFixed(0)
-              : "—"
-          }
+        <BulletMetric
+          label="Активных конкурентов"
+          ours={data.our.competitors}
+          median={data.class_stats.competitors_median}
+          fmt={fmtNum}
+          higherIsBetter
         />
       </div>
 
@@ -122,52 +110,177 @@ export default function AtcBenchmark({ data }: { data: Data }) {
   );
 }
 
-function Metric({
-  label, ours, median, p75, above, aboveLabel = "выше", belowLabel = "ниже",
-  ourIcon,
-}: {
+interface BulletProps {
   label: string;
-  ours: string;
-  median: string;
-  p75?: string;
-  above?: boolean | null;
-  aboveLabel?: string;
-  belowLabel?: string;
-  ourIcon?: number | null;
-}) {
+  ours: number | null;
+  median: number | null;
+  p75?: number | null;
+  max?: number | null;
+  fmt: (v: number | null) => string;
+  higherIsBetter: boolean;
+  /** For growth: scale symmetric around 0 rather than 0 → max. */
+  symmetric?: boolean;
+  showGrowthIcon?: boolean;
+}
+
+function BulletMetric({
+  label, ours, median, p75, max, fmt, higherIsBetter, symmetric, showGrowthIcon,
+}: BulletProps) {
+  const better =
+    ours != null && median != null
+      ? higherIsBetter
+        ? ours > median
+        : ours < median
+      : null;
+
+  const bar = computeScale({ ours, median, p75, max, symmetric });
+
   return (
     <div className="bg-white rounded-lg p-3 border border-indigo-100">
-      <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
-        {label}
-      </p>
-      <div className="flex items-baseline gap-1.5 mt-1">
-        <span className="text-xl font-bold text-slate-800">{ours}</span>
-        {ourIcon != null && (
-          ourIcon >= 0 ? (
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+          {label}
+        </p>
+        {better != null && (
+          <span
+            className={clsx(
+              "text-[10px] font-semibold uppercase tracking-wide",
+              better ? "text-emerald-600" : "text-red-600",
+            )}
+          >
+            {better ? "лучше медианы" : "хуже медианы"}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-baseline gap-1.5 mb-2">
+        <span className="text-xl font-bold text-slate-800 tabular-nums">
+          {fmt(ours)}
+        </span>
+        {showGrowthIcon && ours != null && (
+          ours >= 0 ? (
             <TrendingUp size={14} className="text-emerald-600" />
           ) : (
             <TrendingDown size={14} className="text-red-600" />
           )
         )}
       </div>
-      <p className="text-[11px] text-slate-500 mt-1">
-        медиана: <span className="font-medium text-slate-700">{median}</span>
-        {p75 && (
-          <>
-            {" · "}p75: <span className="font-medium text-slate-700">{p75}</span>
-          </>
-        )}
-      </p>
-      {above != null && (
-        <p
-          className={clsx(
-            "text-[10px] mt-0.5 font-semibold uppercase tracking-wide",
-            above ? "text-emerald-600" : "text-red-600",
-          )}
-        >
-          {above ? `${aboveLabel} медианы` : `${belowLabel} медианы`}
-        </p>
+
+      {bar ? (
+        <>
+          <div
+            className="relative h-2 bg-slate-100 rounded-full overflow-visible"
+            role="img"
+            aria-label={`Наш: ${fmt(ours)}, медиана: ${fmt(median)}${p75 != null ? `, p75: ${fmt(p75)}` : ""}`}
+          >
+            {/* median → p75 shaded range */}
+            {bar.p50Pct != null && bar.p75Pct != null && (
+              <div
+                className="absolute top-0 h-full bg-indigo-200/60"
+                style={{
+                  left: `${Math.min(bar.p50Pct, bar.p75Pct)}%`,
+                  width: `${Math.abs(bar.p75Pct - bar.p50Pct)}%`,
+                }}
+                aria-hidden
+              />
+            )}
+            {/* median tick */}
+            {bar.p50Pct != null && (
+              <div
+                className="absolute -top-0.5 h-3 w-0.5 bg-indigo-500"
+                style={{ left: `${bar.p50Pct}%` }}
+                title={`медиана ${fmt(median)}`}
+                aria-hidden
+              />
+            )}
+            {/* our marker */}
+            {bar.ourPct != null && (
+              <div
+                className={clsx(
+                  "absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full ring-2 ring-white shadow",
+                  better === null
+                    ? "bg-slate-500"
+                    : better
+                      ? "bg-emerald-500"
+                      : "bg-red-500",
+                )}
+                style={{
+                  left: `${bar.ourPct}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+                title={`наш ${fmt(ours)}`}
+                aria-hidden
+              />
+            )}
+          </div>
+          <div className="mt-1.5 flex justify-between text-[10px] text-slate-400 tabular-nums">
+            <span>{fmt(bar.minValue)}</span>
+            <span>
+              медиана <span className="text-slate-600 font-medium">{fmt(median)}</span>
+            </span>
+            <span>{fmt(bar.maxValue)}</span>
+          </div>
+        </>
+      ) : (
+        <p className="text-[11px] text-slate-400">Недостаточно данных для сравнения</p>
       )}
     </div>
   );
+}
+
+interface Scale {
+  minValue: number | null;
+  maxValue: number | null;
+  ourPct: number | null;
+  p50Pct: number | null;
+  p75Pct: number | null;
+}
+
+/** Convert values to 0-100 percentage positions on a common scale. */
+function computeScale({
+  ours, median, p75, max, symmetric,
+}: {
+  ours: number | null;
+  median: number | null;
+  p75?: number | null;
+  max?: number | null;
+  symmetric?: boolean;
+}): Scale | null {
+  if (ours == null && median == null) return null;
+
+  let lo: number;
+  let hi: number;
+
+  if (symmetric) {
+    // For growth-like metrics: symmetric around 0.
+    const magnitude = Math.max(
+      Math.abs(ours ?? 0),
+      Math.abs(median ?? 0),
+      0.10,
+    );
+    lo = -magnitude;
+    hi = magnitude;
+  } else {
+    lo = 0;
+    hi =
+      max ??
+      Math.max(
+        (ours ?? 0),
+        (median ?? 0) * 2,
+        (p75 ?? 0) * 1.2,
+        1,
+      );
+  }
+
+  const span = hi - lo || 1;
+  const pct = (v: number | null | undefined) =>
+    v == null ? null : Math.min(100, Math.max(0, ((v - lo) / span) * 100));
+
+  return {
+    minValue: lo,
+    maxValue: hi,
+    ourPct: pct(ours),
+    p50Pct: pct(median),
+    p75Pct: pct(p75 ?? undefined),
+  };
 }
