@@ -222,6 +222,8 @@ class OverviewPc(BaseModel):
     mnn_coverage_pct: float | None
     money_coverage_pct: float | None
     unit_price_usd_stats: dict | None
+    market_asp_usd: float | None = None
+    ceiling_utilization: float | None = None
     indexation_by_year: list[dict]
     top_owners: list[dict]
 

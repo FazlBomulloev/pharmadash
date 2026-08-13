@@ -1,7 +1,8 @@
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
 } from "recharts";
-import { DollarSign, FileText, Building2 } from "lucide-react";
+import { DollarSign, FileText, Building2, Gauge } from "lucide-react";
+import clsx from "clsx";
 import type { OverviewPc as PcData } from "../../types/api";
 import ScopeChip from "../common/ScopeChip";
 
@@ -26,7 +27,7 @@ export default function OverviewPc({ data }: { data: PcData }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <CoverageCard
           icon={FileText}
           label="Покрытие МНН"
@@ -39,12 +40,17 @@ export default function OverviewPc({ data }: { data: PcData }) {
           pct={data.money_coverage_pct}
           hint="доля USD рынка под РС"
         />
+        <CeilingUtilization
+          util={data.ceiling_utilization}
+          marketAsp={data.market_asp_usd}
+          pcMedian={data.unit_price_usd_stats?.median ?? null}
+        />
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500 font-semibold">
             <Building2 size={14} />
             Записей всего
           </div>
-          <p className="text-2xl font-bold text-slate-800 mt-1">
+          <p className="text-2xl font-bold text-slate-800 mt-1 tabular-nums">
             {data.indexation_by_year.reduce((s, r) => s + r.count, 0)}
           </p>
           <p className="text-[11px] text-slate-400 mt-1">
@@ -102,21 +108,46 @@ export default function OverviewPc({ data }: { data: PcData }) {
 
         {data.top_owners.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h4 className="text-sm font-semibold text-slate-700 mb-3">
-              Топ-10 владельцев РС
-            </h4>
+            <div className="flex items-baseline justify-between mb-3">
+              <h4 className="text-sm font-semibold text-slate-700">
+                Топ-10 владельцев РС
+              </h4>
+              <span className="text-[11px] text-slate-400">
+                свежесть = обновлено ≤ 12 мес
+              </span>
+            </div>
             <table className="w-full text-sm">
+              <thead>
+                <tr className="text-slate-500 border-b border-slate-100 text-xs">
+                  <th className="text-left py-1.5 font-medium">Владелец</th>
+                  <th className="text-right py-1.5 font-medium">Записей</th>
+                  <th className="text-right py-1.5 font-medium">Свежих</th>
+                </tr>
+              </thead>
               <tbody>
                 {data.top_owners.map((o) => (
                   <tr
                     key={o.name}
                     className="border-b border-slate-50 last:border-0"
                   >
-                    <td className="py-1.5 text-slate-700 truncate max-w-[260px]">
+                    <td className="py-1.5 text-slate-700 truncate max-w-[220px]">
                       {o.name}
                     </td>
-                    <td className="py-1.5 text-right font-medium">
+                    <td className="py-1.5 text-right font-medium tabular-nums">
                       {o.count}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      <span className="text-slate-500">{o.fresh_count}</span>
+                      {o.fresh_share != null && (
+                        <span className={clsx(
+                          "ml-1.5 text-[11px] font-semibold",
+                          o.fresh_share >= 0.5 ? "text-emerald-600"
+                            : o.fresh_share >= 0.2 ? "text-amber-600"
+                              : "text-red-600",
+                        )}>
+                          {(o.fresh_share * 100).toFixed(0)}%
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -143,8 +174,45 @@ function CoverageCard({
         <Icon size={14} />
         {label}
       </div>
-      <p className="text-2xl font-bold text-slate-800 mt-1">{fmtPct(pct)}</p>
+      <p className="text-2xl font-bold text-slate-800 mt-1 tabular-nums">{fmtPct(pct)}</p>
       <p className="text-[11px] text-slate-400 mt-1">{hint}</p>
+    </div>
+  );
+}
+
+function CeilingUtilization({
+  util, marketAsp, pcMedian,
+}: {
+  util: number | null;
+  marketAsp: number | null;
+  pcMedian: number | null;
+}) {
+  const utilPct = util == null ? null : util * 100;
+  // Меньше 100% = есть запас под потолком (хорошо для BD-входа)
+  const headroom = utilPct == null ? null : 100 - utilPct;
+  const tone =
+    headroom == null
+      ? "text-slate-400"
+      : headroom >= 30
+        ? "text-emerald-600"
+        : headroom >= 10
+          ? "text-amber-600"
+          : "text-red-600";
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+        <Gauge size={14} />
+        Запас под потолком
+      </div>
+      <p className={clsx("text-2xl font-bold mt-1 tabular-nums", tone)}>
+        {headroom == null ? "—" : `${headroom.toFixed(0)}%`}
+      </p>
+      <p className="text-[11px] text-slate-400 mt-1">
+        {util == null
+          ? "нет данных о ПЦ/шт"
+          : `рынок ${fmtUsd(marketAsp ?? 0)} / потолок ${fmtUsd(pcMedian ?? 0)}`}
+      </p>
     </div>
   );
 }

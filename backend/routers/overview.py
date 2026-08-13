@@ -391,6 +391,22 @@ def _build_pc(
                 "max": prices_usd[-1],
             }
 
+    # Использование потолка: сколько % от предельной цены реально берёт рынок.
+    # market_asp_usd = средневзвешенная цена (USD/шт) по МНН под покрытием ПЦ.
+    # ratio = market_asp_usd / pc_median_usd_per_unit
+    #   1.0 → продают ровно на потолке (нет зазора)
+    #   0.5 → цены на половине потолка, есть 50% запас
+    ceiling_utilization = None
+    market_asp_usd = None
+    if unit_price_stats and unit_price_stats["median"] > 0:
+        covered_un = sum(
+            i.un_y3 for i in bdp_items
+            if (i.mnn_canonical or "") in pc_mnns
+        )
+        if covered_un > 0:
+            market_asp_usd = covered_usd / covered_un
+            ceiling_utilization = market_asp_usd / unit_price_stats["median"]
+
     year_counts: dict[int, int] = defaultdict(int)
     for p in pc_rows:
         if p.price_effective_date:
@@ -400,15 +416,27 @@ def _build_pc(
         for y, c in sorted(year_counts.items())
     ]
 
-    owner_counts: dict[str, int] = defaultdict(int)
+    # По владельцам: общее число записей + свежие (<= 365 дней)
+    today = date.today()
+    owner_totals: dict[str, int] = defaultdict(int)
+    owner_fresh: dict[str, int] = defaultdict(int)
     for p in pc_rows:
         owner = p.owner_canonical or p.owner
-        if owner:
-            owner_counts[owner] += 1
+        if not owner:
+            continue
+        owner_totals[owner] += 1
+        eff = p.price_effective_date
+        if eff and (today - eff).days <= 365:
+            owner_fresh[owner] += 1
     top_owners = [
-        {"name": k, "count": v}
+        {
+            "name": k,
+            "count": v,
+            "fresh_count": owner_fresh.get(k, 0),
+            "fresh_share": (owner_fresh.get(k, 0) / v) if v > 0 else None,
+        }
         for k, v in sorted(
-            owner_counts.items(), key=lambda x: x[1], reverse=True
+            owner_totals.items(), key=lambda x: x[1], reverse=True
         )[:10]
     ]
 
@@ -416,6 +444,8 @@ def _build_pc(
         "mnn_coverage_pct": mnn_coverage,
         "money_coverage_pct": money_coverage,
         "unit_price_usd_stats": unit_price_stats,
+        "market_asp_usd": market_asp_usd,
+        "ceiling_utilization": ceiling_utilization,
         "indexation_by_year": indexation_by_year,
         "top_owners": top_owners,
     }

@@ -419,12 +419,21 @@ export interface OverviewPcUnitStats {
   max: number;
 }
 
+export interface OverviewPcOwner {
+  name: string;
+  count: number;
+  fresh_count: number;
+  fresh_share: number | null;
+}
+
 export interface OverviewPc {
   mnn_coverage_pct: number | null;
   money_coverage_pct: number | null;
   unit_price_usd_stats: OverviewPcUnitStats | null;
+  market_asp_usd: number | null;
+  ceiling_utilization: number | null;
   indexation_by_year: { year: number; count: number }[];
-  top_owners: { name: string; count: number }[];
+  top_owners: OverviewPcOwner[];
 }
 
 export interface OverviewDecisionItem {
