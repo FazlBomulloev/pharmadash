@@ -27,10 +27,10 @@ export default function DrillDownRow({
       <tr
         onClick={onToggle}
         className={clsx(
-          "border-b border-slate-100 cursor-pointer transition-colors select-none",
+          "border-b border-slate-100 dark:border-slate-800 cursor-pointer transition-colors select-none",
           expanded
-            ? "bg-indigo-50/70"
-            : "hover:bg-slate-50/60",
+            ? "bg-indigo-50/70 dark:bg-indigo-950/30"
+            : "hover:bg-slate-50/60 dark:hover:bg-slate-800/40",
           rowClassName,
         )}
       >
@@ -39,7 +39,7 @@ export default function DrillDownRow({
             size={14}
             className={clsx(
               "transition-transform duration-200 ease-out",
-              expanded ? "rotate-90 text-indigo-500" : "text-slate-400",
+              expanded ? "rotate-90 text-indigo-500 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500",
             )}
           />
         </td>
@@ -48,11 +48,11 @@ export default function DrillDownRow({
       {expanded && (
         <tr>
           <td colSpan={colSpan} className="p-0">
-            <div className="mx-2 my-2 relative overflow-hidden rounded-xl ring-1 ring-slate-200/70 shadow-inner bg-gradient-to-br from-slate-50 via-white to-indigo-50/40">
+            <div className="mx-2 my-2 relative overflow-hidden rounded-xl ring-1 ring-slate-200/70 dark:ring-slate-700/70 shadow-inner bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 dark:from-slate-800/60 dark:via-slate-900 dark:to-indigo-950/30">
               {/* left accent gradient */}
               <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-indigo-400 via-indigo-500 to-violet-500" />
               {/* subtle top highlight */}
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-200/60 to-transparent" />
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-200/60 dark:via-indigo-700/60 to-transparent" />
               <div className="relative p-5 md:p-6">{children}</div>
             </div>
           </td>

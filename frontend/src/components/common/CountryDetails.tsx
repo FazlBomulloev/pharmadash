@@ -72,7 +72,7 @@ export function CountryDetailsLoader({
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col items-center gap-2 text-slate-500">
+      <div className="py-6 flex flex-col items-center gap-2 text-slate-500 dark:text-slate-400">
         <LoadingSpinner size="md" />
         <span className="text-xs">Загрузка…</span>
       </div>
@@ -80,7 +80,7 @@ export function CountryDetailsLoader({
   }
   if (error) {
     return (
-      <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+      <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm">
         {error}
       </div>
     );
@@ -106,19 +106,19 @@ export default function CountryDetails({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-3 border-b border-slate-200/70">
+      <div className="flex items-center gap-3 pb-3 border-b border-slate-200/70 dark:border-slate-700/70">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/15 ring-1 ring-emerald-500/20 flex items-center justify-center flex-shrink-0">
-          <Flag size={18} className="text-emerald-600" />
+          <Flag size={18} className="text-emerald-600 dark:text-emerald-400" />
         </div>
         <div className="min-w-0 flex-1">
-          <h5 className="text-base font-bold text-slate-900 truncate leading-tight">
+          <h5 className="text-base font-bold text-slate-900 dark:text-slate-100 truncate leading-tight">
             {data.name}
           </h5>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/15">
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/15">
               {scope === "mnn" ? "в контексте МНН" : "на всём рынке"}
             </span>
-            <span className="text-[11px] text-slate-400">Страна производства</span>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500">Страна производства</span>
           </div>
         </div>
       </div>
@@ -145,10 +145,10 @@ export default function CountryDetails({
       {/* Producers of country */}
       {data.producers.length > 0 && (
         <Section title="Производители страны">
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                <tr className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                   <th className="text-left py-2 px-3 font-medium">Производитель</th>
                   <th className="text-right py-2 px-3 font-medium">USD</th>
                   <th className="text-right py-2 px-3 font-medium">Доля в стране</th>
@@ -158,11 +158,11 @@ export default function CountryDetails({
               </thead>
               <tbody>
                 {data.producers.map((p) => (
-                  <tr key={p.name} className="border-b border-slate-100 last:border-b-0 hover:bg-white">
-                    <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[220px]">{p.name}</td>
-                    <td className="py-1.5 px-3 text-right">{fmtUsd(p.usd_y3)}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(p.share_in_country)}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(p.share_in_market)}</td>
+                  <tr key={p.name} className="border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-white dark:hover:bg-slate-800/40">
+                    <td className="py-1.5 px-3 font-medium text-slate-700 dark:text-slate-200 truncate max-w-[220px]">{p.name}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-800 dark:text-slate-100">{fmtUsd(p.usd_y3)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-500 dark:text-slate-400">{fmtPct(p.share_in_country)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-500 dark:text-slate-400">{fmtPct(p.share_in_market)}</td>
                     <td className="py-1.5 px-3 text-right"><Growth value={p.growth} /></td>
                   </tr>
                 ))}
@@ -175,10 +175,10 @@ export default function CountryDetails({
       {/* MNN portfolio (market scope only) */}
       {scope === "market" && data.mnn_portfolio && data.mnn_portfolio.length > 0 && (
         <Section title="Портфель МНН страны">
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                <tr className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                   <th className="text-left py-2 px-3 font-medium">МНН</th>
                   <th className="text-right py-2 px-3 font-medium">USD</th>
                   <th className="text-right py-2 px-3 font-medium">Доля в стране</th>
@@ -194,13 +194,13 @@ export default function CountryDetails({
                       e.stopPropagation();
                       navigate(`/market/${marketId}/dashboard?mnn=${encodeURIComponent(m.mnn)}`);
                     }}
-                    className="border-b border-slate-100 last:border-b-0 hover:bg-indigo-50/40 cursor-pointer"
+                    className="border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 cursor-pointer"
                   >
-                    <td className="py-1.5 px-3 font-medium text-slate-700 truncate max-w-[240px]">{m.mnn}</td>
-                    <td className="py-1.5 px-3 text-right">{fmtUsd(m.usd_y3)}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-500">{fmtPct(m.share_in_country)}</td>
+                    <td className="py-1.5 px-3 font-medium text-slate-700 dark:text-slate-200 truncate max-w-[240px]">{m.mnn}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-800 dark:text-slate-100">{fmtUsd(m.usd_y3)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-500 dark:text-slate-400">{fmtPct(m.share_in_country)}</td>
                     <td className="py-1.5 px-3 text-right"><Growth value={m.growth} /></td>
-                    <td className="py-1.5 pr-3 text-right"><ArrowRight size={12} className="text-slate-300 inline" /></td>
+                    <td className="py-1.5 pr-3 text-right"><ArrowRight size={12} className="text-slate-300 dark:text-slate-600 inline" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -233,21 +233,21 @@ function MiniKpi({
   tone?: "up" | "down" | "flat";
 }) {
   const toneCls =
-    tone === "up" ? "text-emerald-600" :
-    tone === "down" ? "text-red-600" :
-    "text-slate-900";
+    tone === "up" ? "text-emerald-600 dark:text-emerald-400" :
+    tone === "down" ? "text-red-600 dark:text-red-400" :
+    "text-slate-900 dark:text-slate-100";
   const accentBar =
     tone === "up" ? "bg-emerald-400" :
     tone === "down" ? "bg-red-400" :
     "bg-emerald-400/60";
   const iconBg =
-    tone === "up" ? "bg-emerald-500/10 text-emerald-600" :
-    tone === "down" ? "bg-red-500/10 text-red-600" :
-    "bg-emerald-500/10 text-emerald-600";
+    tone === "up" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+    tone === "down" ? "bg-red-500/10 text-red-600 dark:text-red-400" :
+    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
   return (
-    <div className="relative overflow-hidden bg-white rounded-lg ring-1 ring-slate-200/70 shadow-sm hover:shadow transition-shadow px-3 py-2.5">
+    <div className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-lg ring-1 ring-slate-200/70 dark:ring-slate-700/70 shadow-sm hover:shadow transition-shadow px-3 py-2.5">
       <div className={clsx("absolute inset-x-0 top-0 h-0.5", accentBar)} />
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
         <span className={clsx("w-4 h-4 rounded-md flex items-center justify-center", iconBg)}>
           <Icon size={10} />
         </span>
@@ -261,7 +261,7 @@ function MiniKpi({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h6 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2.5">
+      <h6 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5">
         <span className="w-0.5 h-3 rounded-full bg-gradient-to-b from-emerald-400 to-teal-500" />
         {title}
       </h6>
@@ -271,13 +271,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Growth({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-slate-300">—</span>;
+  if (value == null) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const isUp = value >= 0;
   return (
     <span
       className={clsx(
         "inline-flex items-center gap-0.5 text-xs font-medium",
-        isUp ? "text-emerald-600" : "text-red-600",
+        isUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
       )}
     >
       {isUp ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
@@ -302,14 +302,14 @@ function FormsTmDropdown({
   return (
     <div>
       <div className="flex items-center gap-2 mb-2.5">
-        <h6 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 flex-1">
+        <h6 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex-1">
           <span className="w-0.5 h-3 rounded-full bg-gradient-to-b from-emerald-400 to-teal-500" />
           Формы × ТМ
         </h6>
         <select
           value={selected.form}
           onChange={(e) => setSelectedForm(e.target.value)}
-          className="text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md px-2.5 py-1 min-w-[160px] max-w-[280px] focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 cursor-pointer"
+          className="text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-1 min-w-[160px] max-w-[280px] focus:outline-none focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-800 focus:border-emerald-400 cursor-pointer"
         >
           {items.map((f) => (
             <option key={f.form} value={f.form}>
@@ -318,24 +318,24 @@ function FormsTmDropdown({
           ))}
         </select>
       </div>
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 text-xs">
-          <span className="text-slate-500">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
+          <span className="text-slate-500 dark:text-slate-400">
             Форма:{" "}
-            <span className="font-semibold text-slate-700">
+            <span className="font-semibold text-slate-700 dark:text-slate-200">
               {selected.form || "—"}
             </span>
           </span>
-          <span className="text-slate-500 flex items-center gap-3">
+          <span className="text-slate-500 dark:text-slate-400 flex items-center gap-3">
             <span>
               USD:{" "}
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
                 {fmtUsd(selected.usd_y3)}
               </span>
             </span>
             <span>
               Доля в стране:{" "}
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-200">
                 {fmtPct(selected.share_in_country)}
               </span>
             </span>
@@ -344,7 +344,7 @@ function FormsTmDropdown({
         {selected.tms.length > 0 ? (
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
+              <tr className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
                 <th className="text-left py-1.5 px-3 font-medium">ТМ</th>
                 <th className="text-right py-1.5 px-3 font-medium">USD</th>
                 <th className="text-right py-1.5 px-3 font-medium">Доля в форме</th>
@@ -354,15 +354,15 @@ function FormsTmDropdown({
               {selected.tms.map((t) => (
                 <tr
                   key={t.tm}
-                  className="border-b border-slate-50 last:border-b-0 hover:bg-slate-50/60"
+                  className="border-b border-slate-50 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
                 >
-                  <td className="py-1.5 px-3 text-slate-700 truncate max-w-[280px]">
+                  <td className="py-1.5 px-3 text-slate-700 dark:text-slate-200 truncate max-w-[280px]">
                     {t.tm}
                   </td>
-                  <td className="py-1.5 px-3 text-right">
+                  <td className="py-1.5 px-3 text-right text-slate-800 dark:text-slate-100">
                     {fmtUsd(t.usd_y3)}
                   </td>
-                  <td className="py-1.5 px-3 text-right text-slate-500">
+                  <td className="py-1.5 px-3 text-right text-slate-500 dark:text-slate-400">
                     {fmtPct(t.share_in_form)}
                   </td>
                 </tr>
@@ -370,7 +370,7 @@ function FormsTmDropdown({
             </tbody>
           </table>
         ) : (
-          <p className="px-3 py-3 text-xs text-slate-400">
+          <p className="px-3 py-3 text-xs text-slate-400 dark:text-slate-500">
             У этой формы нет ТМ
           </p>
         )}
@@ -381,9 +381,9 @@ function FormsTmDropdown({
 
 function ShareStep({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="bg-white/70 rounded-lg border border-slate-200 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="text-sm font-semibold text-slate-800">{fmtPct(value)}</p>
+    <div className="bg-white/70 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{fmtPct(value)}</p>
     </div>
   );
 }

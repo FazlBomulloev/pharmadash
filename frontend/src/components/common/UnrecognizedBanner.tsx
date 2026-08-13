@@ -66,10 +66,10 @@ export default function UnrecognizedBanner({
   const resolvedCount = Object.values(actions).filter((a) => a && a !== "skip").length;
 
   return (
-    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+    <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm font-medium text-amber-800 w-full"
+        className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300 w-full"
       >
         {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         <span>
@@ -80,12 +80,12 @@ export default function UnrecognizedBanner({
       {expanded && (
         <div className="mt-3">
           {loading ? (
-            <p className="text-sm text-amber-600">Загрузка подсказок...</p>
+            <p className="text-sm text-amber-600 dark:text-amber-400">Загрузка подсказок...</p>
           ) : (
             <>
               <table className="w-full text-sm mt-2">
                 <thead>
-                  <tr className="text-xs text-amber-700 border-b border-amber-200">
+                  <tr className="text-xs text-amber-700 dark:text-amber-300 border-b border-amber-200 dark:border-amber-900">
                     <th className="text-left py-2 pr-2">Значение</th>
                     <th className="text-left py-2 pr-2">Подсказка</th>
                     <th className="text-right py-2">Действие</th>
@@ -93,27 +93,27 @@ export default function UnrecognizedBanner({
                 </thead>
                 <tbody>
                   {suggestions.map((s, idx) => (
-                    <tr key={idx} className="border-b border-amber-100 last:border-0">
-                      <td className="py-2 pr-2 text-slate-700">{s.value}</td>
+                    <tr key={idx} className="border-b border-amber-100 dark:border-amber-900/60 last:border-0">
+                      <td className="py-2 pr-2 text-slate-700 dark:text-slate-200">{s.value}</td>
                       <td className="py-2 pr-2">
                         {s.suggestion ? (
-                          <span className="text-slate-700">
+                          <span className="text-slate-700 dark:text-slate-200">
                             {s.suggestion}
-                            <span className="text-xs text-amber-600 ml-1">
+                            <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">
                               ({(s.similarity * 100).toFixed(0)}%)
                             </span>
                           </span>
                         ) : (
-                          <span className="text-slate-400">нет совпадений</span>
+                          <span className="text-slate-400 dark:text-slate-500">нет совпадений</span>
                         )}
                       </td>
                       <td className="py-2 text-right space-x-1">
                         {actions[idx] ? (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700">
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
                             {actions[idx] === "accept" && "Принять"}
                             {actions[idx] === "create" && "Создать"}
                             {actions[idx] === "skip" && "Пропустить"}
-                            <button onClick={() => setAction(idx, null)} className="ml-1 hover:text-red-500">
+                            <button onClick={() => setAction(idx, null)} className="ml-1 hover:text-red-500 dark:hover:text-red-400">
                               <X size={12} />
                             </button>
                           </span>
@@ -122,7 +122,7 @@ export default function UnrecognizedBanner({
                             {s.suggestion_entry_id && (
                               <button
                                 onClick={() => setAction(idx, "accept")}
-                                className="text-xs text-emerald-700 hover:underline px-1"
+                                className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline px-1"
                                 title="Добавить как alias к подсказке"
                               >
                                 <Check size={14} className="inline" /> Принять
@@ -130,14 +130,14 @@ export default function UnrecognizedBanner({
                             )}
                             <button
                               onClick={() => setAction(idx, "create")}
-                              className="text-xs text-indigo-700 hover:underline px-1"
+                              className="text-xs text-indigo-700 dark:text-indigo-400 hover:underline px-1"
                               title="Создать новую запись в словаре"
                             >
                               <Plus size={14} className="inline" /> Создать
                             </button>
                             <button
                               onClick={() => setAction(idx, "skip")}
-                              className="text-xs text-slate-500 hover:underline px-1"
+                              className="text-xs text-slate-500 dark:text-slate-400 hover:underline px-1"
                             >
                               Пропустить
                             </button>
@@ -151,7 +151,7 @@ export default function UnrecognizedBanner({
 
               {resolvedCount > 0 && (
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="text-xs text-amber-700">
+                  <span className="text-xs text-amber-700 dark:text-amber-300">
                     {resolvedCount} из {suggestions.length} выбрано
                   </span>
                   <button

@@ -13,7 +13,7 @@ export default function LoadingSpinner({
       <div
         className={clsx(
           dims[size],
-          "border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin",
+          "border-2 border-slate-200 dark:border-slate-700 border-t-indigo-500 dark:border-t-indigo-400 rounded-full animate-spin",
         )}
       />
     </div>

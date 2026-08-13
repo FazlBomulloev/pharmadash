@@ -28,19 +28,19 @@ export default function SplitBar({ title, segments, totalHint }: Props) {
   }));
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
       {(title || totalHint) && (
         <div className="flex items-baseline justify-between mb-2">
           {title && (
-            <h4 className="text-xs font-semibold text-slate-600">{title}</h4>
+            <h4 className="text-xs font-semibold text-slate-600 dark:text-slate-300">{title}</h4>
           )}
           {totalHint && (
-            <span className="text-[11px] text-slate-400">{totalHint}</span>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500">{totalHint}</span>
           )}
         </div>
       )}
       <div
-        className="h-3 w-full rounded-full overflow-hidden flex bg-slate-100"
+        className="h-3 w-full rounded-full overflow-hidden flex bg-slate-100 dark:bg-slate-800"
         role="img"
         aria-label={items
           .map((i) => `${i.name}: ${fmtPct(i.share)}`)
@@ -52,7 +52,7 @@ export default function SplitBar({ title, segments, totalHint }: Props) {
             className={clsx(
               "h-full flex items-center justify-center text-[10px] font-semibold text-white",
               seg.color,
-              i > 0 && "border-l-2 border-white",
+              i > 0 && "border-l-2 border-white dark:border-slate-900",
             )}
             style={{ width: `${seg.share * 100}%` }}
             title={`${seg.name}: ${fmtPct(seg.share)}`}
@@ -73,8 +73,8 @@ export default function SplitBar({ title, segments, totalHint }: Props) {
                 seg.color,
               )}
             />
-            <span className="flex-1 text-slate-600 truncate">{seg.name}</span>
-            <span className="font-semibold text-slate-700 tabular-nums">
+            <span className="flex-1 text-slate-600 dark:text-slate-300 truncate">{seg.name}</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
               {fmtPct(seg.share)}
             </span>
           </li>
