@@ -15,25 +15,22 @@ import {
 import {
   TrendingUp,
   TrendingDown,
-  FileCheck,
-  DollarSign,
   Sigma,
   Map as MapIcon,
   Pill,
-  CalendarClock,
-  AlertTriangle,
 } from "lucide-react";
 import clsx from "clsx";
 import { useState } from "react";
 import type {
   Zone2Data, FormConcentration, RegionalDistribution,
-  BgGBreakdown, GrlsExtra, BgGFlag,
+  BgGBreakdown, BgGFlag,
 } from "../../types/api";
 import DrillDownRow from "../common/DrillDownRow";
 import { ProducerDetailsLoader } from "../common/ProducerDetails";
 import { CountryDetailsLoader } from "../common/CountryDetails";
 import ScopeChip from "../common/ScopeChip";
 import SplitBar from "../common/SplitBar";
+import RegulatoryTimeline from "./RegulatoryTimeline";
 
 const PIE_COLORS = [
   "#4f46e5",
@@ -100,56 +97,19 @@ export default function Zone2({
         <ScopeChip scope="mnn" />
       </h3>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Sector Split */}
-        <div>
-          <SplitBar title="Доля секторов" segments={sectorData} />
-        </div>
-
-        {/* Regulatory */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 lg:col-span-2">
-          <h4 className="text-sm font-semibold text-slate-700 mb-4">
-            Регуляторика
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-              <FileCheck size={20} className="text-slate-400" />
-              <div>
-                <p className="text-xs text-slate-500">ГРЛС</p>
-                <p className="text-sm font-medium text-slate-700">{data.grls}</p>
-              </div>
-            </div>
-
-            {data.pc_stats ? (
-              <div className={clsx(
-                "flex items-center gap-3 p-3 rounded-lg",
-                data.pc_flag ? "bg-amber-50" : "bg-slate-50",
-              )}>
-                <DollarSign size={20} className={
-                  data.pc_flag ? "text-amber-600" : "text-slate-400"
-                } />
-                <div>
-                  <p className="text-xs text-slate-500">Предельная цена</p>
-                  <p className="text-sm font-medium text-slate-700">
-                    {data.pc_stats.min.toFixed(0)} – {data.pc_stats.max.toFixed(0)} &#8381;
-                    <span className="text-xs text-slate-400 ml-1">
-                      ({data.pc_stats.count} записей)
-                    </span>
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                <DollarSign size={20} className="text-slate-300" />
-                <div>
-                  <p className="text-xs text-slate-500">Предельная цена</p>
-                  <p className="text-sm font-medium text-slate-400">Нет данных</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+      <div>
+        <SplitBar title="Доля секторов" segments={sectorData} />
       </div>
+
+      {/* Regulatory timeline — unified card replacing tiles + GrlsExtendedCard */}
+      <RegulatoryTimeline
+        grlsText={data.grls}
+        activeCount={data.grls_active_count}
+        registrants={data.grls_registrants}
+        extra={data.grls_extra ?? null}
+        pcFlag={data.pc_flag}
+        pcStats={data.pc_stats}
+      />
 
       {/* Concentration + Entropy + BG/G */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -169,14 +129,6 @@ export default function Zone2({
           />
         )}
       </div>
-
-      {/* GRLS extended */}
-      {data.grls_extra && data.grls_active_count > 0 && (
-        <GrlsExtendedCard
-          extra={data.grls_extra}
-          activeCount={data.grls_active_count}
-        />
-      )}
 
       {/* Concentration by form */}
       <ConcentrationByForm items={data.concentration_by_form ?? []} />
@@ -975,104 +927,3 @@ function RegionalCard({
   );
 }
 
-function GrlsExtendedCard({
-  extra, activeCount,
-}: {
-  extra: GrlsExtra;
-  activeCount: number;
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-1.5">
-        <FileCheck size={14} className="text-indigo-500" />
-        ГРЛС — динамика и окна
-      </h4>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-slate-50 rounded-lg p-4">
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
-            <CalendarClock size={12} /> Возраст рынка
-          </p>
-          <p className="text-3xl font-bold text-slate-800 mt-1">
-            {extra.market_age != null ? `${extra.market_age}` : "—"}
-            {extra.market_age != null && (
-              <span className="text-base font-normal text-slate-500 ml-1">
-                {extra.market_age === 1 ? "год" :
-                 extra.market_age < 5 ? "года" : "лет"}
-              </span>
-            )}
-          </p>
-          {extra.oldest_reg_year && (
-            <p className="text-[11px] text-slate-400 mt-1">
-              первая РУ: {extra.oldest_reg_year}
-            </p>
-          )}
-        </div>
-
-        <div className="bg-slate-50 rounded-lg p-4">
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
-            <AlertTriangle size={12} /> Окно истечения
-          </p>
-          <ExpiryRow label="1 год" value={extra.expiring_1y} total={activeCount} color="bg-red-500" />
-          <ExpiryRow label="2 года" value={extra.expiring_2y} total={activeCount} color="bg-amber-500" />
-          <ExpiryRow label="3 года" value={extra.expiring_3y} total={activeCount} color="bg-emerald-500" />
-        </div>
-
-        <div className="bg-slate-50 rounded-lg p-4">
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">
-            Регистрации по годам
-          </p>
-          {extra.registrations_by_year.length > 0 ? (
-            <ResponsiveContainer width="100%" height={120}>
-              <BarChart data={extra.registrations_by_year}>
-                <XAxis
-                  dataKey="year"
-                  tick={{ fontSize: 9 }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis tick={{ fontSize: 9 }} allowDecimals={false} width={20} />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                    fontSize: 11,
-                  }}
-                />
-                <Bar dataKey="count" fill="#4f46e5" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-xs text-slate-400 mt-2">Нет данных</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ExpiryRow({
-  label, value, total, color,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  color: string;
-}) {
-  const pct = total > 0 ? (value / total) * 100 : 0;
-  return (
-    <div className="mt-2 first:mt-3">
-      <div className="flex justify-between text-[11px] mb-1">
-        <span className="text-slate-600">{label}</span>
-        <span className="font-medium text-slate-700">
-          {value}
-          <span className="text-slate-400 ml-0.5">/ {total}</span>
-        </span>
-      </div>
-      <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
-        <div
-          className={clsx("h-full rounded-full", color)}
-          style={{ width: `${Math.min(100, pct)}%` }}
-        />
-      </div>
-    </div>
-  );
-}
