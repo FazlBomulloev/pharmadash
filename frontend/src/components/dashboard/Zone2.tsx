@@ -33,6 +33,7 @@ import DrillDownRow from "../common/DrillDownRow";
 import { ProducerDetailsLoader } from "../common/ProducerDetails";
 import { CountryDetailsLoader } from "../common/CountryDetails";
 import ScopeChip from "../common/ScopeChip";
+import SplitBar from "../common/SplitBar";
 
 const PIE_COLORS = [
   "#4f46e5",
@@ -88,8 +89,8 @@ export default function Zone2({
   const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
 
   const sectorData = [
-    { name: "Розница (RET)", value: data.ret_share ?? 0 },
-    { name: "Госпитальный (HOS)", value: data.hos_share ?? 0 },
+    { name: "Розница (RET)", value: data.ret_share ?? 0, color: "bg-indigo-500" },
+    { name: "Госпитальный (HOS)", value: data.hos_share ?? 0, color: "bg-emerald-500" },
   ].filter((d) => d.value > 0);
 
   return (
@@ -101,44 +102,8 @@ export default function Zone2({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Sector Split */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h4 className="text-sm font-semibold text-slate-700 mb-4">
-            Доля секторов
-          </h4>
-          <ResponsiveContainer width="100%" height={180}>
-            <PieChart>
-              <Pie
-                data={sectorData}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={75}
-                dataKey="value"
-                stroke="none"
-              >
-                <Cell fill="#4f46e5" />
-                <Cell fill="#10b981" />
-              </Pie>
-              <Tooltip
-                formatter={(value) => fmtPct(Number(value))}
-                contentStyle={{
-                  borderRadius: 8,
-                  border: "1px solid #e2e8f0",
-                  fontSize: 12,
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex justify-center gap-4 text-xs mt-2">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-              RET {fmtPct(data.ret_share)}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              HOS {fmtPct(data.hos_share)}
-            </div>
-          </div>
+        <div>
+          <SplitBar title="Доля секторов" segments={sectorData} />
         </div>
 
         {/* Regulatory */}

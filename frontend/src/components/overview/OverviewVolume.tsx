@@ -1,14 +1,11 @@
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
-  PieChart, Pie, Cell,
 } from "recharts";
 import { TrendingUp, TrendingDown, DollarSign, Package } from "lucide-react";
 import clsx from "clsx";
 import type { OverviewVolume as VolumeData } from "../../types/api";
 import ScopeChip from "../common/ScopeChip";
-
-const PIE_RET_HOS = ["#4f46e5", "#a78bfa"];
-const PIE_BG_G = ["#10b981", "#fbbf24"];
+import SplitBar from "../common/SplitBar";
 
 function fmtUsd(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`;
@@ -39,12 +36,12 @@ export default function OverviewVolume({ data }: { data: VolumeData }) {
   }));
 
   const retHos = [
-    { name: "Розница", value: data.ret_share ?? 0 },
-    { name: "Госпиталь", value: data.hos_share ?? 0 },
+    { name: "Розница", value: data.ret_share ?? 0, color: "bg-indigo-500" },
+    { name: "Госпиталь", value: data.hos_share ?? 0, color: "bg-violet-400" },
   ];
   const bgG = [
-    { name: "Брендированные (БГ)", value: data.bg_share ?? 0 },
-    { name: "Дженерики (Г)", value: data.g_share ?? 0 },
+    { name: "Брендированные (БГ)", value: data.bg_share ?? 0, color: "bg-emerald-500" },
+    { name: "Дженерики (Г)", value: data.g_share ?? 0, color: "bg-amber-500" },
   ];
 
   return (
@@ -113,17 +110,9 @@ export default function OverviewVolume({ data }: { data: VolumeData }) {
         </div>
 
         <div className="space-y-4">
-          <RingChart
-            title="RET vs HOS"
-            data={retHos}
-            colors={PIE_RET_HOS}
-          />
+          <SplitBar title="RET vs HOS" segments={retHos} />
           {(data.bg_share != null || data.g_share != null) && (
-            <RingChart
-              title="БГ vs Г (по USD)"
-              data={bgG}
-              colors={PIE_BG_G}
-            />
+            <SplitBar title="БГ vs Г (по USD)" segments={bgG} />
           )}
         </div>
       </div>
@@ -213,64 +202,3 @@ function TrendMini({
   );
 }
 
-function RingChart({
-  title, data, colors,
-}: {
-  title: string;
-  data: { name: string; value: number }[];
-  colors: string[];
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-      <h4 className="text-xs font-semibold text-slate-600 mb-2">{title}</h4>
-      <ResponsiveContainer width="100%" height={160}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={34}
-            outerRadius={60}
-            dataKey="value"
-            nameKey="name"
-            stroke="none"
-            label={({ value }) => {
-              const v = Number(value ?? 0);
-              return v >= 0.05 ? `${(v * 100).toFixed(0)}%` : "";
-            }}
-            labelLine={false}
-          >
-            {data.map((_, idx) => (
-              <Cell key={idx} fill={colors[idx % colors.length]} />
-            ))}
-          </Pie>
-          <Tooltip
-            formatter={(v) => fmtPct(Number(v))}
-            contentStyle={{
-              borderRadius: 8,
-              border: "1px solid #e2e8f0",
-              fontSize: 12,
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      <ul className="space-y-1 mt-1">
-        {data.map((d, i) => (
-          <li
-            key={d.name}
-            className="flex items-center gap-2 text-[11px]"
-          >
-            <span
-              className="inline-block w-2.5 h-2.5 rounded flex-shrink-0"
-              style={{ background: colors[i] }}
-            />
-            <span className="flex-1 text-slate-600 truncate">{d.name}</span>
-            <span className="font-semibold text-slate-700">
-              {fmtPct(d.value)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
