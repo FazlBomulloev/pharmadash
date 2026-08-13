@@ -7,6 +7,7 @@ import LoadingSpinner from "../components/common/LoadingSpinner";
 import EmptyState from "../components/common/EmptyState";
 import OverviewHeader from "../components/overview/OverviewHeader";
 import OverviewFilters from "../components/overview/OverviewFilters";
+import OverviewDecisionStrip from "../components/overview/OverviewDecisionStrip";
 import OverviewVolume from "../components/overview/OverviewVolume";
 import OverviewPortfolio from "../components/overview/OverviewPortfolio";
 import OverviewGrls from "../components/overview/OverviewGrls";
@@ -75,6 +76,11 @@ export default function MarketOverviewPage() {
         onFxUpdated={() => load(filters)}
       />
 
+      <OverviewDecisionStrip
+        data={data.decision}
+        marketId={marketId_}
+      />
+
       <OverviewFilters
         filters={data.filters}
         value={filters}
@@ -98,7 +104,9 @@ export default function MarketOverviewPage() {
           <OverviewPortfolio data={data.portfolio} marketId={marketId_} />
           {data.grls && <OverviewGrls data={data.grls} />}
           {data.pc && <OverviewPc data={data.pc} />}
-          <OverviewDecision data={data.decision} marketId={marketId_} />
+          <div id="overview-decision-details">
+            <OverviewDecision data={data.decision} marketId={marketId_} />
+          </div>
         </div>
       </div>
     </div>
