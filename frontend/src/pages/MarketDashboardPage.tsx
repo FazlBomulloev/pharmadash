@@ -4,14 +4,15 @@ import { getDashboard } from "../api/client";
 import type { DashboardResponse } from "../types/api";
 import MnnSearch from "../components/dashboard/MnnSearch";
 import MnnScoreHeader from "../components/dashboard/MnnScoreHeader";
+import MnnEmptyState, {
+  pushRecentMnn,
+} from "../components/dashboard/MnnEmptyState";
 import DashboardFilters from "../components/dashboard/DashboardFilters";
 import Zone1 from "../components/dashboard/Zone1";
 import Zone2 from "../components/dashboard/Zone2";
 import Zone3 from "../components/dashboard/Zone3";
 import AtcBenchmark from "../components/dashboard/AtcBenchmark";
 import LoadingSpinner from "../components/common/LoadingSpinner";
-import EmptyState from "../components/common/EmptyState";
-import { Search } from "lucide-react";
 
 interface UrlState {
   mnn: string;
@@ -74,6 +75,7 @@ export default function MarketDashboardPage() {
           { lf, dose, year },
         );
         setData(res);
+        pushRecentMnn(parseInt(marketId), res.mnn);
       } catch {
         setError("МНН не найден или ошибка загрузки");
         setData(null);
@@ -154,11 +156,10 @@ export default function MarketDashboardPage() {
 
       {loading && !data && <LoadingSpinner className="h-48" size="lg" />}
 
-      {!loading && !data && !error && (
-        <EmptyState
-          icon={Search}
-          title="Выберите МНН"
-          description="Начните вводить название МНН для получения аналитики"
+      {!loading && !data && !error && !mnn && marketId && (
+        <MnnEmptyState
+          marketId={parseInt(marketId)}
+          onPick={handleMnnChange}
         />
       )}
 
