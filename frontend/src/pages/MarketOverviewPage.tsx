@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Compass } from "lucide-react";
 import { getMarketOverview } from "../api/client";
 import type { OverviewResponse, OverviewQuery } from "../types/api";
@@ -14,18 +14,43 @@ import OverviewGrls from "../components/overview/OverviewGrls";
 import OverviewPc from "../components/overview/OverviewPc";
 import OverviewDecision from "../components/overview/OverviewDecision";
 
-const EMPTY_FILTERS: OverviewQuery = {
-  sector: "all",
-  atc3: null,
-  year: null,
-};
+function readFilters(params: URLSearchParams): OverviewQuery {
+  const sectorRaw = params.get("sector");
+  const sector: OverviewQuery["sector"] =
+    sectorRaw === "ret" || sectorRaw === "hos" ? sectorRaw : "all";
+  const atc3 = params.get("atc3") || null;
+  const yearRaw = params.get("year");
+  const yearNum = yearRaw ? parseInt(yearRaw, 10) : NaN;
+  const year = Number.isFinite(yearNum) ? yearNum : null;
+  return { sector, atc3, year };
+}
+
+function writeFilters(f: OverviewQuery): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (f.sector && f.sector !== "all") out.sector = f.sector;
+  if (f.atc3) out.atc3 = f.atc3;
+  if (f.year != null) out.year = String(f.year);
+  return out;
+}
 
 export default function MarketOverviewPage() {
   const { marketId } = useParams<{ marketId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [filters, setFilters] = useState<OverviewQuery>(EMPTY_FILTERS);
+
+  const filters = useMemo(
+    () => readFilters(searchParams),
+    [searchParams],
+  );
+
+  const setFilters = useCallback(
+    (next: OverviewQuery) => {
+      setSearchParams(writeFilters(next), { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const load = useCallback(
     async (query: OverviewQuery) => {
