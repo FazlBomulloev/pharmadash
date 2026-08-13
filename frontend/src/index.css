@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* Tailwind v4: register a custom `dark:` variant that activates when the `dark`
+   class is present anywhere up the tree. `initTheme()` in hooks/useTheme.ts sets
+   the class on <html> based on either the explicit user preference or the
+   system's prefers-color-scheme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
@@ -7,6 +23,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #f8fafc;
+  color: #0f172a;
+}
+html.dark body {
+  background: #020617;
+  color: #e2e8f0;
 }
 
 #root {
@@ -31,13 +52,20 @@ body {
   background: #94a3b8;
 }
 
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
 /* Global keyboard focus — visible ring for keyboard users, no ring for mouse.
    Tailwind's preflight strips default outlines, so we restore them here. */
 :focus {
   outline: none;
 }
 :focus-visible {
-  outline: 2px solid #6366f1;
+  outline: 2px solid light-dark(#6366f1, #a5b4fc);
   outline-offset: 2px;
   border-radius: 4px;
 }
