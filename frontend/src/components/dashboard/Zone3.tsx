@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import type { Zone3Data } from "../../types/api";
+import ScopeChip from "../common/ScopeChip";
 
 function ScoreGauge({
   score,
@@ -129,8 +130,9 @@ export default function Zone3({ data }: { data: Zone3Data }) {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-slate-800">
+      <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
         Оценка привлекательности
+        <ScopeChip scope="mnn" />
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

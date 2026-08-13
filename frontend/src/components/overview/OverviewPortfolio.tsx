@@ -10,6 +10,7 @@ import type { OverviewPortfolio as PortfolioData } from "../../types/api";
 import DrillDownRow from "../common/DrillDownRow";
 import { ProducerDetailsLoader } from "../common/ProducerDetails";
 import { CountryDetailsLoader } from "../common/CountryDetails";
+import ScopeChip from "../common/ScopeChip";
 
 const PIE_COLORS = [
   "#4f46e5", "#7c3aed", "#a78bfa", "#06b6d4",
@@ -43,8 +44,9 @@ export default function OverviewPortfolio({
 
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
         Структура портфеля
+        <ScopeChip scope="market" />
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

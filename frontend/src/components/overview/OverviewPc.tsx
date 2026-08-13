@@ -3,6 +3,7 @@ import {
 } from "recharts";
 import { DollarSign, FileText, Building2 } from "lucide-react";
 import type { OverviewPc as PcData } from "../../types/api";
+import ScopeChip from "../common/ScopeChip";
 
 function fmtPct(v: number | null): string {
   if (v == null) return "—";
@@ -16,8 +17,9 @@ export default function OverviewPc({ data }: { data: PcData }) {
   return (
     <section className="space-y-4">
       <div className="flex items-baseline justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
           Предельные цены
+          <ScopeChip scope="market" />
         </h3>
         <span className="text-xs text-slate-400">
           цены конвертированы в USD по курсу рынка

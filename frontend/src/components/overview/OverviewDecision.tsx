@@ -8,6 +8,7 @@ import type {
   OverviewDecision as DecisionData,
   OverviewDecisionItem,
 } from "../../types/api";
+import ScopeChip from "../common/ScopeChip";
 
 const COLOR_MAP: Record<string, string> = {
   green: "#10b981",
@@ -45,8 +46,9 @@ export default function OverviewDecision({
 
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
         Сводка Decision Engine
+        <ScopeChip scope="market" />
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

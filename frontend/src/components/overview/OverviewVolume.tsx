@@ -5,6 +5,7 @@ import {
 import { TrendingUp, TrendingDown, DollarSign, Package } from "lucide-react";
 import clsx from "clsx";
 import type { OverviewVolume as VolumeData } from "../../types/api";
+import ScopeChip from "../common/ScopeChip";
 
 const PIE_RET_HOS = ["#4f46e5", "#a78bfa"];
 const PIE_BG_G = ["#10b981", "#fbbf24"];
@@ -48,8 +49,9 @@ export default function OverviewVolume({ data }: { data: VolumeData }) {
 
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
         Объём рынка
+        <ScopeChip scope="market" />
       </h3>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

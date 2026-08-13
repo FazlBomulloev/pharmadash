@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import type { OverviewGrls as GrlsData } from "../../types/api";
+import ScopeChip from "../common/ScopeChip";
 
 function fmtPct(v: number | null): string {
   if (v == null) return "—";
@@ -15,8 +16,9 @@ function fmtPct(v: number | null): string {
 export default function OverviewGrls({ data }: { data: GrlsData }) {
   return (
     <section className="space-y-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
         ГРЛС
+        <ScopeChip scope="market" />
       </h3>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

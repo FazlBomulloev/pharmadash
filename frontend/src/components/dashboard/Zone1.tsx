@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import KpiCard from "../common/KpiCard";
+import ScopeChip from "../common/ScopeChip";
 import type { KpiZone1 } from "../../types/api";
 
 function fmtNum(v: number): string {
@@ -54,8 +55,9 @@ export default function Zone1({ data }: { data: KpiZone1 }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-slate-800">
+        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
           Ключевые показатели
+          <ScopeChip scope="mnn" />
         </h3>
         <span
           className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[data.market_status] ?? statusColors["N/A"]}`}

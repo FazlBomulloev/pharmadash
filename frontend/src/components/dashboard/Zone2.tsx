@@ -32,6 +32,7 @@ import type {
 import DrillDownRow from "../common/DrillDownRow";
 import { ProducerDetailsLoader } from "../common/ProducerDetails";
 import { CountryDetailsLoader } from "../common/CountryDetails";
+import ScopeChip from "../common/ScopeChip";
 
 const PIE_COLORS = [
   "#4f46e5",
@@ -93,8 +94,9 @@ export default function Zone2({
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-slate-800">
+      <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
         Структура рынка
+        <ScopeChip scope="mnn" />
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
