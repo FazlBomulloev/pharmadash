@@ -11,57 +11,77 @@ import clsx from "clsx";
 import type { Zone3Data } from "../../types/api";
 import ScopeChip from "../common/ScopeChip";
 
-function ScoreGauge({
-  score,
-  color,
+const FILL_COLOR: Record<string, string> = {
+  green: "bg-emerald-500",
+  yellow: "bg-amber-500",
+  orange: "bg-orange-500",
+  red: "bg-red-500",
+};
+
+/**
+ * Horizontal bullet chart 0-100 with recommendation-zone
+ * tick marks at 35 / 55 / 75 (matches RECOMMENDATION_RANGES).
+ */
+function ScoreBullet({
+  score, color,
 }: {
   score: number;
   color: string;
 }) {
-  const circumference = 2 * Math.PI * 70;
-  const filled = (score / 100) * circumference;
-  const offset = circumference - filled;
-
-  const colorMap: Record<string, string> = {
-    green: "#10b981",
-    yellow: "#f59e0b",
-    orange: "#f97316",
-    red: "#ef4444",
-  };
-  const strokeColor = colorMap[color] ?? "#6366f1";
+  const clamped = Math.min(100, Math.max(0, score));
+  const ticks = [35, 55, 75];
 
   return (
-    <div className="relative w-48 h-48 mx-auto">
-      <svg
-        className="w-full h-full -rotate-90"
-        viewBox="0 0 160 160"
-      >
-        <circle
-          cx="80"
-          cy="80"
-          r="70"
-          fill="none"
-          stroke="#e2e8f0"
-          strokeWidth="10"
-        />
-        <circle
-          cx="80"
-          cy="80"
-          r="70"
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="10"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold text-slate-800">
+    <div className="w-full">
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="text-4xl font-bold text-slate-800 tabular-nums">
           {score.toFixed(0)}
+          <span className="text-lg font-normal text-slate-400 ml-1">
+            / 100
+          </span>
         </span>
-        <span className="text-sm text-slate-500">из 100</span>
+      </div>
+      <div className="relative h-4 bg-slate-100 rounded-full overflow-hidden">
+        {/* zone dividers */}
+        {ticks.map((t) => (
+          <div
+            key={t}
+            className="absolute top-0 h-full w-px bg-white/80"
+            style={{ left: `${t}%` }}
+            aria-hidden
+          />
+        ))}
+        {/* fill */}
+        <div
+          className={clsx(
+            "h-full rounded-full transition-all duration-700 ease-out",
+            FILL_COLOR[color] ?? "bg-slate-400",
+          )}
+          style={{ width: `${clamped}%` }}
+        />
+        {/* marker */}
+        <div
+          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full ring-2 ring-slate-800 shadow-md transition-all duration-700"
+          style={{ left: `${clamped}%` }}
+          aria-hidden
+        />
+      </div>
+      <div className="relative mt-1.5 text-[10px] text-slate-400 tabular-nums">
+        {[0, 35, 55, 75, 100].map((t) => (
+          <span
+            key={t}
+            className="absolute -translate-x-1/2"
+            style={{ left: `${t}%` }}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+      <div className="relative mt-5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+        <span className="absolute left-[17%] -translate-x-1/2">Un</span>
+        <span className="absolute left-[45%] -translate-x-1/2">Cond</span>
+        <span className="absolute left-[65%] -translate-x-1/2">Attr</span>
+        <span className="absolute left-[87%] -translate-x-1/2">High</span>
       </div>
     </div>
   );
@@ -136,15 +156,15 @@ export default function Zone3({ data }: { data: Zone3Data }) {
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Score Gauge */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col items-center">
-          <ScoreGauge
+        {/* Score bullet */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 pb-10 flex flex-col justify-between gap-4">
+          <ScoreBullet
             score={data.total_score}
             color={data.recommendation_color}
           />
           <div
             className={clsx(
-              "mt-4 px-4 py-2 rounded-lg border flex items-center gap-2",
+              "px-4 py-2 rounded-lg border flex items-center gap-2 self-start",
               recBgColors[data.recommendation_color] ?? "bg-slate-50 border-slate-200",
             )}
           >
