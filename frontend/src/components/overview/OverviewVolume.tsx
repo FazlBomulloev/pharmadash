@@ -93,54 +93,21 @@ export default function OverviewVolume({ data }: { data: VolumeData }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 lg:col-span-2">
-          <h4 className="text-sm font-semibold text-slate-700 mb-3">
-            Динамика USD / UN
-          </h4>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={trend}>
-              <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-              <YAxis
-                yAxisId="usd"
-                tick={{ fontSize: 10 }}
-                tickFormatter={fmtUsd}
-              />
-              <YAxis
-                yAxisId="un"
-                orientation="right"
-                tick={{ fontSize: 10 }}
-                tickFormatter={fmtUn}
-              />
-              <Tooltip
-                formatter={(value, name) =>
-                  name === "usd" ? fmtUsd(Number(value)) : fmtUn(Number(value))
-                }
-                contentStyle={{
-                  borderRadius: 8,
-                  border: "1px solid #e2e8f0",
-                  fontSize: 12,
-                }}
-              />
-              <Line
-                yAxisId="usd"
-                type="monotone"
-                dataKey="usd"
-                stroke="#4f46e5"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                name="USD"
-              />
-              <Line
-                yAxisId="un"
-                type="monotone"
-                dataKey="un"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                name="UN"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TrendMini
+            title="Динамика USD"
+            data={trend}
+            dataKey="usd"
+            color="#4f46e5"
+            tickFmt={fmtUsd}
+          />
+          <TrendMini
+            title="Динамика UN"
+            data={trend}
+            dataKey="un"
+            color="#10b981"
+            tickFmt={fmtUn}
+          />
         </div>
 
         <div className="space-y-4">
@@ -198,6 +165,48 @@ function Kpi({
           <span className="text-[11px] text-slate-400">{subtitle}</span>
         )}
       </div>
+    </div>
+  );
+}
+
+function TrendMini({
+  title, data, dataKey, color, tickFmt,
+}: {
+  title: string;
+  data: { year: string; usd: number; un: number }[];
+  dataKey: "usd" | "un";
+  color: string;
+  tickFmt: (v: number) => string;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 mb-3">{title}</h4>
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+          <YAxis
+            tick={{ fontSize: 10 }}
+            tickFormatter={tickFmt}
+            width={54}
+          />
+          <Tooltip
+            formatter={(v) => tickFmt(Number(v))}
+            contentStyle={{
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              fontSize: 12,
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey={dataKey}
+            stroke={color}
+            strokeWidth={2}
+            dot={{ r: 4, fill: color }}
+            activeDot={{ r: 6 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }

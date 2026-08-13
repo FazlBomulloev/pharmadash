@@ -12,7 +12,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import KpiCard from "../common/KpiCard";
 import type { KpiZone1 } from "../../types/api";
@@ -48,8 +47,8 @@ const statusLabels: Record<string, string> = {
 export default function Zone1({ data }: { data: KpiZone1 }) {
   const chartData = data.trend.years.map((year, i) => ({
     year,
-    "USD продажи": data.trend.usd[i],
-    "UN продажи": data.trend.un[i],
+    usd: data.trend.usd[i],
+    un: data.trend.un[i],
   }));
 
   return (
@@ -132,65 +131,68 @@ export default function Zone1({ data }: { data: KpiZone1 }) {
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-        <h4 className="text-sm font-semibold text-slate-700 mb-4">
-          Динамика продаж
-        </h4>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis
-              dataKey="year"
-              tick={{ fontSize: 12, fill: "#64748b" }}
-            />
-            <YAxis
-              yAxisId="usd"
-              tick={{ fontSize: 12, fill: "#64748b" }}
-              tickFormatter={(v: number) => fmtNum(v)}
-            />
-            <YAxis
-              yAxisId="un"
-              orientation="right"
-              tick={{ fontSize: 12, fill: "#64748b" }}
-              tickFormatter={(v: number) => fmtNum(v)}
-            />
-            <Tooltip
-              formatter={(value, name) => [
-                String(name).includes("USD")
-                  ? fmtCurrency(Number(value))
-                  : fmtNum(Number(value)),
-                name,
-              ]}
-              contentStyle={{
-                borderRadius: 8,
-                border: "1px solid #e2e8f0",
-                fontSize: 12,
-              }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-            />
-            <Line
-              yAxisId="usd"
-              type="monotone"
-              dataKey="USD продажи"
-              stroke="#4f46e5"
-              strokeWidth={2.5}
-              dot={{ fill: "#4f46e5", r: 5 }}
-              activeDot={{ r: 7 }}
-            />
-            <Line
-              yAxisId="un"
-              type="monotone"
-              dataKey="UN продажи"
-              stroke="#10b981"
-              strokeWidth={2.5}
-              dot={{ fill: "#10b981", r: 5 }}
-              activeDot={{ r: 7 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <TrendMini
+          title="Динамика USD"
+          data={chartData}
+          dataKey="usd"
+          color="#4f46e5"
+          tickFmt={fmtCurrency}
+        />
+        <TrendMini
+          title="Динамика UN"
+          data={chartData}
+          dataKey="un"
+          color="#10b981"
+          tickFmt={fmtNum}
+        />
       </div>
+    </div>
+  );
+}
+
+function TrendMini({
+  title, data, dataKey, color, tickFmt,
+}: {
+  title: string;
+  data: { year: string; usd: number; un: number }[];
+  dataKey: "usd" | "un";
+  color: string;
+  tickFmt: (v: number) => string;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+      <h4 className="text-sm font-semibold text-slate-700 mb-4">{title}</h4>
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis
+            dataKey="year"
+            tick={{ fontSize: 12, fill: "#64748b" }}
+          />
+          <YAxis
+            tick={{ fontSize: 12, fill: "#64748b" }}
+            tickFormatter={tickFmt}
+            width={54}
+          />
+          <Tooltip
+            formatter={(v) => tickFmt(Number(v))}
+            contentStyle={{
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              fontSize: 12,
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey={dataKey}
+            stroke={color}
+            strokeWidth={2.5}
+            dot={{ fill: color, r: 5 }}
+            activeDot={{ r: 7 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
