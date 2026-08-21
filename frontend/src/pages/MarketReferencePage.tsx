@@ -133,41 +133,41 @@ export default function MarketReferencePage({ source, marketId: marketIdProp }: 
               <div className={clsx(
                 "w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all",
                 i < step ? "bg-emerald-500 text-white"
-                  : i === step ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                    : "bg-slate-100 text-slate-400",
+                  : i === step ? "bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-200"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
               )}>
                 {i < step ? <CheckCircle2 size={20} /> : <s.icon size={18} />}
               </div>
-              <span className={clsx("text-sm font-medium hidden sm:block", i <= step ? "text-slate-700" : "text-slate-400")}>
+              <span className={clsx("text-sm font-medium hidden sm:block", i <= step ? "text-slate-700 dark:text-slate-200" : "text-slate-400 dark:text-slate-500")}>
                 {s.label}
               </span>
             </div>
             {i < steps.length - 1 && (
-              <div className={clsx("flex-1 h-px mx-4", i < step ? "bg-emerald-300" : "bg-slate-200")} />
+              <div className={clsx("flex-1 h-px mx-4", i < step ? "bg-emerald-300" : "bg-slate-200 dark:bg-slate-700")} />
             )}
           </div>
         ))}
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center gap-2">
           <X size={16} /> {error}
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8">
         {step === 0 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-slate-800 mb-1">Загрузка {title}</h2>
-              <p className="text-sm text-slate-500">Выберите файл ({accept})</p>
+              <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">Загрузка {title}</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Выберите файл ({accept})</p>
             </div>
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
               className={clsx(
                 "border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors",
-                file ? "border-emerald-300 bg-emerald-50/50" : "border-slate-300 hover:border-indigo-400",
+                file ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30" : "border-slate-300 dark:border-slate-700 hover:border-indigo-400",
               )}
               onClick={() => document.getElementById("ref-file-input")?.click()}
             >
@@ -175,18 +175,18 @@ export default function MarketReferencePage({ source, marketId: marketIdProp }: 
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               {file ? (
                 <div className="flex flex-col items-center gap-2">
-                  <FileSpreadsheet size={40} className="text-emerald-500" />
-                  <p className="text-sm font-medium text-slate-700">{file.name}</p>
+                  <FileSpreadsheet size={40} className="text-emerald-500 dark:text-emerald-400" />
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{file.name}</p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-2">
-                  <Upload size={40} className="text-slate-400" />
-                  <p className="text-sm text-slate-600">Перетащите файл или нажмите</p>
+                  <Upload size={40} className="text-slate-400 dark:text-slate-500" />
+                  <p className="text-sm text-slate-600 dark:text-slate-300">Перетащите файл или нажмите</p>
                 </div>
               )}
             </div>
             <button onClick={handleUpload} disabled={!file}
-              className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-2">
+              className="w-full py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-40 flex items-center justify-center gap-2">
               Загрузить <ArrowRight size={18} />
             </button>
           </div>
@@ -194,26 +194,26 @@ export default function MarketReferencePage({ source, marketId: marketIdProp }: 
 
         {step === 1 && uploadData && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-slate-800">Выбор листа</h2>
+            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Выбор листа</h2>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Лист</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">Лист</label>
               <select value={selectedSheet} onChange={(e) => setSelectedSheet(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm bg-white">
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-sm bg-white dark:bg-slate-900">
                 {uploadData.sheets.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Строка заголовков</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">Строка заголовков</label>
               <input type="number" min={1} value={headerRow}
                 onChange={(e) => setHeaderRow(parseInt(e.target.value, 10) || 1)}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm" />
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-sm" />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStep(0)} className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm flex items-center gap-2">
+              <button onClick={() => setStep(0)} className="px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm flex items-center gap-2">
                 <ArrowLeft size={16} /> Назад
               </button>
               <button onClick={handleSelectSheet}
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium flex items-center justify-center gap-2">
                 Далее <ArrowRight size={18} />
               </button>
             </div>
@@ -222,16 +222,16 @@ export default function MarketReferencePage({ source, marketId: marketIdProp }: 
 
         {step === 2 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-slate-800">Маппинг полей {title}</h2>
+            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Маппинг полей {title}</h2>
             <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
               {fields.map((f) => (
                 <div key={f.key} className="flex items-center gap-4">
-                  <label className="w-52 text-sm text-slate-700 flex-shrink-0">
-                    {f.label} {f.required && <span className="text-red-400">*</span>}
+                  <label className="w-52 text-sm text-slate-700 dark:text-slate-200 flex-shrink-0">
+                    {f.label} {f.required && <span className="text-red-400 dark:text-red-500">*</span>}
                   </label>
                   <select value={mappings[f.key] ?? ""} onChange={(e) => setMappings((m) => ({ ...m, [f.key]: e.target.value }))}
-                    className={clsx("flex-1 px-3 py-2 rounded-lg border text-sm bg-white",
-                      mappings[f.key] ? "border-emerald-300" : "border-slate-300")}>
+                    className={clsx("flex-1 px-3 py-2 rounded-lg border text-sm bg-white dark:bg-slate-900",
+                      mappings[f.key] ? "border-emerald-300 dark:border-emerald-800" : "border-slate-300 dark:border-slate-700")}>
                     <option value="">— не выбрано —</option>
                     {columns.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -239,11 +239,11 @@ export default function MarketReferencePage({ source, marketId: marketIdProp }: 
               ))}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setStep(1)} className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm flex items-center gap-2">
+              <button onClick={() => setStep(1)} className="px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm flex items-center gap-2">
                 <ArrowLeft size={16} /> Назад
               </button>
               <button onClick={handleApplyMapping} disabled={processing}
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium flex items-center justify-center gap-2">
                 {processing ? <><Loader2 size={18} className="animate-spin" /> Обработка...</> : <>Применить <ArrowRight size={18} /></>}
               </button>
             </div>
@@ -252,11 +252,11 @@ export default function MarketReferencePage({ source, marketId: marketIdProp }: 
 
         {step === 3 && result && (
           <div className="text-center space-y-6 py-4">
-            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-              <CheckCircle2 size={40} className="text-emerald-500" />
+            <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center mx-auto">
+              <CheckCircle2 size={40} className="text-emerald-500 dark:text-emerald-400" />
             </div>
-            <h2 className="text-xl font-semibold text-slate-800">{title} загружены!</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{title} загружены!</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               {source === "pc" ? `${result.pc_count} записей` : `${result.grls_count} записей`}
             </p>
             {result.unrecognized && Object.keys(result.unrecognized).length > 0 && (
@@ -267,7 +267,7 @@ export default function MarketReferencePage({ source, marketId: marketIdProp }: 
               </div>
             )}
             <button onClick={() => { setStep(0); setFile(null); setResult(null); setMappings({}); }}
-              className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium">
+              className="px-6 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg text-sm font-medium">
               Загрузить ещё
             </button>
           </div>

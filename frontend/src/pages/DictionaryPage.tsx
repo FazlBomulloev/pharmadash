@@ -144,35 +144,35 @@ export default function DictionaryPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-lg font-semibold text-slate-800">Словарь</h2>
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Словарь</h2>
         <div className="flex gap-2">
           <button
             onClick={handleRecanon}
             disabled={recanonRunning}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50"
+            className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50 disabled:opacity-50"
             title="Перегнать canonical-поля во всех уже загруженных БДП/ПЦ/ГРЛС для этого типа"
           >
             <RefreshCw size={16} className={recanonRunning ? "animate-spin" : ""} />
             Применить к данным
           </button>
           <button onClick={() => navigate("/admin/dictionary/import")}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50">
+            className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm flex items-center gap-2 hover:bg-slate-50">
             <Upload size={16} /> Импорт
           </button>
           <button onClick={() => setShowAdd(true)}
-            className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-2 hover:bg-indigo-700">
+            className="px-3 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg text-sm flex items-center gap-2 hover:bg-indigo-700">
             <Plus size={16} /> Добавить
           </button>
         </div>
       </div>
 
       {recanonResult && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded-lg p-3 text-sm">
           <div className="flex items-center gap-2 font-medium text-emerald-800">
             <Sparkles size={14} /> Обновлено {recanonResult.updated_total} строк
             ({recanonResult.matched_total} распознано, {recanonResult.unmatched_total} нет)
           </div>
-          <div className="mt-1 text-xs text-emerald-700 flex gap-3 flex-wrap">
+          <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-300 flex gap-3 flex-wrap">
             {Object.entries(recanonResult.by_source).map(([src, s]) => (
               <span key={src}>
                 <strong>{src.toUpperCase()}:</strong> {s.updated}/{s.rows}
@@ -183,12 +183,12 @@ export default function DictionaryPage() {
         </div>
       )}
 
-      <div className="flex gap-2 border-b border-slate-200">
+      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
         {types.map((t) => (
           <button key={t.type} onClick={() => setActiveTab(t.type)}
             className={clsx(
               "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              activeTab === t.type ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700",
+              activeTab === t.type ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700",
             )}>
             {t.label}
           </button>
@@ -196,13 +196,13 @@ export default function DictionaryPage() {
       </div>
 
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 text-sm" />
+          placeholder="Поиск..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm" />
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-amber-200">
+      <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-amber-200 dark:border-amber-900">
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} className="text-amber-600" />
             <span className="text-sm font-semibold text-amber-900">
@@ -212,7 +212,7 @@ export default function DictionaryPage() {
               {unrecognizedTotal}
             </span>
           </div>
-          <div className="text-xs text-amber-700">
+          <div className="text-xs text-amber-700 dark:text-amber-300">
             raw-значения из БДП/ПЦ/ГРЛС, которым нет соответствия в словаре
           </div>
         </div>
@@ -221,7 +221,7 @@ export default function DictionaryPage() {
             <LoadingSpinner className="h-12" />
           </div>
         ) : unrecognized.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-amber-700">
+          <div className="px-4 py-6 text-center text-sm text-amber-700 dark:text-amber-300">
             ✓ Всё распознано
           </div>
         ) : (
@@ -240,16 +240,16 @@ export default function DictionaryPage() {
                 <tbody>
                   {unrecognized.map((item) => (
                     <tr key={item.normalized} className="border-t border-amber-100 hover:bg-amber-100/40">
-                      <td className="px-3 py-1.5 font-mono text-xs text-slate-700 truncate max-w-[280px]">
+                      <td className="px-3 py-1.5 font-mono text-xs text-slate-700 dark:text-slate-200 truncate max-w-[280px]">
                         {item.value}
                       </td>
-                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_bdp ? "text-slate-700" : "text-slate-300")}>
+                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_bdp ? "text-slate-700 dark:text-slate-200" : "text-slate-300 dark:text-slate-600")}>
                         {item.count_bdp || "—"}
                       </td>
-                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_pc ? "text-slate-700" : "text-slate-300")}>
+                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_pc ? "text-slate-700 dark:text-slate-200" : "text-slate-300 dark:text-slate-600")}>
                         {item.count_pc || "—"}
                       </td>
-                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_grls ? "text-slate-700" : "text-slate-300")}>
+                      <td className={clsx("px-3 py-1.5 text-right font-medium", item.count_grls ? "text-slate-700 dark:text-slate-200" : "text-slate-300 dark:text-slate-600")}>
                         {item.count_grls || "—"}
                       </td>
                       <td className="px-3 py-1.5 text-right">
@@ -266,7 +266,7 @@ export default function DictionaryPage() {
               </table>
             </div>
             {unrecognizedTotal > unrecognizedLimit && (
-              <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-center">
+              <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200 dark:border-amber-900 text-center">
                 <button
                   onClick={() => setUnrecognizedLimit((n) => n + 100)}
                   className="text-xs text-amber-800 hover:text-amber-900 font-medium"
@@ -280,50 +280,50 @@ export default function DictionaryPage() {
       </div>
 
       {loading ? <LoadingSpinner className="h-32" /> : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-600 w-8"></th>
-                <th className="text-left px-4 py-3 font-medium text-slate-600">Canonical</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-600">EN</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-600">RU</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-600">Aliases</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300 w-8"></th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Canonical</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">EN</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">RU</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Aliases</th>
                 <th className="text-right px-4 py-3 w-12"></th>
               </tr>
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-b border-slate-100 last:border-0">
+                <tr key={e.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                   <td className="px-4 py-3">
                     <button onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}>
                       {expandedId === e.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
                   </td>
-                  <td className="px-4 py-3 font-medium text-slate-800">{e.canonical}</td>
-                  <td className="px-4 py-3 text-slate-600">{e.value_en || "—"}</td>
-                  <td className="px-4 py-3 text-slate-600">{e.value_ru || "—"}</td>
-                  <td className="px-4 py-3 text-slate-500">{e.aliases.length}</td>
+                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{e.canonical}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.value_en || "—"}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{e.value_ru || "—"}</td>
+                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{e.aliases.length}</td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleDelete(e.id)} className="text-slate-400 hover:text-red-500">
+                    <button onClick={() => handleDelete(e.id)} className="text-slate-400 dark:text-slate-500 hover:text-red-500">
                       <Trash2 size={16} />
                     </button>
                   </td>
                 </tr>
               ))}
               {entries.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Нет записей</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500">Нет записей</td></tr>
               )}
             </tbody>
           </table>
           {expandedId && entries.find((e) => e.id === expandedId) && (
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
-              <p className="text-xs font-medium text-slate-500 mb-2">Aliases:</p>
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Aliases:</p>
               <div className="flex flex-wrap gap-2 mb-3">
                 {entries.find((e) => e.id === expandedId)!.aliases.map((a) => (
-                  <span key={a.id} className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs">
+                  <span key={a.id} className="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs">
                     {a.alias}
-                    <button onClick={() => handleDeleteAlias(a.id)} className="text-slate-400 hover:text-red-500">
+                    <button onClick={() => handleDeleteAlias(a.id)} className="text-slate-400 dark:text-slate-500 hover:text-red-500">
                       <Trash2 size={12} />
                     </button>
                   </span>
@@ -331,28 +331,28 @@ export default function DictionaryPage() {
               </div>
               <div className="flex gap-2">
                 <input value={newAlias} onChange={(e) => setNewAlias(e.target.value)}
-                  placeholder="Новый alias" className="flex-1 px-3 py-1.5 border border-slate-300 rounded text-sm" />
+                  placeholder="Новый alias" className="flex-1 px-3 py-1.5 border border-slate-300 dark:border-slate-700 rounded text-sm" />
                 <button onClick={() => handleAddAlias(expandedId)}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm">Добавить</button>
+                  className="px-3 py-1.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded text-sm">Добавить</button>
               </div>
             </div>
           )}
         </div>
       )}
-      <p className="text-xs text-slate-400">Всего: {total}</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500">Всего: {total}</p>
 
       {showAdd && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowAdd(false)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-800">Новая запись</h3>
-            <input value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="Value EN" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-            <input value={newRu} onChange={(e) => setNewRu(e.target.value)} placeholder="Value RU" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-            <input value={newCanonical} onChange={(e) => setNewCanonical(e.target.value)} placeholder="Canonical (авто)" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-            <textarea value={newAliases} onChange={(e) => setNewAliases(e.target.value)} placeholder="Aliases (по одному на строку)" rows={3} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-            <input value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Заметки" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl p-6 w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Новая запись</h3>
+            <input value={newEn} onChange={(e) => setNewEn(e.target.value)} placeholder="Value EN" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm" />
+            <input value={newRu} onChange={(e) => setNewRu(e.target.value)} placeholder="Value RU" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm" />
+            <input value={newCanonical} onChange={(e) => setNewCanonical(e.target.value)} placeholder="Canonical (авто)" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm" />
+            <textarea value={newAliases} onChange={(e) => setNewAliases(e.target.value)} placeholder="Aliases (по одному на строку)" rows={3} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm" />
+            <input value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Заметки" className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm" />
             <div className="flex gap-3">
-              <button onClick={() => setShowAdd(false)} className="flex-1 py-2 border border-slate-300 rounded-lg text-sm">Отмена</button>
-              <button onClick={handleAdd} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm">Создать</button>
+              <button onClick={() => setShowAdd(false)} className="flex-1 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm">Отмена</button>
+              <button onClick={handleAdd} className="flex-1 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg text-sm">Создать</button>
             </div>
           </div>
         </div>

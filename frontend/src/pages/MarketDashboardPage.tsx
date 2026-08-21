@@ -117,7 +117,7 @@ export default function MarketDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="sticky top-0 z-30 -mx-6 px-6 pt-6 pb-4 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200 space-y-3">
+      <div className="sticky top-0 z-30 -mx-6 px-6 pt-6 pb-4 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 space-y-3">
         <MnnSearch
           marketId={parseInt(marketId ?? "0")}
           value={mnn}
@@ -135,7 +135,7 @@ export default function MarketDashboardPage() {
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+        <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm">
           {error}
         </div>
       )}
@@ -172,7 +172,7 @@ export default function MarketDashboardPage() {
           <Zone1 data={data.zone1} />
           {data.atc_benchmark.length > 0 && (
             <>
-              <div className="border-t border-slate-200" />
+              <div className="border-t border-slate-200 dark:border-slate-800" />
               <div className="space-y-4">
                 {data.atc_benchmark.map((b) => (
                   <AtcBenchmark key={b.atc3} data={b} />
@@ -180,14 +180,14 @@ export default function MarketDashboardPage() {
               </div>
             </>
           )}
-          <div className="border-t border-slate-200" />
+          <div className="border-t border-slate-200 dark:border-slate-800" />
           <Zone2
             data={data.zone2}
             marketId={parseInt(marketId ?? "0")}
             mnn={data.mnn}
             years={data.years}
           />
-          <div className="border-t border-slate-200" />
+          <div className="border-t border-slate-200 dark:border-slate-800" />
           <div id="mnn-zone3-details">
             <Zone3 data={data.zone3} />
           </div>

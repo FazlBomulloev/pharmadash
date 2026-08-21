@@ -209,16 +209,16 @@ export default function AdminPage() {
     return (
       <div className="max-w-3xl mx-auto">
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-slate-800">
+          <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">
             Загрузка данных
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Выберите рынок или создайте новый — затем загрузите БДП, ПЦ или ГРЛС
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center gap-2">
             <X size={16} />
             {error}
           </div>
@@ -242,9 +242,9 @@ export default function AdminPage() {
         </div>
 
         {mode === "new" && (
-          <div className="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
+          <div className="mt-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
                 Название рынка
               </label>
               <input
@@ -252,11 +252,11 @@ export default function AdminPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="например: Кардиология 2024"
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
                 Годы (через запятую)
               </label>
               <input
@@ -264,11 +264,11 @@ export default function AdminPage() {
                 value={yearsStr}
                 onChange={(e) => setYearsStr(e.target.value)}
                 placeholder="2022,2023,2024"
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
                 Язык МНН в источниках
               </label>
               <div className="flex gap-3">
@@ -286,7 +286,7 @@ export default function AdminPage() {
             </div>
             <button
               onClick={handleCreateMarket}
-              className="w-full py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
             >
               Создать и перейти к загрузке
               <ArrowRight size={18} />
@@ -295,14 +295,14 @@ export default function AdminPage() {
         )}
 
         {mode === "existing" && (
-          <div className="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <div className="mt-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
             {loadingMarkets ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500 justify-center py-6">
+              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 justify-center py-6">
                 <Loader2 size={16} className="animate-spin" />
                 Загрузка списка рынков…
               </div>
             ) : existingMarkets.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-6">
+              <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">
                 Пока нет ни одного рынка. Создайте новый.
               </p>
             ) : (
@@ -311,13 +311,13 @@ export default function AdminPage() {
                   <button
                     key={m.id}
                     onClick={() => setMarket(m)}
-                    className="w-full flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors text-left group"
+                    className="w-full flex items-center justify-between p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors text-left group"
                   >
                     <div>
-                      <p className="font-medium text-slate-800 group-hover:text-indigo-700">
+                      <p className="font-medium text-slate-800 dark:text-slate-100 group-hover:text-indigo-700">
                         {m.name}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {m.years.join(", ")}
                         {m.mnn_count != null && (
                           <> · {m.mnn_count.toLocaleString("ru-RU")} МНН</>
@@ -328,7 +328,7 @@ export default function AdminPage() {
                     </div>
                     <ArrowRight
                       size={18}
-                      className="text-slate-300 group-hover:text-indigo-500 transition-colors"
+                      className="text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 transition-colors"
                     />
                   </button>
                 ))}
@@ -345,7 +345,7 @@ export default function AdminPage() {
     <div className="max-w-4xl mx-auto">
       <MarketContextBar market={market} onSwitch={switchMarket} />
 
-      <div className="flex items-center gap-1 border-b border-slate-200 mb-6">
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700 mb-6">
         <TabButton
           active={tab === "bdp"}
           icon={Database}
@@ -369,7 +369,7 @@ export default function AdminPage() {
       </div>
 
       {error && tab === "bdp" && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center gap-2">
           <X size={16} />
           {error}
         </div>
@@ -378,7 +378,7 @@ export default function AdminPage() {
       {tab === "bdp" && (
         <div>
           <BdpStepper step={bdpStep} />
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8">
             {bdpStep === 0 && (
               <BdpUploadStep
                 file={file}
@@ -449,24 +449,24 @@ function ModeCard({
       className={clsx(
         "text-left p-5 rounded-xl border-2 transition-all",
         active
-          ? "border-indigo-500 bg-indigo-50/50 shadow-sm"
-          : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30",
+          ? "border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 shadow-sm"
+          : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 hover:bg-indigo-50/30",
       )}
     >
       <Icon
         size={22}
         className={clsx(
           "mb-3",
-          active ? "text-indigo-600" : "text-slate-400",
+          active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500",
         )}
       />
       <p className={clsx(
         "font-semibold mb-1",
-        active ? "text-indigo-700" : "text-slate-800",
+        active ? "text-indigo-700 dark:text-indigo-300" : "text-slate-800 dark:text-slate-100",
       )}>
         {title}
       </p>
-      <p className="text-xs text-slate-500 leading-relaxed">
+      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
         {description}
       </p>
     </button>
@@ -480,18 +480,18 @@ function MarketContextBar({
   onSwitch: () => void;
 }) {
   return (
-    <div className="mb-6 flex items-center justify-between bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="mb-6 flex items-center justify-between bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-          <FlaskConical size={18} className="text-indigo-600" />
+        <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center">
+          <FlaskConical size={18} className="text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+          <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
             Активный рынок
           </p>
-          <p className="font-semibold text-slate-800">
+          <p className="font-semibold text-slate-800 dark:text-slate-100">
             {market.name}
-            <span className="text-xs font-normal text-slate-400 ml-2">
+            <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2">
               {market.years.join(", ")}
             </span>
           </p>
@@ -499,7 +499,7 @@ function MarketContextBar({
       </div>
       <button
         onClick={onSwitch}
-        className="text-xs font-medium text-slate-500 hover:text-indigo-600 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors flex items-center gap-1"
+        className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors flex items-center gap-1"
       >
         Сменить рынок
         <ChevronDown size={12} />
@@ -523,8 +523,8 @@ function TabButton({
       className={clsx(
         "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
         active
-          ? "border-indigo-600 text-indigo-700"
-          : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300",
+          ? "border-indigo-600 text-indigo-700 dark:text-indigo-300"
+          : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:border-slate-300",
       )}
     >
       <Icon size={16} />
@@ -532,7 +532,7 @@ function TabButton({
       {hint && (
         <span className={clsx(
           "text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded",
-          active ? "bg-indigo-100 text-indigo-700" : "bg-emerald-50 text-emerald-600",
+          active ? "bg-indigo-100 text-indigo-700 dark:text-indigo-300" : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400",
         )}>
           {hint}
         </span>
@@ -553,8 +553,8 @@ function BdpStepper({ step }: { step: number }) {
                 i < step
                   ? "bg-emerald-500 text-white"
                   : i === step
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                    : "bg-slate-100 text-slate-400",
+                    ? "bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-200"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
               )}
             >
               {i < step ? <CheckCircle2 size={18} /> : <s.icon size={16} />}
@@ -562,7 +562,7 @@ function BdpStepper({ step }: { step: number }) {
             <span
               className={clsx(
                 "text-sm font-medium hidden sm:block",
-                i <= step ? "text-slate-700" : "text-slate-400",
+                i <= step ? "text-slate-700 dark:text-slate-200" : "text-slate-400 dark:text-slate-500",
               )}
             >
               {s.label}
@@ -572,7 +572,7 @@ function BdpStepper({ step }: { step: number }) {
             <div
               className={clsx(
                 "flex-1 h-px mx-4",
-                i < step ? "bg-emerald-300" : "bg-slate-200",
+                i < step ? "bg-emerald-300" : "bg-slate-200 dark:bg-slate-700",
               )}
             />
           )}
@@ -592,10 +592,10 @@ function BdpUploadStep({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-slate-800 mb-1">
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">
           Загрузка файла БДП
         </h2>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Excel (.xlsx). Перезаписывает существующий БДП рынка.
         </p>
       </div>
@@ -609,8 +609,8 @@ function BdpUploadStep({
         className={clsx(
           "border-2 border-dashed rounded-xl p-12 text-center transition-colors cursor-pointer",
           file
-            ? "border-emerald-300 bg-emerald-50/50"
-            : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30",
+            ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30"
+            : "border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50/30",
         )}
         onClick={() =>
           document.getElementById("bdp-file-input")?.click()
@@ -625,26 +625,26 @@ function BdpUploadStep({
         />
         {file ? (
           <div className="flex flex-col items-center gap-2">
-            <FileSpreadsheet size={40} className="text-emerald-500" />
-            <p className="text-sm font-medium text-slate-700">{file.name}</p>
-            <p className="text-xs text-slate-400">
+            <FileSpreadsheet size={40} className="text-emerald-500 dark:text-emerald-400" />
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{file.name}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
               {(file.size / 1024 / 1024).toFixed(1)} МБ
             </p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <Upload size={40} className="text-slate-400" />
-            <p className="text-sm text-slate-600">
+            <Upload size={40} className="text-slate-400 dark:text-slate-500" />
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Перетащите файл или нажмите для выбора
             </p>
-            <p className="text-xs text-slate-400">Только .xlsx файлы</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Только .xlsx файлы</p>
           </div>
         )}
       </div>
       <button
         onClick={onNext}
         disabled={!file}
-        className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="w-full py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         Загрузить
         <ArrowRight size={18} />
@@ -667,27 +667,27 @@ function BdpSheetStep({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-slate-800 mb-1">
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">
           Выбор листа
         </h2>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Укажите лист и строку заголовков
         </p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
           Лист
         </label>
         <select
           value={selectedSheet}
           onChange={(e) => onSheetChange(e.target.value)}
-          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm bg-white"
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm bg-white dark:bg-slate-900"
         >
           {sheets.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
           Строка заголовков
         </label>
         <input
@@ -695,20 +695,20 @@ function BdpSheetStep({
           min={1}
           value={headerRow}
           onChange={(e) => onRowChange(parseInt(e.target.value, 10) || 1)}
-          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
         />
       </div>
       <div className="flex gap-3">
         <button
           onClick={onBack}
-          className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
+          className="px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors flex items-center gap-2"
         >
           <ArrowLeft size={16} />
           Назад
         </button>
         <button
           onClick={onNext}
-          className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
         >
           Далее
           <ArrowRight size={18} />
@@ -731,19 +731,19 @@ function BdpMappingStep({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-slate-800 mb-1">
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">
           Маппинг полей
         </h2>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Сопоставьте поля системы с колонками файла
         </p>
       </div>
       <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
         {SYSTEM_FIELDS.map((f) => (
           <div key={f.key} className="flex items-center gap-4">
-            <label className="w-52 text-sm text-slate-700 flex-shrink-0">
+            <label className="w-52 text-sm text-slate-700 dark:text-slate-200 flex-shrink-0">
               {f.label}
-              {f.required && <span className="text-red-400 ml-0.5">*</span>}
+              {f.required && <span className="text-red-400 dark:text-red-500 ml-0.5">*</span>}
             </label>
             <select
               value={mappings[f.key] ?? ""}
@@ -751,10 +751,10 @@ function BdpMappingStep({
                 onChange({ ...mappings, [f.key]: e.target.value })
               }
               className={clsx(
-                "flex-1 px-3 py-2 rounded-lg border text-sm bg-white outline-none transition-all",
+                "flex-1 px-3 py-2 rounded-lg border text-sm bg-white dark:bg-slate-900 outline-none transition-all",
                 mappings[f.key]
-                  ? "border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                  : "border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100",
+                  ? "border-emerald-300 dark:border-emerald-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  : "border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100",
               )}
             >
               <option value="">— не выбрано —</option>
@@ -766,7 +766,7 @@ function BdpMappingStep({
       <div className="flex gap-3">
         <button
           onClick={onBack}
-          className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
+          className="px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors flex items-center gap-2"
         >
           <ArrowLeft size={16} />
           Назад
@@ -774,7 +774,7 @@ function BdpMappingStep({
         <button
           onClick={onApply}
           disabled={processing}
-          className="flex-1 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
         >
           {processing ? (
             <>
@@ -803,23 +803,23 @@ function BdpDoneStep({
 }) {
   return (
     <div className="text-center space-y-6 py-4">
-      <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-        <CheckCircle2 size={40} className="text-emerald-500" />
+      <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center mx-auto">
+        <CheckCircle2 size={40} className="text-emerald-500 dark:text-emerald-400" />
       </div>
       <div>
-        <h2 className="text-xl font-semibold text-slate-800 mb-2">
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">
           БДП загружен!
         </h2>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Рынок «{market.name}» готов к анализу
         </p>
       </div>
       <div className="max-w-xs mx-auto">
-        <div className="bg-slate-50 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-slate-800">
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">
             {result.bdp_count}
           </p>
-          <p className="text-xs text-slate-500 mt-1">БДП строк</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">БДП строк</p>
         </div>
       </div>
       {result.unrecognized && Object.keys(result.unrecognized).length > 0 && (
@@ -832,13 +832,13 @@ function BdpDoneStep({
       <div className="flex gap-3 justify-center">
         <button
           onClick={onLoadAnother}
-          className="px-6 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+          className="px-6 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors"
         >
           Загрузить ещё
         </button>
         <button
           onClick={onOpenDashboard}
-          className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
+          className="px-6 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
         >
           Открыть дашборд
           <ArrowRight size={16} />
