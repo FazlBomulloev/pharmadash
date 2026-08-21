@@ -3,10 +3,10 @@ import clsx from "clsx";
 import type { Zone3Data, KpiZone1, Zone2Data, AtcBenchmark } from "../../types/api";
 
 const COLOR_BG: Record<string, string> = {
-  green: "bg-emerald-100 text-emerald-700 border-emerald-300",
-  yellow: "bg-amber-100 text-amber-700 border-amber-300",
-  orange: "bg-orange-100 text-orange-700 border-orange-300",
-  red: "bg-red-100 text-red-700 border-red-300",
+  green: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
+  yellow: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800",
+  orange: "bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800",
+  red: "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800",
 };
 const COLOR_FILL: Record<string, string> = {
   green: "bg-emerald-500",
@@ -45,24 +45,24 @@ export default function MnnScoreHeader({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm px-4 py-3">
       <div className="flex items-center gap-4 flex-wrap">
         {/* MNN + ATC */}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2 flex-wrap">
             <span
-              className="text-base font-semibold text-slate-800 truncate max-w-[420px]"
+              className="text-base font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[420px]"
               title={mnn}
             >
               {mnn}
             </span>
             {atc3 && (
-              <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider bg-slate-100 text-slate-600 rounded uppercase">
+              <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded uppercase">
                 {atc3}
               </span>
             )}
           </div>
-          <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-500">
+          <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1">
               <Users size={11} />
               {zone1.active_competitors} акт. конк.
@@ -76,15 +76,15 @@ export default function MnnScoreHeader({
         {/* score bullet */}
         <div className="w-56">
           <div className="flex items-baseline justify-between mb-1">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
               Attractiveness
             </span>
-            <span className="text-sm font-bold text-slate-800 tabular-nums">
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums">
               {score.toFixed(0)}
-              <span className="text-[11px] font-normal text-slate-400"> / 100</span>
+              <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500"> / 100</span>
             </span>
           </div>
-          <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="relative h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
             <div
               className={clsx("h-full rounded-full transition-all", COLOR_FILL[color] ?? "bg-slate-400")}
               style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
@@ -96,7 +96,7 @@ export default function MnnScoreHeader({
         <div
           className={clsx(
             "px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5",
-            COLOR_BG[color] ?? "bg-slate-100 text-slate-600 border-slate-200",
+            COLOR_BG[color] ?? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700",
           )}
         >
           <span className={clsx("w-2 h-2 rounded-full", COLOR_FILL[color])} aria-hidden />
@@ -107,7 +107,7 @@ export default function MnnScoreHeader({
         {flagsCount > 0 && (
           <button
             onClick={() => scrollTo("mnn-zone3-details")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors"
           >
             <AlertTriangle size={12} />
             {flagsCount} {declineFlags(flagsCount)}

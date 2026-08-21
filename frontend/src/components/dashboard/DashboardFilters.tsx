@@ -75,9 +75,9 @@ export default function DashboardFilters({
   const hasActive = selectedLf || selectedDose || !yearIsDefault;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
           <Filter size={14} />
           Фильтры
         </div>
@@ -108,7 +108,7 @@ export default function DashboardFilters({
         {hasActive && (
           <button
             onClick={() => onChange(null, null, null)}
-            className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded-md hover:bg-slate-100"
+            className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <X size={12} />
             Сбросить
@@ -132,9 +132,9 @@ function FilterSelect({
 }) {
   return (
     <label className="flex items-center gap-2 text-sm">
-      <span className="text-slate-500">{label}:</span>
+      <span className="text-slate-500 dark:text-slate-400">{label}:</span>
       <select
-        className="px-3 py-1.5 border border-slate-200 rounded-md text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 min-w-[140px]"
+        className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800 focus:border-indigo-400 min-w-[140px]"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -160,11 +160,11 @@ function YearSegControl({
   const latest = options[options.length - 1] ?? null;
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="text-slate-500 flex items-center gap-1">
+      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
         <CalendarDays size={13} />
         {label}:
       </span>
-      <div className="flex bg-slate-100 rounded-lg p-0.5" role="group" aria-label={label}>
+      <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5" role="group" aria-label={label}>
         {options.map((y) => {
           const active = value === y;
           return (
@@ -177,8 +177,8 @@ function YearSegControl({
               className={clsx(
                 "px-3 py-1 text-xs font-medium rounded-md transition-all tabular-nums",
                 active
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700",
+                  ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200",
               )}
             >
               {y}

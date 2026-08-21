@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import KpiCard from "../common/KpiCard";
 import ScopeChip from "../common/ScopeChip";
+import { useChartTheme } from "../../hooks/useChartTheme";
 import type { KpiZone1 } from "../../types/api";
 
 function fmtNum(v: number): string {
@@ -28,12 +29,12 @@ function fmtCurrency(v: number): string {
 }
 
 const statusColors: Record<string, string> = {
-  Growing: "bg-emerald-100 text-emerald-700",
-  Declining: "bg-red-100 text-red-700",
-  Stable: "bg-blue-100 text-blue-700",
-  "Price-driven": "bg-amber-100 text-amber-700",
-  "Price pressure": "bg-orange-100 text-orange-700",
-  "N/A": "bg-slate-100 text-slate-500",
+  Growing: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300",
+  Declining: "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300",
+  Stable: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300",
+  "Price-driven": "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300",
+  "Price pressure": "bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300",
+  "N/A": "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
 };
 
 const statusLabels: Record<string, string> = {
@@ -55,7 +56,7 @@ export default function Zone1({ data }: { data: KpiZone1 }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
           Ключевые показатели
           <ScopeChip scope="mnn" />
         </h3>
@@ -133,22 +134,37 @@ export default function Zone1({ data }: { data: KpiZone1 }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <TrendMini
-          title="Динамика USD"
-          data={chartData}
-          dataKey="usd"
-          color="#4f46e5"
-          tickFmt={fmtCurrency}
-        />
-        <TrendMini
-          title="Динамика UN"
-          data={chartData}
-          dataKey="un"
-          color="#10b981"
-          tickFmt={fmtNum}
-        />
-      </div>
+      <TrendPair
+        data={chartData}
+        fmtCurrency={fmtCurrency}
+        fmtNum={fmtNum}
+      />
+    </div>
+  );
+}
+
+function TrendPair({ data, fmtCurrency, fmtNum }: {
+  data: { year: string; usd: number; un: number }[];
+  fmtCurrency: (v: number) => string;
+  fmtNum: (v: number) => string;
+}) {
+  const chart = useChartTheme();
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <TrendMini
+        title="Динамика USD"
+        data={data}
+        dataKey="usd"
+        color={chart.series.indigo}
+        tickFmt={fmtCurrency}
+      />
+      <TrendMini
+        title="Динамика UN"
+        data={data}
+        dataKey="un"
+        color={chart.series.emerald}
+        tickFmt={fmtNum}
+      />
     </div>
   );
 }
@@ -162,18 +178,21 @@ function TrendMini({
   color: string;
   tickFmt: (v: number) => string;
 }) {
+  const chart = useChartTheme();
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-      <h4 className="text-sm font-semibold text-slate-700 mb-4">{title}</h4>
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">{title}</h4>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
           <XAxis
             dataKey="year"
-            tick={{ fontSize: 12, fill: "#64748b" }}
+            tick={{ fontSize: 12, fill: chart.axisTick }}
+            stroke={chart.axis}
           />
           <YAxis
-            tick={{ fontSize: 12, fill: "#64748b" }}
+            tick={{ fontSize: 12, fill: chart.axisTick }}
+            stroke={chart.axis}
             tickFormatter={tickFmt}
             width={54}
           />
@@ -181,9 +200,13 @@ function TrendMini({
             formatter={(v) => tickFmt(Number(v))}
             contentStyle={{
               borderRadius: 8,
-              border: "1px solid #e2e8f0",
+              border: `1px solid ${chart.tooltipBorder}`,
+              backgroundColor: chart.tooltipBg,
+              color: chart.tooltipText,
               fontSize: 12,
             }}
+            labelStyle={{ color: chart.tooltipText }}
+            itemStyle={{ color: chart.tooltipText }}
           />
           <Line
             type="monotone"

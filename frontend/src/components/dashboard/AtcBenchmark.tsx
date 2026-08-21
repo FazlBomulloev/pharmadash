@@ -21,24 +21,24 @@ function fmtNum(v: number | null): string {
 
 export default function AtcBenchmark({ data }: { data: Data }) {
   return (
-    <section className="bg-gradient-to-br from-indigo-50/60 to-purple-50/40 border border-indigo-100 rounded-xl p-5">
+    <section className="bg-gradient-to-br from-indigo-50/60 to-purple-50/40 dark:from-indigo-950/40 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900 rounded-xl p-5">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <Layers size={18} className="text-indigo-600" />
-          <h3 className="text-sm font-semibold text-slate-700">
+          <Layers size={18} className="text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
             Бенчмарк по терапевтическому классу
           </h3>
-          <span className="px-2 py-0.5 text-xs font-bold bg-indigo-600 text-white rounded uppercase tracking-wide">
+          <span className="px-2 py-0.5 text-xs font-bold bg-indigo-600 dark:bg-indigo-500 text-white rounded uppercase tracking-wide">
             {data.atc3}
           </span>
         </div>
-        <div className="text-xs text-slate-600">
+        <div className="text-xs text-slate-600 dark:text-slate-300">
           МНН в классе: <span className="font-semibold">{data.mnn_count}</span>
           {data.our.rank_by_usd != null && (
             <>
               {" · "}
               позиция нашего МНН:{" "}
-              <span className="font-semibold text-indigo-700">
+              <span className="font-semibold text-indigo-700 dark:text-indigo-300">
                 #{data.our.rank_by_usd}
               </span>
             </>
@@ -83,8 +83,8 @@ export default function AtcBenchmark({ data }: { data: Data }) {
       </div>
 
       {data.top_peers.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-indigo-100">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+        <div className="mt-4 pt-4 border-t border-indigo-100 dark:border-indigo-900">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
             Топ-5 МНН класса по USD
           </p>
           <div className="flex flex-wrap gap-2">
@@ -94,8 +94,8 @@ export default function AtcBenchmark({ data }: { data: Data }) {
                 className={clsx(
                   "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs",
                   idx === 0
-                    ? "bg-indigo-600 text-white font-semibold"
-                    : "bg-white border border-indigo-100 text-slate-700",
+                    ? "bg-indigo-600 dark:bg-indigo-500 text-white font-semibold"
+                    : "bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-900 text-slate-700 dark:text-slate-200",
                 )}
               >
                 <span className="opacity-70">#{idx + 1}</span>
@@ -136,16 +136,16 @@ function BulletMetric({
   const bar = computeScale({ ours, median, p75, max, symmetric });
 
   return (
-    <div className="bg-white rounded-lg p-3 border border-indigo-100">
+    <div className="bg-white dark:bg-slate-900 rounded-lg p-3 border border-indigo-100 dark:border-indigo-900">
       <div className="flex items-baseline justify-between mb-2">
-        <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+        <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
           {label}
         </p>
         {better != null && (
           <span
             className={clsx(
               "text-[10px] font-semibold uppercase tracking-wide",
-              better ? "text-emerald-600" : "text-red-600",
+              better ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
             )}
           >
             {better ? "лучше медианы" : "хуже медианы"}
@@ -154,14 +154,14 @@ function BulletMetric({
       </div>
 
       <div className="flex items-baseline gap-1.5 mb-2">
-        <span className="text-xl font-bold text-slate-800 tabular-nums">
+        <span className="text-xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">
           {fmt(ours)}
         </span>
         {showGrowthIcon && ours != null && (
           ours >= 0 ? (
-            <TrendingUp size={14} className="text-emerald-600" />
+            <TrendingUp size={14} className="text-emerald-600 dark:text-emerald-400" />
           ) : (
-            <TrendingDown size={14} className="text-red-600" />
+            <TrendingDown size={14} className="text-red-600 dark:text-red-400" />
           )
         )}
       </div>
@@ -169,14 +169,14 @@ function BulletMetric({
       {bar ? (
         <>
           <div
-            className="relative h-2 bg-slate-100 rounded-full overflow-visible"
+            className="relative h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-visible"
             role="img"
             aria-label={`Наш: ${fmt(ours)}, медиана: ${fmt(median)}${p75 != null ? `, p75: ${fmt(p75)}` : ""}`}
           >
             {/* median → p75 shaded range */}
             {bar.p50Pct != null && bar.p75Pct != null && (
               <div
-                className="absolute top-0 h-full bg-indigo-200/60"
+                className="absolute top-0 h-full bg-indigo-200/60 dark:bg-indigo-900/60"
                 style={{
                   left: `${Math.min(bar.p50Pct, bar.p75Pct)}%`,
                   width: `${Math.abs(bar.p75Pct - bar.p50Pct)}%`,
@@ -187,7 +187,7 @@ function BulletMetric({
             {/* median tick */}
             {bar.p50Pct != null && (
               <div
-                className="absolute -top-0.5 h-3 w-0.5 bg-indigo-500"
+                className="absolute -top-0.5 h-3 w-0.5 bg-indigo-500 dark:bg-indigo-400"
                 style={{ left: `${bar.p50Pct}%` }}
                 title={`медиана ${fmt(median)}`}
                 aria-hidden
@@ -197,12 +197,12 @@ function BulletMetric({
             {bar.ourPct != null && (
               <div
                 className={clsx(
-                  "absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full ring-2 ring-white shadow",
+                  "absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full ring-2 ring-white dark:ring-slate-900 shadow",
                   better === null
-                    ? "bg-slate-500"
+                    ? "bg-slate-500 dark:bg-slate-400"
                     : better
-                      ? "bg-emerald-500"
-                      : "bg-red-500",
+                      ? "bg-emerald-500 dark:bg-emerald-400"
+                      : "bg-red-500 dark:bg-red-400",
                 )}
                 style={{
                   left: `${bar.ourPct}%`,
@@ -213,16 +213,16 @@ function BulletMetric({
               />
             )}
           </div>
-          <div className="mt-1.5 flex justify-between text-[10px] text-slate-400 tabular-nums">
+          <div className="mt-1.5 flex justify-between text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">
             <span>{fmt(bar.minValue)}</span>
             <span>
-              медиана <span className="text-slate-600 font-medium">{fmt(median)}</span>
+              медиана <span className="text-slate-600 dark:text-slate-300 font-medium">{fmt(median)}</span>
             </span>
             <span>{fmt(bar.maxValue)}</span>
           </div>
         </>
       ) : (
-        <p className="text-[11px] text-slate-400">Недостаточно данных для сравнения</p>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500">Недостаточно данных для сравнения</p>
       )}
     </div>
   );

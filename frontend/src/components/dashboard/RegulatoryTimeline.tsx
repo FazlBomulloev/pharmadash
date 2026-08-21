@@ -22,9 +22,9 @@ export default function RegulatoryTimeline({
   grlsText, activeCount, registrants, extra, pcFlag, pcStats,
 }: Props) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-1.5">
-        <FileCheck size={14} className="text-indigo-500" />
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-1.5">
+        <FileCheck size={14} className="text-indigo-500 dark:text-indigo-400" />
         Регуляторный ландшафт
       </h4>
 
@@ -99,14 +99,14 @@ function StatTile({
   return (
     <div className={clsx(
       "rounded-lg p-3",
-      tone === "amber" ? "bg-amber-50" : "bg-slate-50",
+      tone === "amber" ? "bg-amber-50 dark:bg-amber-950/40" : "bg-slate-50 dark:bg-slate-800/60",
     )}>
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
         <Icon size={12} />
         {label}
       </div>
-      <p className="text-xl font-bold text-slate-800 mt-1 tabular-nums">{value}</p>
-      {hint && <p className="text-[10px] text-slate-400 mt-0.5">{hint}</p>}
+      <p className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-1 tabular-nums">{value}</p>
+      {hint && <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{hint}</p>}
     </div>
   );
 }
@@ -144,11 +144,11 @@ function TimelineAxis({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
-          <AlertTriangle size={11} className="text-amber-500" />
+        <p className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1">
+          <AlertTriangle size={11} className="text-amber-500 dark:text-amber-400" />
           Жизненный цикл РУ
         </p>
-        <p className="text-[10px] text-slate-400">
+        <p className="text-[10px] text-slate-400 dark:text-slate-500">
           {oldestYear} → сегодня → {endYear}
         </p>
       </div>
@@ -179,18 +179,18 @@ function TimelineAxis({
         })}
 
         {/* Axis line */}
-        <div className="absolute left-0 right-0 top-[46px] h-px bg-slate-300" />
+        <div className="absolute left-0 right-0 top-[46px] h-px bg-slate-300 dark:bg-slate-600" />
 
         {/* Today marker */}
         <div
           className="absolute -translate-x-1/2 top-[38px] flex flex-col items-center"
           style={{ left: `${todayPct}%` }}
         >
-          <span className="text-[9px] uppercase tracking-wider font-bold text-indigo-600">
+          <span className="text-[9px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400">
             сегодня
           </span>
-          <div className="w-px h-4 bg-indigo-500" />
-          <div className="w-2 h-2 rounded-full bg-indigo-500 ring-2 ring-white shadow" />
+          <div className="w-px h-4 bg-indigo-500 dark:bg-indigo-400" />
+          <div className="w-2 h-2 rounded-full bg-indigo-500 dark:bg-indigo-400 ring-2 ring-white dark:ring-slate-900 shadow" />
         </div>
 
         {/* Registration bars below the axis */}
@@ -205,7 +205,7 @@ function TimelineAxis({
             >
               <div className="flex flex-col items-center gap-0.5">
                 <div
-                  className="w-1.5 bg-indigo-500 rounded-b-sm"
+                  className="w-1.5 bg-indigo-500 dark:bg-indigo-400 rounded-b-sm"
                   style={{ height: `${h}px` }}
                 />
               </div>
@@ -214,12 +214,12 @@ function TimelineAxis({
         })}
 
         {/* Year labels at the bottom */}
-        <div className="absolute left-0 right-0 bottom-0 text-[10px] text-slate-400 tabular-nums">
+        <div className="absolute left-0 right-0 bottom-0 text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">
           <span className="absolute -translate-x-1/2" style={{ left: "0%" }}>
             {oldestYear}
           </span>
           <span
-            className="absolute -translate-x-1/2 text-indigo-600 font-semibold"
+            className="absolute -translate-x-1/2 text-indigo-600 dark:text-indigo-400 font-semibold"
             style={{ left: `${todayPct}%` }}
           >
             {currentYear}
@@ -231,7 +231,7 @@ function TimelineAxis({
       </div>
 
       {activeCount > 0 && (extra.expiring_1y + extra.expiring_2y + extra.expiring_3y) > 0 && (
-        <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2">
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-2">
           {[
             { label: "истекают в 1г", value: extra.expiring_1y, color: "bg-red-500" },
             { label: "в 2 года", value: extra.expiring_2y, color: "bg-amber-500" },
@@ -241,13 +241,13 @@ function TimelineAxis({
             return (
               <div key={i}>
                 <div className="flex items-baseline justify-between text-[10px]">
-                  <span className="text-slate-500">{r.label}</span>
-                  <span className="font-medium text-slate-700 tabular-nums">
+                  <span className="text-slate-500 dark:text-slate-400">{r.label}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-200 tabular-nums">
                     {r.value}
-                    <span className="text-slate-400 ml-0.5">/{activeCount}</span>
+                    <span className="text-slate-400 dark:text-slate-500 ml-0.5">/{activeCount}</span>
                   </span>
                 </div>
-                <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                <div className="mt-1 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className={clsx("h-full rounded-full", r.color)}
                     style={{ width: `${Math.min(100, p)}%` }}

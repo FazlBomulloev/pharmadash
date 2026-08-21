@@ -48,7 +48,7 @@ export default function MnnSearch({ marketId, value, onChange }: Props) {
       <div className="relative">
         <Search
           size={18}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
         />
         <input
           type="text"
@@ -65,22 +65,22 @@ export default function MnnSearch({ marketId, value, onChange }: Props) {
             }
           }}
           placeholder="Введите МНН для анализа..."
-          className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 bg-white text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all shadow-sm"
+          className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800 outline-none transition-all shadow-sm"
         />
       </div>
 
       {open && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full bg-white rounded-xl border border-slate-200 shadow-lg max-h-64 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg max-h-64 overflow-y-auto">
           {suggestions.map((mnn) => (
             <button
               key={mnn}
               onClick={() => select(mnn)}
               className={clsx(
-                "w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 flex items-center gap-2 transition-colors",
-                mnn === value && "bg-indigo-50 text-indigo-700",
+                "w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-950/40 dark:text-slate-200 flex items-center gap-2 transition-colors",
+                mnn === value && "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300",
               )}
             >
-              <Pill size={14} className="text-slate-400 flex-shrink-0" />
+              <Pill size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
               {mnn}
             </button>
           ))}

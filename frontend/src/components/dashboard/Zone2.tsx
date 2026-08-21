@@ -31,6 +31,7 @@ import { CountryDetailsLoader } from "../common/CountryDetails";
 import ScopeChip from "../common/ScopeChip";
 import SplitBar from "../common/SplitBar";
 import RegulatoryTimeline from "./RegulatoryTimeline";
+import { useChartTheme } from "../../hooks/useChartTheme";
 
 const PIE_COLORS = [
   "#4f46e5",
@@ -66,12 +67,12 @@ function concentrationLabel(hhi: number | null): {
   text: string;
   color: string;
 } {
-  if (hhi == null) return { text: "Нет данных", color: "text-slate-400" };
+  if (hhi == null) return { text: "Нет данных", color: "text-slate-400 dark:text-slate-500" };
   if (hhi < 1500)
-    return { text: "Низкая", color: "text-emerald-600" };
+    return { text: "Низкая", color: "text-emerald-600 dark:text-emerald-400" };
   if (hhi < 2500)
-    return { text: "Умеренная", color: "text-amber-600" };
-  return { text: "Высокая", color: "text-red-600" };
+    return { text: "Умеренная", color: "text-amber-600 dark:text-amber-400" };
+  return { text: "Высокая", color: "text-red-600 dark:text-red-400" };
 }
 
 export default function Zone2({
@@ -92,7 +93,7 @@ export default function Zone2({
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
         Структура рынка
         <ScopeChip scope="mnn" />
       </h3>
@@ -135,13 +136,13 @@ export default function Zone2({
 
       {/* Top Competitors */}
       {data.top_competitors.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
           <div className="flex items-baseline justify-between mb-4">
-            <h4 className="text-sm font-semibold text-slate-700">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Топ-{data.top_competitors.length} производителей
             </h4>
             {data.total_producers > data.top_competitors.length && (
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-400 dark:text-slate-500">
                 из {data.total_producers} всего
               </span>
             )}
@@ -149,33 +150,33 @@ export default function Zone2({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200">
+                <tr className="border-b border-slate-200 dark:border-slate-700">
                   <th className="w-6"></th>
-                  <th className="text-left py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-left py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     #
                   </th>
-                  <th className="text-left py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-left py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     Производитель
                   </th>
-                  <th className="text-left py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-left py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     Страна
                   </th>
-                  <th className="text-center py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-center py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     БГ/Г
                   </th>
-                  <th className="text-right py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-right py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     USD
                   </th>
-                  <th className="text-right py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-right py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     Доля
                   </th>
-                  <th className="text-right py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-right py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     ASP
                   </th>
-                  <th className="text-right py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-right py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     USD рост
                   </th>
-                  <th className="text-right py-2 px-3 text-slate-500 font-medium">
+                  <th className="text-right py-2 px-3 text-slate-500 dark:text-slate-400 font-medium">
                     UN рост
                   </th>
                 </tr>
@@ -193,10 +194,10 @@ export default function Zone2({
                     colSpan={10}
                     columns={
                       <>
-                        <td className="py-2.5 px-3 text-slate-400">
+                        <td className="py-2.5 px-3 text-slate-400 dark:text-slate-500">
                           {i + 1}
                         </td>
-                        <td className="py-2.5 px-3 font-medium text-slate-700">
+                        <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-200">
                           <div className="flex items-center gap-2">
                             <div
                               className="w-2 h-2 rounded-full flex-shrink-0"
@@ -208,31 +209,31 @@ export default function Zone2({
                             {c.corporation}
                           </div>
                         </td>
-                        <td className="py-2.5 px-3 text-slate-600 text-xs">
+                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-xs">
                           {c.country ?? "—"}
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <BgGBadge flag={c.bg_g_flag} />
                         </td>
-                        <td className="py-2.5 px-3 text-right">
+                        <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-200">
                           {fmtUsd(c.usd_last_year)}
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                               <div
-                                className="h-full rounded-full bg-indigo-500"
+                                className="h-full rounded-full bg-indigo-500 dark:bg-indigo-400"
                                 style={{
                                   width: `${Math.min(c.share * 100, 100)}%`,
                                 }}
                               />
                             </div>
-                            <span className="w-12 text-right">
+                            <span className="w-12 text-right text-slate-700 dark:text-slate-200">
                               {fmtPct(c.share)}
                             </span>
                           </div>
                         </td>
-                        <td className="py-2.5 px-3 text-right">
+                        <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-200">
                           {c.asp != null ? `$${c.asp.toFixed(2)}` : "—"}
                         </td>
                         <td className="py-2.5 px-3 text-right">
@@ -260,50 +261,7 @@ export default function Zone2({
 
       {/* Forms & Countries */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {data.forms.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <h4 className="text-sm font-semibold text-slate-700 mb-4">
-              Лекарственные формы
-            </h4>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={data.forms.slice(0, 8)}
-                layout="vertical"
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#e2e8f0"
-                  horizontal={false}
-                />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 11, fill: "#64748b" }}
-                  tickFormatter={(v: number) => fmtPct(v)}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={160}
-                  tick={{ fontSize: 11, fill: "#64748b" }}
-                  interval={0}
-                />
-                <Tooltip
-                  formatter={(value) => fmtPct(Number(value))}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                    fontSize: 12,
-                  }}
-                />
-                <Bar
-                  dataKey="share"
-                  fill="#6366f1"
-                  radius={[0, 4, 4, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        {data.forms.length > 0 && <FormsCard forms={data.forms} />}
 
         {data.countries.length > 0 && (
           <CountriesPie
@@ -321,6 +279,53 @@ export default function Zone2({
   );
 }
 
+function FormsCard({ forms }: { forms: Zone2Data["forms"] }) {
+  const chart = useChartTheme();
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">
+        Лекарственные формы
+      </h4>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={forms.slice(0, 8)} layout="vertical">
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={chart.grid}
+            horizontal={false}
+          />
+          <XAxis
+            type="number"
+            tick={{ fontSize: 11, fill: chart.axisTick }}
+            stroke={chart.axis}
+            tickFormatter={(v: number) => fmtPct(v)}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={160}
+            tick={{ fontSize: 11, fill: chart.axisTick }}
+            stroke={chart.axis}
+            interval={0}
+          />
+          <Tooltip
+            formatter={(value) => fmtPct(Number(value))}
+            contentStyle={{
+              borderRadius: 8,
+              border: `1px solid ${chart.tooltipBorder}`,
+              backgroundColor: chart.tooltipBg,
+              color: chart.tooltipText,
+              fontSize: 12,
+            }}
+            labelStyle={{ color: chart.tooltipText }}
+            itemStyle={{ color: chart.tooltipText }}
+          />
+          <Bar dataKey="share" fill={chart.series.indigo} radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function CountriesPie({
   countries, marketId, mnn, expandedCountry, onToggleCountry,
 }: {
@@ -332,8 +337,8 @@ function CountriesPie({
 }) {
   const top = countries.slice(0, 8);
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h4 className="text-sm font-semibold text-slate-700 mb-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">
         Страны производства
       </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -351,7 +356,7 @@ function CountriesPie({
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
               <th className="w-6"></th>
               <th className="text-left py-2 px-3 font-medium">Страна</th>
               <th className="text-right py-2 px-3 font-medium">USD</th>
@@ -368,7 +373,7 @@ function CountriesPie({
                 colSpan={5}
                 columns={
                   <>
-                    <td className="py-2 px-3 font-medium text-slate-700">
+                    <td className="py-2 px-3 font-medium text-slate-700 dark:text-slate-200">
                       <div className="flex items-center gap-2">
                         <span
                           className="inline-block w-2 h-2 rounded flex-shrink-0"
@@ -379,11 +384,11 @@ function CountriesPie({
                         <span className="truncate">{c.name}</span>
                       </div>
                     </td>
-                    <td className="py-2 px-3 text-right">{fmtUsd(c.usd)}</td>
-                    <td className="py-2 px-3 text-right text-slate-500">
+                    <td className="py-2 px-3 text-right text-slate-700 dark:text-slate-200">{fmtUsd(c.usd)}</td>
+                    <td className="py-2 px-3 text-right text-slate-500 dark:text-slate-400">
                       {fmtPct(c.share)}
                     </td>
-                    <td className="py-2 px-3 text-right text-slate-500">
+                    <td className="py-2 px-3 text-right text-slate-500 dark:text-slate-400">
                       {fmtPct(c.un_share ?? null)}
                     </td>
                   </>
@@ -417,9 +422,10 @@ function CountryPieChart({
   const valueKey = mode === "usd" ? "usd" : "un";
   const fmtAbsolute = mode === "usd" ? fmtUsd : fmtUn;
 
+  const chart = useChartTheme();
   return (
     <div>
-      <p className="text-xs font-medium text-slate-500 text-center mb-1">
+      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 text-center mb-1">
         {title}
       </p>
       <ResponsiveContainer width="100%" height={200}>
@@ -456,9 +462,13 @@ function CountryPieChart({
             }}
             contentStyle={{
               borderRadius: 8,
-              border: "1px solid #e2e8f0",
+              border: `1px solid ${chart.tooltipBorder}`,
+              backgroundColor: chart.tooltipBg,
+              color: chart.tooltipText,
               fontSize: 12,
             }}
+            labelStyle={{ color: chart.tooltipText }}
+            itemStyle={{ color: chart.tooltipText }}
           />
         </PieChart>
       </ResponsiveContainer>
@@ -475,13 +485,13 @@ function CountryPieChart({
                   background: PIE_COLORS[idx % PIE_COLORS.length],
                 }}
               />
-              <span className="flex-1 text-slate-700 truncate">
+              <span className="flex-1 text-slate-700 dark:text-slate-200 truncate">
                 {c.name}
               </span>
-              <span className="text-slate-500 font-medium">
+              <span className="text-slate-500 dark:text-slate-400 font-medium">
                 {fmtPct(share)}
               </span>
-              <span className="text-slate-400 w-12 text-right">
+              <span className="text-slate-400 dark:text-slate-500 w-12 text-right">
                 {fmtAbsolute(raw)}
               </span>
             </li>
@@ -499,19 +509,19 @@ function ConcentrationByForm({
 }) {
   if (!items.length) return null;
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
       <div className="flex items-baseline justify-between mb-4">
-        <h4 className="text-sm font-semibold text-slate-700">
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
           Концентрация рынка по формам
         </h4>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-400 dark:text-slate-500">
           расчёт по всему МНН, без учёта фильтров
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
               <th className="text-left py-2 px-3 font-medium">Форма</th>
               <th className="text-right py-2 px-3 font-medium">USD</th>
               <th className="text-right py-2 px-3 font-medium">Доля МНН</th>
@@ -530,29 +540,29 @@ function ConcentrationByForm({
               return (
                 <tr
                   key={f.name}
-                  className="border-b border-slate-100 hover:bg-slate-50/50"
+                  className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
                 >
-                  <td className="py-2.5 px-3 font-medium text-slate-700">
+                  <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-200">
                     {f.name}
                   </td>
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-200">
                     {fmtUsd(f.usd_total)}
                   </td>
-                  <td className="py-2.5 px-3 text-right text-slate-500">
+                  <td className="py-2.5 px-3 text-right text-slate-500 dark:text-slate-400">
                     {fmtPct(f.share)}
                   </td>
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-200">
                     {Math.round(f.hhi)}
                   </td>
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-200">
                     {fmtPct(f.leader_share)}
                   </td>
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-200">
                     {fmtPct(f.top3_share)}
                   </td>
-                  <td className="py-2.5 px-3 text-right">
+                  <td className="py-2.5 px-3 text-right text-slate-700 dark:text-slate-200">
                     {f.active_competitors}
-                    <span className="text-xs text-slate-400 ml-1">
+                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-1">
                       / {f.producer_count}
                     </span>
                   </td>
@@ -570,13 +580,13 @@ function ConcentrationByForm({
 }
 
 function GrowthBadge({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-slate-400">—</span>;
+  if (value == null) return <span className="text-slate-400 dark:text-slate-500">—</span>;
   const isUp = value > 0;
   return (
     <span
       className={clsx(
         "inline-flex items-center gap-0.5 text-xs font-medium",
-        isUp ? "text-emerald-600" : "text-red-600",
+        isUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
       )}
     >
       {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
@@ -596,22 +606,22 @@ function ConcentrationCard({
   const c = concentrationLabel(hhi);
   const entropyLabel =
     entropy == null
-      ? { text: "—", color: "text-slate-400" }
+      ? { text: "—", color: "text-slate-400 dark:text-slate-500" }
       : entropy >= 0.75
-        ? { text: "Сбалансированный", color: "text-emerald-600" }
+        ? { text: "Сбалансированный", color: "text-emerald-600 dark:text-emerald-400" }
         : entropy >= 0.4
-          ? { text: "Умеренный дисбаланс", color: "text-amber-600" }
-          : { text: "Доминирование лидера", color: "text-red-600" };
+          ? { text: "Умеренный дисбаланс", color: "text-amber-600 dark:text-amber-400" }
+          : { text: "Доминирование лидера", color: "text-red-600 dark:text-red-400" };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h4 className="text-sm font-semibold text-slate-700 mb-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">
         Концентрация
       </h4>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <p className="text-xs text-slate-500">HHI</p>
-          <p className="text-2xl font-bold text-slate-800">
+          <p className="text-xs text-slate-500 dark:text-slate-400">HHI</p>
+          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">
             {hhi != null ? Math.round(hhi) : "—"}
           </p>
           <p className={clsx("text-[11px] font-semibold mt-0.5", c.color)}>
@@ -619,10 +629,10 @@ function ConcentrationCard({
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-500 flex items-center gap-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
             <Sigma size={11} /> Энтропия
           </p>
-          <p className="text-2xl font-bold text-slate-800">
+          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">
             {entropy != null ? entropy.toFixed(2) : "—"}
           </p>
           <p className={clsx("text-[11px] font-semibold mt-0.5", entropyLabel.color)}>
@@ -630,14 +640,14 @@ function ConcentrationCard({
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100 text-sm">
+      <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-sm">
         <div>
-          <p className="text-xs text-slate-500">Лидер</p>
-          <p className="font-semibold text-slate-700">{fmtPct(leader)}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Лидер</p>
+          <p className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{fmtPct(leader)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">Топ-3</p>
-          <p className="font-semibold text-slate-700">{fmtPct(top3)}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Топ-3</p>
+          <p className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{fmtPct(top3)}</p>
         </div>
       </div>
     </div>
@@ -668,12 +678,12 @@ function BgGCard({
     first != null && last != null ? last - first : null;
   const trendTone =
     bgShareTrend == null
-      ? "text-slate-400"
+      ? "text-slate-400 dark:text-slate-500"
       : bgShareTrend > 0.02
-      ? "text-indigo-600"
+      ? "text-indigo-600 dark:text-indigo-400"
       : bgShareTrend < -0.02
-      ? "text-emerald-600"
-      : "text-slate-500";
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-slate-500 dark:text-slate-400";
   const trendArrow =
     bgShareTrend == null
       ? "—"
@@ -684,10 +694,10 @@ function BgGCard({
       : "—";
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-          <Pill size={14} className="text-indigo-500" />
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+          <Pill size={14} className="text-indigo-500 dark:text-indigo-400" />
           Бренд vs Генерик
         </h4>
         {bgShareTrend != null && (
@@ -704,97 +714,57 @@ function BgGCard({
       </div>
 
       {/* Stacked share bar (Y3) */}
-      <div className="h-3 w-full rounded-full overflow-hidden bg-slate-100 flex">
+      <div className="h-3 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex">
         <div
-          className="h-full bg-indigo-500 flex items-center justify-center text-[10px] text-white font-semibold"
+          className="h-full bg-indigo-500 dark:bg-indigo-400 flex items-center justify-center text-[10px] text-white font-semibold"
           style={{ width: `${data.bg_share * 100}%` }}
         >
           {data.bg_share >= 0.12 ? `${(data.bg_share * 100).toFixed(0)}%` : ""}
         </div>
         <div
-          className="h-full bg-emerald-500 flex items-center justify-center text-[10px] text-white font-semibold"
+          className="h-full bg-emerald-500 dark:bg-emerald-400 flex items-center justify-center text-[10px] text-white font-semibold"
           style={{ width: `${data.g_share * 100}%` }}
         >
           {data.g_share >= 0.12 ? `${(data.g_share * 100).toFixed(0)}%` : ""}
         </div>
       </div>
       <div className="flex justify-between text-[11px] mt-1.5">
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-indigo-500" />
+        <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+          <span className="w-2 h-2 rounded-sm bg-indigo-500 dark:bg-indigo-400" />
           Бренд {fmtPct(data.bg_share)}
         </span>
-        <span className="flex items-center gap-1 text-slate-500">
+        <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
           {yearLabels[2]}
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-emerald-500" />
+        <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+          <span className="w-2 h-2 rounded-sm bg-emerald-500 dark:bg-emerald-400" />
           Генерик {fmtPct(data.g_share)}
         </span>
       </div>
 
       {/* Sparkline: BG share Y1 → Y3 */}
       {data.bg_share_by_year?.some((v) => v != null) && (
-        <div className="mt-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
-            Динамика доли бренда
-          </p>
-          <ResponsiveContainer width="100%" height={60}>
-            <LineChart
-              data={trendData}
-              margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
-            >
-              <XAxis
-                dataKey="year"
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis hide domain={[0, 1]} />
-              <Tooltip
-                formatter={(v) =>
-                  v == null ? "—" : fmtPct(Number(v))
-                }
-                labelFormatter={(l) => `Год ${l}`}
-                contentStyle={{
-                  borderRadius: 8,
-                  border: "1px solid #e2e8f0",
-                  fontSize: 12,
-                  padding: "4px 8px",
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="bg_share"
-                stroke="#4f46e5"
-                strokeWidth={2}
-                dot={{ r: 3, fill: "#4f46e5" }}
-                activeDot={{ r: 4 }}
-                isAnimationActive={false}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <BgSparkline trendData={trendData} />
       )}
 
       {/* ASP bg vs g */}
-      <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
+      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2">
         <AspTile
           label="ASP Бренд"
           value={data.asp_bg}
-          accent="bg-indigo-500"
+          accent="bg-indigo-500 dark:bg-indigo-400"
         />
         <AspTile
           label="ASP Генерик"
           value={data.asp_g}
-          accent="bg-emerald-500"
+          accent="bg-emerald-500 dark:bg-emerald-400"
         />
       </div>
       {data.asp_gap_pct != null && (
         <p
           className={clsx(
             "text-[11px] mt-2",
-            data.asp_gap_pct > 0 ? "text-indigo-700" : "text-slate-500",
+            data.asp_gap_pct > 0 ? "text-indigo-700 dark:text-indigo-300" : "text-slate-500 dark:text-slate-400",
           )}
         >
           Бренд дороже генерика на{" "}
@@ -807,6 +777,59 @@ function BgGCard({
   );
 }
 
+function BgSparkline({ trendData }: {
+  trendData: { year: string; bg_share: number | null; g_share: number | null }[];
+}) {
+  const chart = useChartTheme();
+  return (
+    <div className="mt-3">
+      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+        Динамика доли бренда
+      </p>
+      <ResponsiveContainer width="100%" height={60}>
+        <LineChart
+          data={trendData}
+          margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+        >
+          <XAxis
+            dataKey="year"
+            tick={{ fontSize: 10, fill: chart.axisTick }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis hide domain={[0, 1]} />
+          <Tooltip
+            formatter={(v) =>
+              v == null ? "—" : fmtPct(Number(v))
+            }
+            labelFormatter={(l) => `Год ${l}`}
+            contentStyle={{
+              borderRadius: 8,
+              border: `1px solid ${chart.tooltipBorder}`,
+              backgroundColor: chart.tooltipBg,
+              color: chart.tooltipText,
+              fontSize: 12,
+              padding: "4px 8px",
+            }}
+            labelStyle={{ color: chart.tooltipText }}
+            itemStyle={{ color: chart.tooltipText }}
+          />
+          <Line
+            type="monotone"
+            dataKey="bg_share"
+            stroke={chart.series.indigo}
+            strokeWidth={2}
+            dot={{ r: 3, fill: chart.series.indigo }}
+            activeDot={{ r: 4 }}
+            isAnimationActive={false}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function AspTile({
   label, value, accent,
 }: {
@@ -815,12 +838,12 @@ function AspTile({
   accent: string;
 }) {
   return (
-    <div className="relative overflow-hidden bg-slate-50 rounded-lg px-2.5 py-2 ring-1 ring-slate-200/60">
+    <div className="relative overflow-hidden bg-slate-50 dark:bg-slate-800/60 rounded-lg px-2.5 py-2 ring-1 ring-slate-200/60 dark:ring-slate-700">
       <div className={clsx("absolute inset-y-0 left-0 w-1", accent)} />
-      <p className="text-[10px] uppercase tracking-wider text-slate-500 pl-1.5">
+      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 pl-1.5">
         {label}
       </p>
-      <p className="text-sm font-bold text-slate-800 pl-1.5 tabular-nums">
+      <p className="text-sm font-bold text-slate-800 dark:text-slate-100 pl-1.5 tabular-nums">
         {value != null ? `$${value.toFixed(2)}` : "—"}
       </p>
     </div>
@@ -829,14 +852,14 @@ function AspTile({
 
 function BgGBadge({ flag }: { flag: BgGFlag | null }) {
   if (!flag) {
-    return <span className="text-slate-300 text-xs">—</span>;
+    return <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>;
   }
   const style =
     flag === "BG"
-      ? "bg-indigo-100 text-indigo-700 ring-indigo-200"
+      ? "bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-900"
       : flag === "G"
-      ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
-      : "bg-slate-100 text-slate-600 ring-slate-200";
+      ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-900"
+      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 ring-slate-200 dark:ring-slate-700";
   const label = flag === "MIXED" ? "M" : flag;
   return (
     <span
@@ -863,26 +886,27 @@ function RegionalCard({
   data: RegionalDistribution;
   className?: string;
 }) {
+  const chart = useChartTheme();
   const giniLabel =
     data.gini == null
-      ? { text: "—", color: "text-slate-400" }
+      ? { text: "—", color: "text-slate-400 dark:text-slate-500" }
       : data.gini > 0.7
-        ? { text: "Локализован", color: "text-red-600" }
+        ? { text: "Локализован", color: "text-red-600 dark:text-red-400" }
         : data.gini > 0.4
-          ? { text: "Умеренная неравномерность", color: "text-amber-600" }
-          : { text: "Равномерно", color: "text-emerald-600" };
+          ? { text: "Умеренная неравномерность", color: "text-amber-600 dark:text-amber-400" }
+          : { text: "Равномерно", color: "text-emerald-600 dark:text-emerald-400" };
   const top8 = data.regions.slice(0, 8);
 
   return (
-    <div className={clsx("bg-white rounded-xl border border-slate-200 shadow-sm p-5", className)}>
+    <div className={clsx("bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5", className)}>
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-          <MapIcon size={14} className="text-indigo-500" />
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+          <MapIcon size={14} className="text-indigo-500 dark:text-indigo-400" />
           Региональное распределение
         </h4>
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-slate-500 dark:text-slate-400">
           Gini:{" "}
-          <span className="font-semibold text-slate-700">
+          <span className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
             {data.gini != null ? data.gini.toFixed(2) : "—"}
           </span>{" "}
           <span className={clsx("font-semibold", giniLabel.color)}>
@@ -894,13 +918,15 @@ function RegionalCard({
         <BarChart data={top8} layout="vertical">
           <XAxis
             type="number"
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 10, fill: chart.axisTick }}
+            stroke={chart.axis}
             tickFormatter={(v) => fmtPct(v)}
           />
           <YAxis
             type="category"
             dataKey="name"
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 10, fill: chart.axisTick }}
+            stroke={chart.axis}
             width={120}
             interval={0}
           />
@@ -911,15 +937,19 @@ function RegionalCard({
             }}
             contentStyle={{
               borderRadius: 8,
-              border: "1px solid #e2e8f0",
+              border: `1px solid ${chart.tooltipBorder}`,
+              backgroundColor: chart.tooltipBg,
+              color: chart.tooltipText,
               fontSize: 12,
             }}
+            labelStyle={{ color: chart.tooltipText }}
+            itemStyle={{ color: chart.tooltipText }}
           />
-          <Bar dataKey="share" fill="#6366f1" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="share" fill={chart.series.indigo} radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
       {data.regions.length > 8 && (
-        <p className="text-[11px] text-slate-400 text-right mt-1">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 text-right mt-1">
           + ещё {data.regions.length - 8} регионов
         </p>
       )}

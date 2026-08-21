@@ -103,9 +103,9 @@ export default function MnnEmptyState({ marketId, onPick }: Props) {
   if (empty) {
     return (
       <div className="text-center py-12">
-        <Search size={40} className="text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-600 font-medium mb-1">Выберите МНН</p>
-        <p className="text-xs text-slate-400">
+        <Search size={40} className="text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+        <p className="text-sm text-slate-600 dark:text-slate-300 font-medium mb-1">Выберите МНН</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500">
           Начните вводить название МНН для получения аналитики
         </p>
       </div>
@@ -116,7 +116,7 @@ export default function MnnEmptyState({ marketId, onPick }: Props) {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <SuggestionColumn
         icon={Target}
-        iconColor="text-emerald-600 bg-emerald-50"
+        iconColor="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
         title="Топ возможности"
         subtitle="лучший score в рынке"
         items={topOpp}
@@ -126,7 +126,7 @@ export default function MnnEmptyState({ marketId, onPick }: Props) {
       />
       <SuggestionColumn
         icon={Clock}
-        iconColor="text-slate-600 bg-slate-100"
+        iconColor="text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800"
         title="Недавно смотренные"
         subtitle="на этом устройстве"
         items={recent.map((r) => ({ mnn: r.mnn, usd: 0 }))}
@@ -136,7 +136,7 @@ export default function MnnEmptyState({ marketId, onPick }: Props) {
       />
       <SuggestionColumn
         icon={TrendingUp}
-        iconColor="text-indigo-600 bg-indigo-50"
+        iconColor="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
         title="Топ по продажам"
         subtitle="крупнейшие МНН рынка"
         items={topUsd}
@@ -161,28 +161,28 @@ function SuggestionColumn({
   hideUsd?: boolean;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
       <div className="flex items-center gap-2 mb-3">
         <span className={clsx("w-7 h-7 rounded-lg flex items-center justify-center", iconColor)}>
           <Icon size={14} />
         </span>
         <div>
-          <p className="text-sm font-semibold text-slate-800">{title}</p>
-          <p className="text-[11px] text-slate-400">{subtitle}</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</p>
         </div>
       </div>
       {loading && items.length === 0 && (
-        <p className="text-xs text-slate-400 py-4 text-center">Загрузка…</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 py-4 text-center">Загрузка…</p>
       )}
       {!loading && items.length === 0 && (
-        <p className="text-xs text-slate-400 py-4 text-center">Пока пусто</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 py-4 text-center">Пока пусто</p>
       )}
       <ul className="space-y-1">
         {items.map((item) => (
           <li key={item.mnn}>
             <button
               onClick={() => onPick(item.mnn)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 transition-colors text-left group"
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left group"
             >
               {showScore && item.color && (
                 <span
@@ -193,16 +193,16 @@ function SuggestionColumn({
                   aria-hidden
                 />
               )}
-              <span className="flex-1 truncate text-sm text-slate-700 group-hover:text-indigo-700">
+              <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-200 group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
                 {item.mnn}
               </span>
               {showScore && item.score != null && (
-                <span className="text-xs font-semibold text-slate-600 tabular-nums">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
                   {item.score.toFixed(0)}
                 </span>
               )}
               {!hideUsd && item.usd > 0 && (
-                <span className="text-[11px] text-slate-400 w-14 text-right tabular-nums">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 w-14 text-right tabular-nums">
                   {fmtUsd(item.usd)}
                 </span>
               )}
