@@ -1,14 +1,12 @@
 from datetime import datetime
 from sqlalchemy import (
     Column,
-    Date,
     Float,
     ForeignKey,
     Integer,
     String,
     Text,
     DateTime,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -28,8 +26,8 @@ class Market(Base):
     created_at = Column(
         DateTime, nullable=False, default=datetime.utcnow
     )
-    fx_rate_usd_rub = Column(Float, nullable=True)
-    fx_rate_date = Column(Date, nullable=True)
+    # «Настройки рынка» для скоринга; NULL — значения по умолчанию
+    scoring_settings_json = Column(Text, nullable=True)
 
     field_mappings = relationship(
         "FieldMapping", back_populates="market",
@@ -37,22 +35,6 @@ class Market(Base):
     )
     bdp_rows = relationship(
         "BdpRaw", back_populates="market",
-        cascade="all, delete-orphan",
-    )
-    pc_rows = relationship(
-        "PcEntry", back_populates="market",
-        cascade="all, delete-orphan",
-    )
-    pc_mappings = relationship(
-        "PcMapping", back_populates="market",
-        cascade="all, delete-orphan",
-    )
-    grls_rows = relationship(
-        "GrlsEntry", back_populates="market",
-        cascade="all, delete-orphan",
-    )
-    grls_mappings = relationship(
-        "GrlsMapping", back_populates="market",
         cascade="all, delete-orphan",
     )
 
@@ -98,129 +80,7 @@ class BdpRaw(Base):
     un_y2 = Column(Float, nullable=False, default=0.0)
     un_y3 = Column(Float, nullable=False, default=0.0)
 
-    mnn_canonical = Column(String(300), nullable=False, index=True, default="")
-    lf_canonical = Column(String(200), nullable=True, index=True)
-    producer_canonical = Column(String(300), nullable=True, index=True)
-    sector_canonical = Column(String(50), nullable=True, index=True)
-
     market = relationship("Market", back_populates="bdp_rows")
-
-
-class DictionaryEntry(Base):
-    __tablename__ = "dictionary_entries"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    field_type = Column(String(20), nullable=False, index=True)
-    value_en = Column(String(500), nullable=True, index=True)
-    value_ru = Column(String(500), nullable=True, index=True)
-    canonical = Column(String(500), nullable=False, index=True)
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-
-    __table_args__ = (
-        UniqueConstraint(
-            "field_type", "canonical", name="uq_dict_type_canonical",
-        ),
-    )
-
-    aliases = relationship(
-        "DictionaryAlias",
-        back_populates="entry",
-        cascade="all, delete-orphan",
-    )
-
-
-class DictionaryAlias(Base):
-    __tablename__ = "dictionary_aliases"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    entry_id = Column(
-        Integer,
-        ForeignKey("dictionary_entries.id", ondelete="CASCADE"),
-        nullable=False, index=True,
-    )
-    alias = Column(String(500), nullable=False, index=True)
-    language = Column(String(2), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-
-    entry = relationship("DictionaryEntry", back_populates="aliases")
-
-
-class PcEntry(Base):
-    __tablename__ = "pc_entry"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    market_id = Column(
-        Integer, ForeignKey("markets.id", ondelete="CASCADE"),
-        nullable=False, index=True,
-    )
-    mnn_raw = Column(String(300), nullable=False, index=True)
-    mnn_canonical = Column(String(300), nullable=False, index=True, default="")
-    tm = Column(String(300), nullable=True)
-    lf = Column(String(300), nullable=True)
-    lf_canonical = Column(String(200), nullable=True, index=True)
-    owner = Column(String(300), nullable=True)
-    owner_canonical = Column(String(300), nullable=True, index=True)
-    pack_qty = Column(String(200), nullable=True)
-    pack_qty_parsed = Column(Float, nullable=True)
-    price_rub_no_vat = Column(Float, nullable=False, default=0.0)
-    price_reg_date = Column(Date, nullable=True)
-    price_effective_date = Column(Date, nullable=True)
-
-    market = relationship("Market", back_populates="pc_rows")
-
-
-class PcMapping(Base):
-    __tablename__ = "pc_mappings"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    market_id = Column(
-        Integer, ForeignKey("markets.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    system_field = Column(String(50), nullable=False)
-    file_column = Column(String(200), nullable=False)
-
-    market = relationship("Market", back_populates="pc_mappings")
-
-
-class GrlsEntry(Base):
-    __tablename__ = "grls_entry"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    market_id = Column(
-        Integer, ForeignKey("markets.id", ondelete="CASCADE"),
-        nullable=False, index=True,
-    )
-    mnn_raw = Column(String(300), nullable=False, index=True)
-    mnn_canonical = Column(String(300), nullable=False, index=True, default="")
-    tm = Column(String(300), nullable=True)
-    ru_holder = Column(String(300), nullable=True)
-    ru_holder_canonical = Column(String(300), nullable=True, index=True)
-    lf_full = Column(String(500), nullable=True)
-    lf_canonical = Column(String(200), nullable=True, index=True)
-    dosage = Column(String(200), nullable=True)
-    ru_number = Column(String(100), nullable=True)
-    reg_date = Column(Date, nullable=True)
-    expire_date = Column(Date, nullable=True)
-    cancel_date = Column(Date, nullable=True)
-    status = Column(String(100), nullable=False, index=True, default="")
-
-    market = relationship("Market", back_populates="grls_rows")
-
-
-class GrlsMapping(Base):
-    __tablename__ = "grls_mappings"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    market_id = Column(
-        Integer, ForeignKey("markets.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    system_field = Column(String(50), nullable=False)
-    file_column = Column(String(200), nullable=False)
-
-    market = relationship("Market", back_populates="grls_mappings")
 
 
 class PharmacyPrice(Base):

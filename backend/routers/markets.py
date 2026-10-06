@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import shutil
@@ -9,37 +10,33 @@ from fastapi import (
     UploadFile,
     File,
 )
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date
-from backend.config import UPLOAD_DIR, FX_RATE_USD_RUB_DEFAULT
+from backend.config import UPLOAD_DIR
 from backend.database import get_db
-from backend.models import (
-    Market, FieldMapping, BdpRaw,
-    PcEntry, GrlsEntry,
-)
+from backend.models import Market, FieldMapping, BdpRaw
 from backend.schemas import (
     MarketCreate,
     MarketOut,
-    MarketFxUpdate,
     MappingRequest,
     UploadResponse,
     PreviewResponse,
     PreviewRow,
 )
-from backend.services.normalize import parse_date as _parse_date
 from backend.routers.overview import invalidate_overview_cache
 from backend.routers.dashboard import invalidate_dashboard_cache
+from backend.services.market_scoring import invalidate_scoring_cache
 from backend.services.parsers.bdp_parser import (
     get_sheets_and_columns,
     read_columns_at_row,
     parse_rows,
     count_data_rows,
 )
-from backend.services.canonicalize import apply_canonical_to_rows
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["markets"])
+
+BDP_INSERT_BATCH = 5000
 
 
 def _upload_path(market_id: int) -> Path:
@@ -60,16 +57,6 @@ async def list_markets(db: AsyncSession = Depends(get_db)):
         )
         cnt = (await db.execute(cnt_stmt)).scalar() or 0
 
-        has_pc = (await db.execute(
-            select(func.count()).select_from(PcEntry)
-            .where(PcEntry.market_id == m.id)
-        )).scalar() > 0
-
-        has_grls = (await db.execute(
-            select(func.count()).select_from(GrlsEntry)
-            .where(GrlsEntry.market_id == m.id)
-        )).scalar() > 0
-
         out.append(MarketOut(
             id=m.id,
             name=m.name,
@@ -79,12 +66,6 @@ async def list_markets(db: AsyncSession = Depends(get_db)):
             if m.regions_json else None,
             created_at=m.created_at.isoformat(),
             mnn_count=cnt,
-            has_pc=has_pc,
-            has_grls=has_grls,
-            fx_rate_usd_rub=m.fx_rate_usd_rub,
-            fx_rate_date=(
-                m.fx_rate_date.isoformat() if m.fx_rate_date else None
-            ),
         ))
     return out
 
@@ -102,14 +83,6 @@ async def get_market(
         select(func.count(func.distinct(BdpRaw.mnn)))
         .where(BdpRaw.market_id == m.id)
     )).scalar() or 0
-    has_pc = (await db.execute(
-        select(func.count()).select_from(PcEntry)
-        .where(PcEntry.market_id == m.id)
-    )).scalar() > 0
-    has_grls = (await db.execute(
-        select(func.count()).select_from(GrlsEntry)
-        .where(GrlsEntry.market_id == m.id)
-    )).scalar() > 0
 
     return MarketOut(
         id=m.id,
@@ -119,39 +92,7 @@ async def get_market(
         regions=json.loads(m.regions_json) if m.regions_json else None,
         created_at=m.created_at.isoformat(),
         mnn_count=cnt,
-        has_pc=has_pc,
-        has_grls=has_grls,
-        fx_rate_usd_rub=m.fx_rate_usd_rub,
-        fx_rate_date=m.fx_rate_date.isoformat() if m.fx_rate_date else None,
     )
-
-
-@router.patch("/{market_id}/fx", response_model=MarketOut)
-async def update_market_fx(
-    market_id: int,
-    body: MarketFxUpdate,
-    db: AsyncSession = Depends(get_db),
-):
-    market = await db.get(Market, market_id)
-    if not market:
-        raise HTTPException(404, "Рынок не найден")
-    if body.fx_rate_usd_rub <= 0:
-        raise HTTPException(400, "Курс должен быть положительным")
-
-    market.fx_rate_usd_rub = body.fx_rate_usd_rub
-    if body.fx_rate_date:
-        parsed = _parse_date(body.fx_rate_date)
-        if parsed is None:
-            raise HTTPException(400, "Некорректный формат даты")
-        market.fx_rate_date = parsed
-    else:
-        market.fx_rate_date = date.today()
-    await db.commit()
-    await db.refresh(market)
-
-    invalidate_overview_cache(market_id)
-    invalidate_dashboard_cache(market_id)
-    return await get_market(market_id, db)
 
 
 @router.post("", response_model=MarketOut)
@@ -172,8 +113,6 @@ async def create_market(
         name=body.name,
         years_json=json.dumps(sorted(body.years)),
         language=body.language,
-        fx_rate_usd_rub=FX_RATE_USD_RUB_DEFAULT,
-        fx_rate_date=date.today(),
     )
     db.add(market)
     await db.commit()
@@ -186,10 +125,6 @@ async def create_market(
         language=market.language,
         regions=None,
         created_at=market.created_at.isoformat(),
-        fx_rate_usd_rub=market.fx_rate_usd_rub,
-        fx_rate_date=(
-            market.fx_rate_date.isoformat() if market.fx_rate_date else None
-        ),
     )
 
 
@@ -206,21 +141,11 @@ async def delete_market(
     await db.commit()
     invalidate_overview_cache(market_id)
     invalidate_dashboard_cache(market_id)
+    invalidate_scoring_cache(market_id)
 
     fp = _upload_path(market_id)
     if fp.exists():
         fp.unlink()
-
-    pc_fp = UPLOAD_DIR / f"market_{market_id}_pc.xlsx"
-    if pc_fp.exists():
-        pc_fp.unlink()
-
-    grls_single = UPLOAD_DIR / f"market_{market_id}_grls.xlsx"
-    if grls_single.exists():
-        grls_single.unlink()
-    grls_dir = UPLOAD_DIR / f"market_{market_id}_grls"
-    if grls_dir.exists():
-        shutil.rmtree(grls_dir)
 
     log.info("Удалён рынок id=%d", market_id)
     return {"ok": True}
@@ -343,44 +268,43 @@ async def apply_mapping(
     }
 
     log.info("Парсинг файла для рынка %s...", market.name)
-    rows = parse_rows(
-        fp, body.sheet_name, body.header_row, mappings
+    rows = await asyncio.to_thread(
+        parse_rows, fp, body.sheet_name, body.header_row, mappings,
     )
     if not rows:
         raise HTTPException(400, "Не удалось распарсить строки. Проверьте маппинг.")
 
-    rows, unrecognized = await apply_canonical_to_rows(rows, db)
-
-    bdp_objects = [
-        BdpRaw(
-            market_id=market_id,
-            mnn=r["mnn"],
-            tm=r.get("tm"),
-            producer=r.get("producer"),
-            sector=r.get("sector"),
-            region=r.get("region"),
-            atc=r.get("atc"),
-            lf=r.get("lf"),
-            lf_avp=r.get("lf_avp"),
-            strength=r.get("strength"),
-            pack_size=r.get("pack_size"),
-            country_mfr=r.get("country_mfr"),
-            bg_g=r.get("bg_g"),
-            usd_y1=r.get("usd_y1", 0),
-            usd_y2=r.get("usd_y2", 0),
-            usd_y3=r.get("usd_y3", 0),
-            un_y1=r.get("un_y1", 0),
-            un_y2=r.get("un_y2", 0),
-            un_y3=r.get("un_y3", 0),
-            mnn_canonical=r.get("mnn_canonical") or r["mnn"],
-            lf_canonical=r.get("lf_canonical"),
-            producer_canonical=r.get("producer_canonical"),
-            sector_canonical=r.get("sector_canonical"),
-        )
+    # Core executemany вместо ORM-объектов: на 50K строк это секунды,
+    # а не минута с лишним на unit-of-work.
+    bdp_values = [
+        {
+            "market_id": market_id,
+            "mnn": r["mnn"],
+            "tm": r.get("tm"),
+            "producer": r.get("producer"),
+            "sector": r.get("sector"),
+            "region": r.get("region"),
+            "atc": r.get("atc"),
+            "lf": r.get("lf"),
+            "lf_avp": r.get("lf_avp"),
+            "strength": r.get("strength"),
+            "pack_size": r.get("pack_size"),
+            "country_mfr": r.get("country_mfr"),
+            "bg_g": r.get("bg_g"),
+            "usd_y1": r.get("usd_y1", 0),
+            "usd_y2": r.get("usd_y2", 0),
+            "usd_y3": r.get("usd_y3", 0),
+            "un_y1": r.get("un_y1", 0),
+            "un_y2": r.get("un_y2", 0),
+            "un_y3": r.get("un_y3", 0),
+        }
         for r in rows
     ]
-    db.add_all(bdp_objects)
-    await db.flush()
+    for start in range(0, len(bdp_values), BDP_INSERT_BATCH):
+        await db.execute(
+            insert(BdpRaw),
+            bdp_values[start:start + BDP_INSERT_BATCH],
+        )
 
     regions = sorted({r["region"] for r in rows if r.get("region")})
     market.regions_json = json.dumps(regions)
@@ -395,10 +319,10 @@ async def apply_mapping(
     log.info("Рынок %s: %d БДП", market.name, len(rows))
     invalidate_overview_cache(market_id)
     invalidate_dashboard_cache(market_id)
+    invalidate_scoring_cache(market_id)
 
     return {
         "ok": True,
         "bdp_count": len(rows),
         "regions": regions,
-        "unrecognized": unrecognized,
     }

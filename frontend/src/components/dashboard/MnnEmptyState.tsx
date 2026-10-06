@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Target, TrendingUp, Clock, Search } from "lucide-react";
 import clsx from "clsx";
 import { getMarketOverview } from "../../api/client";
+import type { ScoringCategory } from "../../types/api";
 
 const RECENT_KEY = "pharmdash.recent-mnn";
 const RECENT_MAX = 6;
@@ -59,6 +60,14 @@ export function pushRecentMnn(marketId: number, mnn: string) {
   }
 }
 
+// категория скоринга → ключ цвета точки (COLOR_DOT)
+const CATEGORY_DOT_COLOR: Record<ScoringCategory, string> = {
+  priority: "green",
+  watch: "yellow",
+  miss: "slate",
+  stop: "red",
+};
+
 function fmtUsd(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`;
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
@@ -79,11 +88,11 @@ export default function MnnEmptyState({ marketId, onPick }: Props) {
       .then((res) => {
         if (cancelled) return;
         setTopOpp(
-          res.decision.top_opportunities.slice(0, 5).map((o) => ({
+          res.decision.top.slice(0, 5).map((o) => ({
             mnn: o.mnn,
             usd: o.usd,
-            score: o.total_score,
-            color: o.color,
+            score: o.total,
+            color: CATEGORY_DOT_COLOR[o.category],
           })),
         );
         setTopUsd(
@@ -118,7 +127,7 @@ export default function MnnEmptyState({ marketId, onPick }: Props) {
         icon={Target}
         iconColor="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
         title="Топ возможности"
-        subtitle="лучший score в рынке"
+        subtitle="лучший скоринг среди прошедших фильтр"
         items={topOpp}
         loading={loading}
         onPick={onPick}

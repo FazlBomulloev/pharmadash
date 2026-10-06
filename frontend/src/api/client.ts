@@ -2,22 +2,16 @@ import axios from "axios";
 import type {
   Market,
   MarketCreate,
-  MarketFxUpdate,
   UploadResponse,
   MappingRequest,
   MappingResult,
   DashboardResponse,
   MnnListResponse,
-  ReferenceMappingResult,
-  DictionaryType,
-  DictionaryEntry,
-  DictionaryEntryCreate,
-  DictionarySuggestion,
-  DictionaryImportResult,
   OverviewResponse,
+  ScoringResponse,
+  ScoringSettings,
+  MarketSettingsResponse,
   OverviewQuery,
-  UnrecognizedResponse,
-  RecanonicalizeResponse,
   ProducerDetails,
   CountryDetails,
   PharmacySource,
@@ -45,14 +39,6 @@ export async function deleteMarket(id: number): Promise<void> {
 
 export async function getMarket(id: number): Promise<Market> {
   const { data } = await api.get<Market>(`/markets/${id}`);
-  return data;
-}
-
-export async function updateMarketFx(
-  id: number,
-  body: MarketFxUpdate,
-): Promise<Market> {
-  const { data } = await api.patch<Market>(`/markets/${id}/fx`, body);
   return data;
 }
 
@@ -136,138 +122,37 @@ export async function getDashboard(
   return data;
 }
 
-// ─────────────────── References (PC, GRLS) ───────────────────
+// ─────────────────── Скоринг и настройки рынка ───────────────────
 
-export async function uploadReference(
-  marketId: number, source: "pc" | "grls", file: File,
-): Promise<UploadResponse> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const { data } = await api.post(
-    `/markets/${marketId}/references/${source}/upload`, fd,
+export async function getMarketScoring(
+  id: number,
+  query: { lf?: string | null; dose?: string | null } = {},
+): Promise<ScoringResponse> {
+  const params: Record<string, string> = {};
+  if (query.lf) params.lf = query.lf;
+  if (query.dose) params.dose = query.dose;
+  const { data } = await api.get<ScoringResponse>(
+    `/markets/${id}/scoring`, { params },
   );
   return data;
 }
 
-export async function getReferenceColumns(
-  marketId: number, source: "pc" | "grls",
-  sheetName: string, headerRow: number,
-) {
-  const { data } = await api.get(
-    `/markets/${marketId}/references/${source}/columns`,
-    { params: { sheet_name: sheetName, header_row: headerRow } },
+export async function getMarketSettings(
+  id: number,
+): Promise<MarketSettingsResponse> {
+  const { data } = await api.get<MarketSettingsResponse>(
+    `/markets/${id}/settings`,
   );
   return data;
 }
 
-export async function applyReferenceMapping(
-  marketId: number, source: "pc" | "grls", body: MappingRequest,
-): Promise<ReferenceMappingResult> {
-  const { data } = await api.post(
-    `/markets/${marketId}/references/${source}/mapping`, body,
+export async function updateMarketSettings(
+  id: number,
+  body: ScoringSettings,
+): Promise<MarketSettingsResponse> {
+  const { data } = await api.put<MarketSettingsResponse>(
+    `/markets/${id}/settings`, body,
   );
-  return data;
-}
-
-export async function getReferenceStatus(
-  marketId: number, source: "pc" | "grls",
-) {
-  const { data } = await api.get(`/markets/${marketId}/references/${source}`);
-  return data;
-}
-
-export async function deleteReference(
-  marketId: number, source: "pc" | "grls",
-) {
-  await api.delete(`/markets/${marketId}/references/${source}`);
-}
-
-// ─────────────────── Dictionary ───────────────────
-
-export async function getDictTypes(): Promise<DictionaryType[]> {
-  const { data } = await api.get("/dictionary/types");
-  return data;
-}
-
-export async function getDictEntries(params: {
-  field_type?: string; search?: string;
-  offset?: number; limit?: number;
-} = {}) {
-  const { data } = await api.get("/dictionary", { params });
-  return data;
-}
-
-export async function createDictEntry(body: DictionaryEntryCreate): Promise<DictionaryEntry> {
-  const { data } = await api.post("/dictionary", body);
-  return data;
-}
-
-export async function updateDictEntry(id: number, body: Partial<DictionaryEntry>): Promise<DictionaryEntry> {
-  const { data } = await api.patch(`/dictionary/${id}`, body);
-  return data;
-}
-
-export async function deleteDictEntry(id: number): Promise<void> {
-  await api.delete(`/dictionary/${id}`);
-}
-
-export async function addDictAlias(entryId: number, alias: string, language?: string) {
-  await api.post(`/dictionary/${entryId}/aliases`, null, {
-    params: { alias, language },
-  });
-}
-
-export async function deleteDictAlias(aliasId: number) {
-  await api.delete(`/dictionary/aliases/${aliasId}`);
-}
-
-export async function suggestDict(
-  field_type: string, values: string[],
-): Promise<DictionarySuggestion[]> {
-  const { data } = await api.post("/dictionary/suggest", values, {
-    params: { field_type },
-  });
-  return data;
-}
-
-export async function uploadDictImport(file: File): Promise<UploadResponse> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const { data } = await api.post("/dictionary/import/upload", fd);
-  return data;
-}
-
-export async function getDictImportColumns(sheetName: string, headerRow: number) {
-  const { data } = await api.get("/dictionary/import/columns", {
-    params: { sheet_name: sheetName, header_row: headerRow },
-  });
-  return data;
-}
-
-export async function applyDictImport(
-  field_type: string, body: MappingRequest, overwrite = false,
-): Promise<DictionaryImportResult> {
-  const { data } = await api.post("/dictionary/import/apply", body, {
-    params: { field_type, overwrite },
-  });
-  return data;
-}
-
-export async function getDictUnrecognized(
-  field_type: string, limit = 100,
-): Promise<UnrecognizedResponse> {
-  const { data } = await api.get("/dictionary/unrecognized", {
-    params: { field_type, limit },
-  });
-  return data;
-}
-
-export async function recanonicalizeDict(
-  field_type: string,
-): Promise<RecanonicalizeResponse> {
-  const { data } = await api.post("/dictionary/recanonicalize", null, {
-    params: { field_type },
-  });
   return data;
 }
 

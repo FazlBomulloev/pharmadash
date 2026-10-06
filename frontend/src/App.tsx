@@ -4,10 +4,9 @@ import MarketsPage from "./pages/MarketsPage";
 import AdminPage from "./pages/AdminPage";
 import MarketDashboardPage from "./pages/MarketDashboardPage";
 import MarketOverviewPage from "./pages/MarketOverviewPage";
-import MarketReferencePage from "./pages/MarketReferencePage";
-import DictionaryPage from "./pages/DictionaryPage";
-import DictionaryImportPage from "./pages/DictionaryImportPage";
 import PharmaciesPage from "./pages/PharmaciesPage";
+import MarketScoringPage from "./pages/MarketScoringPage";
+import MarketSettingsPage from "./pages/MarketSettingsPage";
 
 export default function App() {
   return (
@@ -25,16 +24,17 @@ export default function App() {
             element={<MarketDashboardPage />}
           />
           <Route
-            path="/market/:marketId/references/pc"
-            element={<MarketReferencePage source="pc" />}
+            path="/market/:marketId/scoring"
+            element={<MarketScoringPage />}
           />
           <Route
-            path="/market/:marketId/references/grls"
-            element={<MarketReferencePage source="grls" />}
+            path="/market/:marketId/settings"
+            element={<MarketSettingsPage />}
           />
-          <Route path="/admin/dictionary" element={<DictionaryPage />} />
-          <Route path="/admin/dictionary/import" element={<DictionaryImportPage />} />
-          <Route path="/pharmacies" element={<PharmaciesPage />} />
+          <Route
+            path="/market/:marketId/pharmacies"
+            element={<PharmaciesPage />}
+          />
         </Route>
       </Routes>
     </BrowserRouter>

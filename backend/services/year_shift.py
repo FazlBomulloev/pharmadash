@@ -46,11 +46,11 @@ def selected_year(market, year: int | None) -> int | None:
 
 # Атрибуты БДП которые копируются как есть при shift.
 _PASSTHROUGH_ATTRS = (
-    "mnn", "mnn_canonical", "tm",
-    "producer", "producer_canonical",
-    "sector", "sector_canonical", "region",
+    "mnn", "tm",
+    "producer",
+    "sector", "region",
     "atc",
-    "lf", "lf_canonical", "lf_avp",
+    "lf", "lf_avp",
     "strength", "country_mfr", "bg_g",
     "pack_size",
 )

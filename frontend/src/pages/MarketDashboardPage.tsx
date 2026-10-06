@@ -11,7 +11,6 @@ import DashboardFilters from "../components/dashboard/DashboardFilters";
 import Zone1 from "../components/dashboard/Zone1";
 import Zone2 from "../components/dashboard/Zone2";
 import Zone3 from "../components/dashboard/Zone3";
-import AtcBenchmark from "../components/dashboard/AtcBenchmark";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 
 interface UrlState {
@@ -88,7 +87,7 @@ export default function MarketDashboardPage() {
 
   const handleMnnChange = useCallback(
     (newMnn: string) => {
-      // Changing MNN drops filters since they depend on the MNN's own dictionary.
+      // Changing MNN drops filters since they depend on the MNN's own forms/doses.
       setSearchParams(writeUrl({ mnn: newMnn, lf: null, dose: null, year: null }), {
         replace: true,
       });
@@ -127,9 +126,7 @@ export default function MarketDashboardPage() {
           <MnnScoreHeader
             mnn={data.mnn}
             zone1={data.zone1}
-            zone2={data.zone2}
             zone3={data.zone3}
-            atcBenchmark={data.atc_benchmark}
           />
         )}
       </div>
@@ -170,16 +167,6 @@ export default function MarketDashboardPage() {
           }`}
         >
           <Zone1 data={data.zone1} />
-          {data.atc_benchmark.length > 0 && (
-            <>
-              <div className="border-t border-slate-200 dark:border-slate-800" />
-              <div className="space-y-4">
-                {data.atc_benchmark.map((b) => (
-                  <AtcBenchmark key={b.atc3} data={b} />
-                ))}
-              </div>
-            </>
-          )}
           <div className="border-t border-slate-200 dark:border-slate-800" />
           <Zone2
             data={data.zone2}

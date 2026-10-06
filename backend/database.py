@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from backend.config import DATABASE_URL, FX_RATE_USD_RUB_DEFAULT
+from backend.config import DATABASE_URL
 
 log = logging.getLogger(__name__)
 
@@ -26,10 +26,19 @@ async def get_db():
 
 
 _MIGRATIONS = [
-    ("markets", "fx_rate_usd_rub", "FLOAT"),
-    ("markets", "fx_rate_date", "DATE"),
-    ("pc_entry", "pack_qty_parsed", "FLOAT"),
     ("pharmacy_prices", "image_url", "TEXT"),
+    ("markets", "scoring_settings_json", "TEXT"),
+]
+
+# Колонки, которых больше нет в моделях. NOT NULL без дефолта ломает
+# INSERT в старых базах, поэтому удаляем их вместе с индексами.
+_DROPPED_COLUMNS = [
+    ("bdp_raw", "mnn_canonical"),
+    ("bdp_raw", "lf_canonical"),
+    ("bdp_raw", "producer_canonical"),
+    ("bdp_raw", "sector_canonical"),
+    ("markets", "fx_rate_usd_rub"),
+    ("markets", "fx_rate_date"),
 ]
 
 
@@ -43,13 +52,17 @@ async def _apply_migrations(conn):
             )
             log.info("Миграция: %s.%s добавлена", table, column)
 
-    await conn.execute(
-        text(
-            "UPDATE markets SET fx_rate_usd_rub = :rate "
-            "WHERE fx_rate_usd_rub IS NULL"
-        ),
-        {"rate": FX_RATE_USD_RUB_DEFAULT},
-    )
+    for table, column in _DROPPED_COLUMNS:
+        existing = await conn.execute(text(f"PRAGMA table_info({table})"))
+        cols = {row[1] for row in existing.fetchall()}
+        if column in cols:
+            await conn.execute(
+                text(f"DROP INDEX IF EXISTS ix_{table}_{column}")
+            )
+            await conn.execute(
+                text(f"ALTER TABLE {table} DROP COLUMN {column}")
+            )
+            log.info("Миграция: %s.%s удалена", table, column)
 
 
 async def init_db():

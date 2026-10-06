@@ -15,17 +15,8 @@ class MarketOut(BaseModel):
     regions: list[str] | None
     created_at: str
     mnn_count: int | None = None
-    has_pc: bool = False
-    has_grls: bool = False
-    fx_rate_usd_rub: float | None = None
-    fx_rate_date: str | None = None
 
     model_config = {"from_attributes": True}
-
-
-class MarketFxUpdate(BaseModel):
-    fx_rate_usd_rub: float
-    fx_rate_date: str | None = None
 
 
 class FieldMappingItem(BaseModel):
@@ -78,84 +69,6 @@ class Zone2Data(BaseModel):
     forms: list[dict]
     strengths: list[dict]
     countries: list[dict]
-    grls: str
-    grls_active_count: int = 0
-    grls_registrants: int = 0
-    pc_flag: bool = False
-    pc_stats: dict | None = None
-
-
-class Zone3Data(BaseModel):
-    total_score: float
-    economic_score: float
-    structure_score: float
-    regulatory_score: float
-    recommendation: str
-    recommendation_color: str
-    drivers: list[dict]
-    red_flags: list[dict]
-    next_checks: list[str]
-
-
-class DashboardResponse(BaseModel):
-    mnn: str
-    zone1: KpiZone1
-    zone2: Zone2Data
-    zone3: Zone3Data
-
-
-class ThresholdsOut(BaseModel):
-    thresholds: dict
-
-
-# --- Dictionary schemas ---
-
-class DictionaryAliasOut(BaseModel):
-    id: int
-    alias: str
-    language: str | None
-
-    model_config = {"from_attributes": True}
-
-
-class DictionaryEntryOut(BaseModel):
-    id: int
-    field_type: str
-    value_en: str | None
-    value_ru: str | None
-    canonical: str
-    notes: str | None
-    aliases: list[DictionaryAliasOut]
-
-    model_config = {"from_attributes": True}
-
-
-class DictionaryEntryCreate(BaseModel):
-    field_type: str
-    value_en: str | None = None
-    value_ru: str | None = None
-    canonical: str | None = None
-    aliases: list[str] = []
-    notes: str | None = None
-
-
-class DictionaryEntryUpdate(BaseModel):
-    value_en: str | None = None
-    value_ru: str | None = None
-    canonical: str | None = None
-    notes: str | None = None
-
-
-class DictionarySuggestion(BaseModel):
-    value: str
-    suggestion: str | None
-    suggestion_entry_id: int | None
-    similarity: float
-
-
-class UnrecognizedField(BaseModel):
-    field_type: str
-    values: list[str]
 
 
 # --- Market Overview schemas ---
@@ -166,16 +79,10 @@ class OverviewHeader(BaseModel):
     years: list[int]
     regions: list[str]
     language: str
-    fx_rate_usd_rub: float | None
-    fx_rate_date: str | None
     has_bdp: bool
-    has_pc: bool
-    has_grls: bool
     mnn_count: int
     producer_count: int
     tm_count: int
-    grls_active_count: int
-    pc_rows_count: int
 
 
 class OverviewVolume(BaseModel):
@@ -206,41 +113,6 @@ class OverviewPortfolio(BaseModel):
     top3_share: float | None
     atc_distribution: list[dict]
     countries: list[dict]
-
-
-class OverviewGrls(BaseModel):
-    active_count: int
-    registrants_count: int
-    registrations_by_year: list[dict]
-    expiring_1y: int
-    expiring_2y: int
-    expiring_3y: int
-    foreign_share: float | None
-
-
-class OverviewPc(BaseModel):
-    mnn_coverage_pct: float | None
-    money_coverage_pct: float | None
-    unit_price_usd_stats: dict | None
-    market_asp_usd: float | None = None
-    ceiling_utilization: float | None = None
-    indexation_by_year: list[dict]
-    top_owners: list[dict]
-
-
-class OverviewDecision(BaseModel):
-    distribution: dict
-    top_opportunities: list[dict]
-    top_avoid: list[dict]
-
-
-class OverviewResponse(BaseModel):
-    header: OverviewHeader
-    volume: OverviewVolume
-    portfolio: OverviewPortfolio
-    grls: OverviewGrls | None
-    pc: OverviewPc | None
-    decision: OverviewDecision
 
 
 # --- Drill-down schemas (Producer / Country) ---

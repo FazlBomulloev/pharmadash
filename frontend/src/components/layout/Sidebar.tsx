@@ -5,9 +5,10 @@ import {
   FlaskConical,
   ChevronLeft,
   ChevronRight,
-  BookOpen,
   Compass,
   Store,
+  ListOrdered,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -27,11 +28,6 @@ const dataItems = [
     icon: Upload,
     to: "/admin",
   },
-  {
-    label: "Словарь",
-    icon: BookOpen,
-    to: "/admin/dictionary",
-  },
 ];
 
 function marketItems(marketId: string) {
@@ -47,20 +43,22 @@ function marketItems(marketId: string) {
       to: `/market/${marketId}/dashboard`,
     },
     {
+      label: "Скоринг",
+      icon: ListOrdered,
+      to: `/market/${marketId}/scoring`,
+    },
+    {
       label: "Цены аптек",
       icon: Store,
-      to: `/pharmacies`,
+      to: `/market/${marketId}/pharmacies`,
+    },
+    {
+      label: "Настройки рынка",
+      icon: SlidersHorizontal,
+      to: `/market/${marketId}/settings`,
     },
   ];
 }
-
-const pharmaciesItem = [
-  {
-    label: "Цены аптек (БДЦ)",
-    icon: Store,
-    to: "/pharmacies",
-  },
-];
 
 type NavItem = {
   label: string;
@@ -112,14 +110,6 @@ export default function Sidebar() {
           <NavGroup
             label="Рынок"
             items={marketItems(marketId)}
-            collapsed={collapsed}
-          />
-        )}
-
-        {!marketId && (
-          <NavGroup
-            label="Аптеки"
-            items={pharmaciesItem}
             collapsed={collapsed}
           />
         )}

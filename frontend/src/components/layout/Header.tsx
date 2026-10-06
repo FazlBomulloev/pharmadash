@@ -18,14 +18,14 @@ import { useTheme } from "../../hooks/useTheme";
 const GLOBAL_TITLES: Record<string, string> = {
   "/": "Рынки",
   "/admin": "Загрузка данных",
-  "/admin/dictionary": "Словарь",
-  "/admin/dictionary/import": "Импорт словаря",
 };
 
 const MARKET_PAGE_TITLES: Record<string, string> = {
   overview: "Обзор",
   dashboard: "Дашборд МНН",
-  references: "Справочники",
+  scoring: "Скоринг",
+  pharmacies: "Цены аптек (БДЦ)",
+  settings: "Настройки рынка",
 };
 
 function marketPageTitle(pathname: string): string | null {

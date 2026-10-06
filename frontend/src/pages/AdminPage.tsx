@@ -10,9 +10,6 @@ import {
   ArrowLeft,
   Plus,
   X,
-  Database,
-  DollarSign,
-  ShieldCheck,
   FlaskConical,
   ChevronDown,
 } from "lucide-react";
@@ -29,10 +26,7 @@ import type {
   UploadResponse,
   MappingResult,
 } from "../types/api";
-import UnrecognizedBanner from "../components/common/UnrecognizedBanner";
-import MarketReferencePage from "./MarketReferencePage";
 
-type Tab = "bdp" | "pc" | "grls";
 type MarketMode = "new" | "existing" | null;
 
 const SYSTEM_FIELDS = [
@@ -75,9 +69,6 @@ export default function AdminPage() {
   const [yearsStr, setYearsStr] = useState("2022,2023,2024");
   const [language, setLanguage] = useState<"ru" | "en">("ru");
 
-  // ── Tabs ───────────────────────────────────────
-  const [tab, setTab] = useState<Tab>("bdp");
-
   // ── BDP wizard state ──────────────────────────
   const [bdpStep, setBdpStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
@@ -117,7 +108,6 @@ export default function AdminPage() {
   function switchMarket() {
     setMarket(null);
     setMode(null);
-    setTab("bdp");
     resetBdpWizard();
     setError("");
   }
@@ -135,7 +125,6 @@ export default function AdminPage() {
     try {
       const m = await createMarket({ name: name.trim(), years, language });
       setMarket(m);
-      setTab("bdp");
       resetBdpWizard();
     } catch (e: unknown) {
       const msg =
@@ -213,7 +202,7 @@ export default function AdminPage() {
             Загрузка данных
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Выберите рынок или создайте новый — затем загрузите БДП, ПЦ или ГРЛС
+            Выберите рынок или создайте новый — затем загрузите БДП
           </p>
         </div>
 
@@ -236,7 +225,7 @@ export default function AdminPage() {
             active={mode === "existing"}
             icon={FlaskConical}
             title="Использовать существующий"
-            description="Догрузить БДП, ПЦ или ГРЛС в уже созданный рынок"
+            description="Перезагрузить БДП в уже созданный рынок"
             onClick={() => setMode("existing")}
           />
         </div>
@@ -322,8 +311,6 @@ export default function AdminPage() {
                         {m.mnn_count != null && (
                           <> · {m.mnn_count.toLocaleString("ru-RU")} МНН</>
                         )}
-                        {m.has_pc && <> · ПЦ ✓</>}
-                        {m.has_grls && <> · ГРЛС ✓</>}
                       </p>
                     </div>
                     <ArrowRight
@@ -340,94 +327,61 @@ export default function AdminPage() {
     );
   }
 
-  // ── Render: tabs when market chosen ────────────
+  // ── Render: BDP wizard when market chosen ──────
   return (
     <div className="max-w-4xl mx-auto">
       <MarketContextBar market={market} onSwitch={switchMarket} />
 
-      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700 mb-6">
-        <TabButton
-          active={tab === "bdp"}
-          icon={Database}
-          label="БДП"
-          onClick={() => setTab("bdp")}
-        />
-        <TabButton
-          active={tab === "pc"}
-          icon={DollarSign}
-          label="Предельные цены"
-          hint={market.has_pc ? "загружено" : undefined}
-          onClick={() => setTab("pc")}
-        />
-        <TabButton
-          active={tab === "grls"}
-          icon={ShieldCheck}
-          label="ГРЛС"
-          hint={market.has_grls ? "загружено" : undefined}
-          onClick={() => setTab("grls")}
-        />
-      </div>
-
-      {error && tab === "bdp" && (
+      {error && (
         <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center gap-2">
           <X size={16} />
           {error}
         </div>
       )}
 
-      {tab === "bdp" && (
-        <div>
-          <BdpStepper step={bdpStep} />
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8">
-            {bdpStep === 0 && (
-              <BdpUploadStep
-                file={file}
-                onFile={setFile}
-                onNext={handleUpload}
-              />
-            )}
-            {bdpStep === 1 && uploadData && (
-              <BdpSheetStep
-                sheets={uploadData.sheets}
-                selectedSheet={selectedSheet}
-                headerRow={headerRow}
-                onSheetChange={setSelectedSheet}
-                onRowChange={setHeaderRow}
-                onBack={() => setBdpStep(0)}
-                onNext={handleSelectSheet}
-              />
-            )}
-            {bdpStep === 2 && (
-              <BdpMappingStep
-                columns={columns}
-                mappings={mappings}
-                onChange={setMappings}
-                onBack={() => setBdpStep(1)}
-                onApply={handleApplyMapping}
-                processing={processing}
-              />
-            )}
-            {bdpStep === 3 && result && (
-              <BdpDoneStep
-                market={market}
-                result={result}
-                onOpenDashboard={() =>
-                  navigate(`/market/${market.id}/dashboard`)
-                }
-                onLoadAnother={resetBdpWizard}
-              />
-            )}
-          </div>
+      <div>
+        <BdpStepper step={bdpStep} />
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8">
+          {bdpStep === 0 && (
+            <BdpUploadStep
+              file={file}
+              onFile={setFile}
+              onNext={handleUpload}
+            />
+          )}
+          {bdpStep === 1 && uploadData && (
+            <BdpSheetStep
+              sheets={uploadData.sheets}
+              selectedSheet={selectedSheet}
+              headerRow={headerRow}
+              onSheetChange={setSelectedSheet}
+              onRowChange={setHeaderRow}
+              onBack={() => setBdpStep(0)}
+              onNext={handleSelectSheet}
+            />
+          )}
+          {bdpStep === 2 && (
+            <BdpMappingStep
+              columns={columns}
+              mappings={mappings}
+              onChange={setMappings}
+              onBack={() => setBdpStep(1)}
+              onApply={handleApplyMapping}
+              processing={processing}
+            />
+          )}
+          {bdpStep === 3 && result && (
+            <BdpDoneStep
+              market={market}
+              result={result}
+              onOpenDashboard={() =>
+                navigate(`/market/${market.id}/dashboard`)
+              }
+              onLoadAnother={resetBdpWizard}
+            />
+          )}
         </div>
-      )}
-
-      {tab === "pc" && (
-        <MarketReferencePage source="pc" marketId={market.id} />
-      )}
-
-      {tab === "grls" && (
-        <MarketReferencePage source="grls" marketId={market.id} />
-      )}
+      </div>
     </div>
   );
 }
@@ -505,39 +459,6 @@ function MarketContextBar({
         <ChevronDown size={12} />
       </button>
     </div>
-  );
-}
-
-function TabButton({
-  active, icon: Icon, label, hint, onClick,
-}: {
-  active: boolean;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  label: string;
-  hint?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
-        active
-          ? "border-indigo-600 text-indigo-700 dark:text-indigo-300"
-          : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:border-slate-300",
-      )}
-    >
-      <Icon size={16} />
-      {label}
-      {hint && (
-        <span className={clsx(
-          "text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded",
-          active ? "bg-indigo-100 text-indigo-700 dark:text-indigo-300" : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400",
-        )}>
-          {hint}
-        </span>
-      )}
-    </button>
   );
 }
 
@@ -822,13 +743,6 @@ function BdpDoneStep({
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">БДП строк</p>
         </div>
       </div>
-      {result.unrecognized && Object.keys(result.unrecognized).length > 0 && (
-        <div className="text-left space-y-2">
-          {Object.entries(result.unrecognized).map(([ft, vals]) => vals.length > 0 && (
-            <UnrecognizedBanner key={ft} fieldType={ft} values={vals} />
-          ))}
-        </div>
-      )}
       <div className="flex gap-3 justify-center">
         <button
           onClick={onLoadAnother}

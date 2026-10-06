@@ -15,7 +15,7 @@ from collections import defaultdict
 from typing import Any, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
@@ -30,12 +30,12 @@ router = APIRouter(prefix="/markets", tags=["drilldown"])
 # hydrate 51K объектов — это и есть тормоз). Row поддерживает
 # attribute access, поэтому builders работают без изменений.
 BDP_COLS = (
-    BdpRaw.mnn, BdpRaw.mnn_canonical,
+    BdpRaw.mnn,
     BdpRaw.tm,
-    BdpRaw.producer, BdpRaw.producer_canonical,
-    BdpRaw.sector, BdpRaw.sector_canonical,
+    BdpRaw.producer,
+    BdpRaw.sector,
     BdpRaw.region,
-    BdpRaw.lf, BdpRaw.lf_canonical, BdpRaw.lf_avp,
+    BdpRaw.lf, BdpRaw.lf_avp,
     BdpRaw.strength,
     BdpRaw.country_mfr,
     BdpRaw.bg_g,
@@ -73,15 +73,15 @@ def _norm_mnn(name: str | None) -> str:
 
 
 def _producer_key(item: Any) -> str | None:
-    return item.producer_canonical or item.producer
+    return item.producer
 
 
 def _mnn_key(item: Any) -> str | None:
-    return item.mnn_canonical or item.mnn
+    return item.mnn
 
 
 def _form_key(item: Any) -> str:
-    return item.lf_canonical or item.lf_avp or "—"
+    return item.lf_avp or "—"
 
 
 def _years_labels(market: Market) -> list[str]:
@@ -98,10 +98,7 @@ async def _load_producer_items(
     result = await db.execute(
         select(*BDP_COLS).where(
             BdpRaw.market_id == market_id,
-            or_(
-                func.lower(BdpRaw.producer_canonical) == target,
-                func.lower(BdpRaw.producer) == target,
-            ),
+            func.lower(BdpRaw.producer) == target,
         )
     )
     return result.all()
@@ -127,7 +124,7 @@ async def _load_mnn_items(
     result = await db.execute(
         select(*BDP_COLS).where(
             BdpRaw.market_id == market_id,
-            func.upper(BdpRaw.mnn_canonical) == target,
+            func.upper(BdpRaw.mnn) == target,
         )
     )
     return result.all()
@@ -160,10 +157,12 @@ async def _mnn_competitors_map(
 ) -> dict[str, int]:
     """MNN (as stored) → count distinct producers на этом МНН.
     Один aggregate SQL — быстрее чем python-loop над всем БДП."""
-    mnn_expr = func.coalesce(BdpRaw.mnn_canonical, BdpRaw.mnn).label("m")
-    prod_expr = func.coalesce(BdpRaw.producer_canonical, BdpRaw.producer)
+    mnn_expr = BdpRaw.mnn.label("m")
     result = await db.execute(
-        select(mnn_expr, func.count(func.distinct(prod_expr)).label("c"))
+        select(
+            mnn_expr,
+            func.count(func.distinct(BdpRaw.producer)).label("c"),
+        )
         .where(BdpRaw.market_id == market_id)
         .group_by(mnn_expr)
     )
@@ -348,11 +347,11 @@ def _producer_sector_split(items: Sequence[Any]) -> dict:
     total_y3 = sum(i.usd_y3 for i in items)
     ret_usd = sum(
         i.usd_y3 for i in items
-        if "RET" in (i.sector_canonical or i.sector or "")
+        if "RET" in (i.sector or "")
     )
     hos_usd = sum(
         i.usd_y3 for i in items
-        if "HOS" in (i.sector_canonical or i.sector or "")
+        if "HOS" in (i.sector or "")
     )
     return {
         "ret_usd": ret_usd, "hos_usd": hos_usd,

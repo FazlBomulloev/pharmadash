@@ -6,15 +6,6 @@ export interface Market {
   regions: string[] | null;
   created_at: string;
   mnn_count?: number | null;
-  has_pc?: boolean;
-  has_grls?: boolean;
-  fx_rate_usd_rub?: number | null;
-  fx_rate_date?: string | null;
-}
-
-export interface MarketFxUpdate {
-  fx_rate_usd_rub: number;
-  fx_rate_date?: string | null;
 }
 
 export interface MarketCreate {
@@ -43,7 +34,6 @@ export interface MappingResult {
   ok: boolean;
   bdp_count: number;
   regions: string[];
-  unrecognized?: UnrecognizedMap;
 }
 
 export interface TrendData {
@@ -99,13 +89,6 @@ export interface FormConcentration {
   producer_count: number;
 }
 
-export interface PcStats {
-  min: number;
-  median: number;
-  max: number;
-  count: number;
-}
-
 export interface RegionalDistribution {
   regions: { name: string; usd: number; share: number }[];
   gini: number | null;
@@ -127,15 +110,6 @@ export interface BgGBreakdown {
   asp_g_by_year: (number | null)[];
 }
 
-export interface GrlsExtra {
-  market_age: number | null;
-  oldest_reg_year: number | null;
-  expiring_1y: number;
-  expiring_2y: number;
-  expiring_3y: number;
-  registrations_by_year: { year: number; count: number }[];
-}
-
 export interface Zone2Data {
   ret_share: number | null;
   hos_share: number | null;
@@ -143,7 +117,6 @@ export interface Zone2Data {
   total_producers: number;
   top3_share: number | null;
   hhi: number | null;
-  entropy_normalized: number | null;
   leader_share: number | null;
   forms: NamedShare[];
   strengths: NamedShare[];
@@ -151,51 +124,112 @@ export interface Zone2Data {
   concentration_by_form: FormConcentration[];
   regional_distribution: RegionalDistribution | null;
   bg_g_breakdown: BgGBreakdown | null;
-  grls: string;
-  grls_active_count: number;
-  grls_registrants: number;
-  grls_extra: GrlsExtra | null;
-  pc_flag: boolean;
-  pc_stats: PcStats | null;
 }
 
-export interface AtcBenchmark {
-  atc3: string;
-  mnn_count: number;
-  our: {
-    usd: number;
-    growth: number | null;
-    hhi: number | null;
-    competitors: number;
-    rank_by_usd: number | null;
-  };
-  class_stats: {
-    usd_median: number | null;
-    usd_p75: number | null;
-    usd_max: number | null;
-    growth_median: number | null;
-    hhi_median: number | null;
-    competitors_median: number | null;
-  };
-  top_peers: { mnn: string; usd: number }[];
+// ─────────────── Скоринг рынка (уровень МНН) ───────────────
+
+export type ScoringCategory = "priority" | "watch" | "miss" | "stop";
+
+export type ScoringCriterion =
+  | "volume" | "import_share" | "cagr_usd" | "competition" | "price"
+  | "demand" | "hhi" | "form" | "channel" | "class_barrier";
+
+export type StopReason = "min_sales" | "max_price" | "max_producers";
+
+export interface ScoringItem {
+  rank: number;
+  mnn: string;
+  cls: string | null;
+  direction: string;
+  sales: number[];
+  units: number[];
+  price: number | null;
+  cagr_usd: number | null;
+  cagr_units: number | null;
+  import_share: number | null;
+  hospital_share: number | null;
+  producers: number;
+  hhi: number | null;
+  form_score: number | null;
+  scores: Record<ScoringCriterion, number>;
+  raw: number;
+  total: number;
+  category: ScoringCategory;
+  passed: boolean;
+  stop_reasons: StopReason[];
 }
 
-export interface DriverFlag {
-  text: string;
-  type?: string;
+export interface ScoringSummary {
+  total: number;
+  passed: number;
+  categories: Record<ScoringCategory, number>;
+  sales: number[];
+}
+
+export interface ScoringResponse {
+  market_id: number;
+  years: number[];
+  filters: {
+    applied: { lf: string | null; dose: string | null };
+    forms: string[];
+    doses: string[];
+  };
+  summary: ScoringSummary;
+  items: ScoringItem[];
+}
+
+export interface ScoreDictionary {
+  default: number;
+  map: Record<string, number>;
+}
+
+export interface ScoringStopFilters {
+  min_sales_usd: number;
+  max_price_usd: number;
+  max_producers: number;
+}
+
+export interface ScoringThresholds {
+  priority: number;
+  watch: number;
+}
+
+export interface ScoringSettings {
+  weights: Record<ScoringCriterion, number>;
+  stop: ScoringStopFilters;
+  thresholds: ScoringThresholds;
+  neutral_score: number;
+  competition: {
+    single_producer_score: number;
+    no_penalty_until: number;
+    min_score: number;
+  };
+  channel: {
+    hospital_low: number;
+    hospital_high: number;
+    min_score: number;
+  };
+  form_scores: ScoreDictionary;
+  class_barriers: ScoreDictionary;
+  directions: { default: string; map: Record<string, string> };
+  home_countries: string[];
+}
+
+export interface MarketSettingsResponse {
+  market_id: number;
+  settings: ScoringSettings;
+  defaults: ScoringSettings;
+  classes: string[];
+  forms: string[];
+  countries: string[];
 }
 
 export interface Zone3Data {
-  total_score: number;
-  economic_score: number;
-  structure_score: number;
-  regulatory_score: number;
-  recommendation: string;
-  recommendation_color: string;
-  drivers: DriverFlag[];
-  red_flags: DriverFlag[];
-  next_checks: string[];
-  details?: Record<string, unknown>;
+  item: ScoringItem | null;
+  selection_size: number;
+  weights: Record<ScoringCriterion, number>;
+  thresholds: ScoringThresholds;
+  stop: ScoringStopFilters;
 }
 
 export interface DashboardResponse {
@@ -215,109 +249,11 @@ export interface DashboardResponse {
   };
   zone1: KpiZone1;
   zone2: Zone2Data;
-  atc_benchmark: AtcBenchmark[];
   zone3: Zone3Data;
 }
 
 export interface MnnListResponse {
   mnns: string[];
-}
-
-// References
-export interface PcStatus {
-  loaded: boolean;
-  rows_count: number;
-}
-
-export interface GrlsStatus {
-  loaded: boolean;
-  rows_count: number;
-  by_status: Record<string, number>;
-}
-
-export interface UnrecognizedMap {
-  [field_type: string]: string[];
-}
-
-export interface ReferenceMappingResult {
-  ok: boolean;
-  pc_count?: number;
-  grls_count?: number;
-  unrecognized: UnrecognizedMap;
-}
-
-// Dictionary
-export interface DictionaryType {
-  type: string;
-  label: string;
-}
-
-export interface DictionaryAlias {
-  id: number;
-  alias: string;
-  language: string | null;
-}
-
-export interface DictionaryEntry {
-  id: number;
-  field_type: string;
-  value_en: string | null;
-  value_ru: string | null;
-  canonical: string;
-  notes: string | null;
-  aliases: DictionaryAlias[];
-}
-
-export interface DictionaryEntryCreate {
-  field_type: string;
-  value_en?: string | null;
-  value_ru?: string | null;
-  canonical?: string | null;
-  aliases?: string[];
-  notes?: string | null;
-}
-
-export interface DictionarySuggestion {
-  value: string;
-  suggestion: string | null;
-  suggestion_entry_id: number | null;
-  similarity: number;
-}
-
-export interface DictionaryImportResult {
-  ok: boolean;
-  created: number;
-  updated: number;
-  skipped: number;
-  total: number;
-}
-
-export interface UnrecognizedItem {
-  value: string;
-  normalized: string;
-  count_bdp: number;
-  count_pc: number;
-  count_grls: number;
-  total: number;
-}
-
-export interface UnrecognizedResponse {
-  items: UnrecognizedItem[];
-  total: number;
-  shown: number;
-}
-
-export interface RecanonicalizeResponse {
-  ok: boolean;
-  by_source: Record<string, {
-    rows: number;
-    updated: number;
-    matched: number;
-    unmatched: number;
-  }>;
-  updated_total: number;
-  matched_total: number;
-  unmatched_total: number;
 }
 
 // Market Overview
@@ -329,16 +265,10 @@ export interface OverviewHeader {
   selected_year: number | null;
   regions: string[];
   language: string;
-  fx_rate_usd_rub: number | null;
-  fx_rate_date: string | null;
   has_bdp: boolean;
-  has_pc: boolean;
-  has_grls: boolean;
   mnn_count: number;
   producer_count: number;
   tm_count: number;
-  grls_active_count: number;
-  pc_rows_count: number;
 }
 
 export interface OverviewVolume {
@@ -400,54 +330,22 @@ export interface OverviewPortfolio {
   countries: OverviewCountry[];
 }
 
-export interface OverviewGrls {
-  active_count: number;
-  registrants_count: number;
-  registrations_by_year: { year: number; count: number }[];
-  expiring_1y: number;
-  expiring_2y: number;
-  expiring_3y: number;
-  foreign_share: number | null;
-}
-
-export interface OverviewPcUnitStats {
-  count: number;
-  min: number;
-  p25: number;
-  median: number;
-  p75: number;
-  max: number;
-}
-
-export interface OverviewPcOwner {
-  name: string;
-  count: number;
-  fresh_count: number;
-  fresh_share: number | null;
-}
-
-export interface OverviewPc {
-  mnn_coverage_pct: number | null;
-  money_coverage_pct: number | null;
-  unit_price_usd_stats: OverviewPcUnitStats | null;
-  market_asp_usd: number | null;
-  ceiling_utilization: number | null;
-  indexation_by_year: { year: number; count: number }[];
-  top_owners: OverviewPcOwner[];
-}
-
 export interface OverviewDecisionItem {
+  rank: number;
   mnn: string;
+  cls: string | null;
+  direction: string;
   usd: number;
-  total_score: number;
-  recommendation: string;
-  color: string;
+  total: number;
+  category: ScoringCategory;
 }
 
 export interface OverviewDecision {
-  distribution: Record<string, number>;
-  top_opportunities: OverviewDecisionItem[];
-  top_avoid: OverviewDecisionItem[];
+  total: number;
+  passed: number;
+  categories: Record<ScoringCategory, number>;
+  thresholds: ScoringThresholds;
+  top: OverviewDecisionItem[];
 }
 
 export interface OverviewFiltersApplied {
@@ -467,8 +365,6 @@ export interface OverviewResponse {
   filters: OverviewFilters;
   volume: OverviewVolume;
   portfolio: OverviewPortfolio;
-  grls: OverviewGrls | null;
-  pc: OverviewPc | null;
   decision: OverviewDecision;
 }
 

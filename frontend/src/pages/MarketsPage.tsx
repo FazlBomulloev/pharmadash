@@ -105,18 +105,6 @@ export default function MarketsPage() {
                   "px-2 py-0.5 text-[10px] font-semibold rounded uppercase tracking-wide",
                   "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300",
                 )}>БДП ✓</span>
-                <span className={clsx(
-                  "px-2 py-0.5 text-[10px] font-semibold rounded uppercase tracking-wide",
-                  market.has_pc
-                    ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
-                )}>РС {market.has_pc ? "✓" : "—"}</span>
-                <span className={clsx(
-                  "px-2 py-0.5 text-[10px] font-semibold rounded uppercase tracking-wide",
-                  market.has_grls
-                    ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
-                )}>ГРЛС {market.has_grls ? "✓" : "—"}</span>
               </div>
 
               <div className="space-y-2 mb-4">

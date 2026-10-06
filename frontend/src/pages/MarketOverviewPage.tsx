@@ -10,8 +10,6 @@ import OverviewFilters from "../components/overview/OverviewFilters";
 import OverviewDecisionStrip from "../components/overview/OverviewDecisionStrip";
 import OverviewVolume from "../components/overview/OverviewVolume";
 import OverviewPortfolio from "../components/overview/OverviewPortfolio";
-import OverviewGrls from "../components/overview/OverviewGrls";
-import OverviewPc from "../components/overview/OverviewPc";
 import OverviewDecision from "../components/overview/OverviewDecision";
 
 function readFilters(params: URLSearchParams): OverviewQuery {
@@ -98,7 +96,6 @@ export default function MarketOverviewPage() {
     <div className="space-y-8">
       <OverviewHeader
         header={data.header}
-        onFxUpdated={() => load(filters)}
       />
 
       <OverviewDecisionStrip
@@ -127,8 +124,6 @@ export default function MarketOverviewPage() {
         <div className="space-y-8">
           <OverviewVolume data={data.volume} />
           <OverviewPortfolio data={data.portfolio} marketId={marketId_} />
-          {data.grls && <OverviewGrls data={data.grls} />}
-          {data.pc && <OverviewPc data={data.pc} />}
           <div id="overview-decision-details">
             <OverviewDecision data={data.decision} marketId={marketId_} />
           </div>

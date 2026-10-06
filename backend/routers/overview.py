@@ -1,39 +1,26 @@
 """Обзор рынка целиком (все МНН разом).
 
-Возвращает 6 блоков:
-  1. header  — шапка, FX-курс, счётчики
+Возвращает 4 блока:
+  1. header  — шапка, счётчики
   2. volume  — общий объём БДП
   3. portfolio — топ МНН, топ производители, ATC, страны
-  4. grls    — РУ, регистранты, окна истечения
-  5. pc      — покрытие, цена за единицу (в USD), индексация
-  6. decision — распределение МНН по DE-рекомендациям
+  4. decision — распределение МНН по категориям скоринга
 
-ВСЕ суммы в USD. Цены ПЦ конвертируются по курсу рынка
-(price_rub_no_vat / fx_rate_usd_rub) → unit_price_usd.
+ВСЕ суммы в USD.
 """
 import asyncio
 import json
 import logging
 import time
 from collections import defaultdict
-from datetime import date
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.config import (
-    MIN_COMPETITOR_USD,
-    COMPETITOR_PCT,
-    GRLS_ACTIVE_STATUSES,
-)
 from backend.database import async_session, get_db
-from backend.models import Market, BdpRaw, GrlsEntry, PcEntry
-from backend.services.scoring import (
-    calculate_economic_score,
-    calculate_structure_score,
-    calculate_regulatory_score,
-    get_recommendation,
-)
+from backend.models import Market, BdpRaw
+from backend.services.market_scoring import get_market_scoring
+from backend.services.scoring import CATEGORIES
 from backend.services.year_shift import (
     parse_years,
     resolve_year_idx,
@@ -49,7 +36,7 @@ router = APIRouter(prefix="/markets", tags=["overview"])
 # ────────────────────── overview cache ──────────────────────
 # Полный ответ кешируется по (market_id, sector, atc3).
 # Инвалидируется через invalidate_overview_cache(market_id) при любых
-# изменениях BDP/PC/GRLS/FX этого рынка.
+# изменениях BDP этого рынка.
 _OVERVIEW_CACHE: dict[tuple, tuple[float, dict]] = {}
 _CACHE_TTL_SEC = 600  # 10 минут
 
@@ -84,22 +71,6 @@ def _cagr(start: float, end: float, periods: int) -> float | None:
     return (end / start) ** (1 / periods) - 1
 
 
-_FOREIGN_MARKERS = (
-    "LTD", "GMBH", "INC", "CORP", "S.A", "S.A.",
-    "PLC", "B.V", "B.V.", "AG", "CO.", "LLC",
-)
-_RU_MARKERS = ("ООО", "АО", "ЗАО", "ОАО", "ПАО", "ИП")
-
-
-def _is_foreign_holder(name: str) -> bool:
-    if not name:
-        return False
-    up = name.upper()
-    if any(m in up for m in _RU_MARKERS):
-        return False
-    return any(m in up for m in _FOREIGN_MARKERS)
-
-
 def _atc3(code: str | None) -> str | None:
     """Класс ATC как лежит в БДП — это уже название класса
     (например, «КРОВЬ», «АНАЛЬГЕТИК»), не WHO-код. Только нормализуем."""
@@ -124,11 +95,11 @@ def _build_volume(items: list[BdpRaw], years: list[int]) -> dict:
 
     ret_usd = sum(
         i.usd_y3 for i in items
-        if "RET" in (i.sector_canonical or i.sector or "")
+        if "RET" in (i.sector or "")
     )
     hos_usd = sum(
         i.usd_y3 for i in items
-        if "HOS" in (i.sector_canonical or i.sector or "")
+        if "HOS" in (i.sector or "")
     )
 
     bg_usd = sum(
@@ -172,7 +143,7 @@ def _build_portfolio(items: list[BdpRaw]) -> dict:
         lambda: {"usd_y2": 0.0, "usd_y3": 0.0, "un_y3": 0.0}
     )
     for i in items:
-        key = i.mnn_canonical or i.mnn
+        key = i.mnn
         d = mnn_data[key]
         d["usd_y2"] += i.usd_y2
         d["usd_y3"] += i.usd_y3
@@ -197,7 +168,7 @@ def _build_portfolio(items: list[BdpRaw]) -> dict:
         }
     )
     for i in items:
-        prod = i.producer_canonical or i.producer
+        prod = i.producer
         if not prod:
             continue
         pd = producer_data[prod]
@@ -283,329 +254,53 @@ def _build_portfolio(items: list[BdpRaw]) -> dict:
     }
 
 
-def _build_grls(
-    grls_rows: list[GrlsEntry],
-    bdp_items: list[BdpRaw],
-) -> dict:
-    active = [g for g in grls_rows if g.status in GRLS_ACTIVE_STATUSES]
-    active_count = len(active)
+DECISION_TOP_N = 10
 
-    holders = {
-        g.ru_holder_canonical or g.ru_holder
-        for g in active
-        if g.ru_holder_canonical or g.ru_holder
-    }
-    registrants_count = len(holders)
 
-    year_counts: dict[int, int] = defaultdict(int)
-    for g in active:
-        if g.reg_date:
-            year_counts[g.reg_date.year] += 1
-    registrations_by_year = [
-        {"year": y, "count": c}
-        for y, c in sorted(year_counts.items())
-    ]
-
-    today = date.today()
-    expiring_1y = 0
-    expiring_2y = 0
-    expiring_3y = 0
-    for g in active:
-        if not g.expire_date:
-            continue
-        days = (g.expire_date - today).days
-        if days < 0:
-            continue
-        if days <= 365:
-            expiring_1y += 1
-        if days <= 365 * 2:
-            expiring_2y += 1
-        if days <= 365 * 3:
-            expiring_3y += 1
-
-    foreign_count = sum(
-        1 for h in holders if _is_foreign_holder(h or "")
-    )
-    foreign_share = _safe_div(foreign_count, registrants_count)
-
+def _build_decision(scoring: dict, scope_mnns: set[str]) -> dict:
+    """Сводка скоринга рынка по МНН, попавшим в текущую выборку обзора.
+    Баллы и ранги — общерыночные, фильтры обзора их не пересчитывают."""
+    items = [i for i in scoring["items"] if i["mnn"] in scope_mnns]
+    categories = {c: 0 for c in CATEGORIES}
+    for i in items:
+        categories[i["category"]] += 1
+    passed = [i for i in items if i["passed"]]
     return {
-        "active_count": active_count,
-        "registrants_count": registrants_count,
-        "registrations_by_year": registrations_by_year,
-        "expiring_1y": expiring_1y,
-        "expiring_2y": expiring_2y,
-        "expiring_3y": expiring_3y,
-        "foreign_share": foreign_share,
-    }
-
-
-def _build_pc(
-    pc_rows: list[PcEntry],
-    bdp_items: list[BdpRaw],
-    fx_rate: float | None,
-) -> dict | None:
-    if not pc_rows:
-        return None
-
-    pc_mnns = {p.mnn_canonical for p in pc_rows if p.mnn_canonical}
-    all_mnns = {
-        i.mnn_canonical for i in bdp_items if i.mnn_canonical
-    }
-    mnn_coverage = _safe_div(
-        len(pc_mnns & all_mnns), len(all_mnns)
-    ) if all_mnns else None
-
-    total_usd = sum(i.usd_y3 for i in bdp_items)
-    covered_usd = sum(
-        i.usd_y3 for i in bdp_items
-        if (i.mnn_canonical or "") in pc_mnns
-    )
-    money_coverage = _safe_div(covered_usd, total_usd)
-
-    # Цена за единицу в USD
-    unit_price_stats = None
-    if fx_rate and fx_rate > 0:
-        prices_usd: list[float] = []
-        for p in pc_rows:
-            if (
-                p.price_rub_no_vat
-                and p.pack_qty_parsed
-                and p.pack_qty_parsed > 0
-            ):
-                prices_usd.append(
-                    p.price_rub_no_vat / p.pack_qty_parsed / fx_rate
-                )
-        if prices_usd:
-            prices_usd.sort()
-            n = len(prices_usd)
-            median = (
-                prices_usd[n // 2] if n % 2 == 1
-                else (prices_usd[n // 2 - 1] + prices_usd[n // 2]) / 2
-            )
-            unit_price_stats = {
-                "count": n,
-                "min": prices_usd[0],
-                "p25": prices_usd[max(0, n // 4)],
-                "median": median,
-                "p75": prices_usd[min(n - 1, (3 * n) // 4)],
-                "max": prices_usd[-1],
+        "total": len(items),
+        "passed": len(passed),
+        "categories": categories,
+        "thresholds": scoring["settings"]["thresholds"],
+        "top": [
+            {
+                "rank": i["rank"],
+                "mnn": i["mnn"],
+                "cls": i["cls"],
+                "direction": i["direction"],
+                "usd": i["sales"][2],
+                "total": i["total"],
+                "category": i["category"],
             }
-
-    # Использование потолка: сколько % от предельной цены реально берёт рынок.
-    # market_asp_usd = средневзвешенная цена (USD/шт) по МНН под покрытием ПЦ.
-    # ratio = market_asp_usd / pc_median_usd_per_unit
-    #   1.0 → продают ровно на потолке (нет зазора)
-    #   0.5 → цены на половине потолка, есть 50% запас
-    ceiling_utilization = None
-    market_asp_usd = None
-    if unit_price_stats and unit_price_stats["median"] > 0:
-        covered_un = sum(
-            i.un_y3 for i in bdp_items
-            if (i.mnn_canonical or "") in pc_mnns
-        )
-        if covered_un > 0:
-            market_asp_usd = covered_usd / covered_un
-            ceiling_utilization = market_asp_usd / unit_price_stats["median"]
-
-    year_counts: dict[int, int] = defaultdict(int)
-    for p in pc_rows:
-        if p.price_effective_date:
-            year_counts[p.price_effective_date.year] += 1
-    indexation_by_year = [
-        {"year": y, "count": c}
-        for y, c in sorted(year_counts.items())
-    ]
-
-    # По владельцам: общее число записей + свежие (<= 365 дней)
-    today = date.today()
-    owner_totals: dict[str, int] = defaultdict(int)
-    owner_fresh: dict[str, int] = defaultdict(int)
-    for p in pc_rows:
-        owner = p.owner_canonical or p.owner
-        if not owner:
-            continue
-        owner_totals[owner] += 1
-        eff = p.price_effective_date
-        if eff and (today - eff).days <= 365:
-            owner_fresh[owner] += 1
-    top_owners = [
-        {
-            "name": k,
-            "count": v,
-            "fresh_count": owner_fresh.get(k, 0),
-            "fresh_share": (owner_fresh.get(k, 0) / v) if v > 0 else None,
-        }
-        for k, v in sorted(
-            owner_totals.items(), key=lambda x: x[1], reverse=True
-        )[:10]
-    ]
-
-    return {
-        "mnn_coverage_pct": mnn_coverage,
-        "money_coverage_pct": money_coverage,
-        "unit_price_usd_stats": unit_price_stats,
-        "market_asp_usd": market_asp_usd,
-        "ceiling_utilization": ceiling_utilization,
-        "indexation_by_year": indexation_by_year,
-        "top_owners": top_owners,
-    }
-
-
-def _score_single_mnn(
-    items: list[BdpRaw],
-    pc_mnns: set[str],
-    grls_rows: list[GrlsEntry],
-    has_grls: bool,
-    has_pc: bool,
-    mnn_key: str,
-) -> dict:
-    """Считает Decision Engine score для одного МНН (без drivers/flags)."""
-    usd_y2 = sum(i.usd_y2 for i in items)
-    usd_y3 = sum(i.usd_y3 for i in items)
-    un_y2 = sum(i.un_y2 for i in items)
-    un_y3 = sum(i.un_y3 for i in items)
-
-    asp_y2 = _safe_div(usd_y2, un_y2)
-    asp_y3 = _safe_div(usd_y3, un_y3)
-    asp_growth = _safe_growth(asp_y3, asp_y2) if asp_y2 and asp_y3 else None
-    usd_growth = _safe_growth(usd_y3, usd_y2)
-    un_growth = _safe_growth(un_y3, un_y2)
-
-    threshold = max(MIN_COMPETITOR_USD, COMPETITOR_PCT * usd_y3)
-    producer_sales: dict[str, float] = defaultdict(float)
-    for i in items:
-        prod = i.producer_canonical or i.producer
-        if prod:
-            producer_sales[prod] += i.usd_y3
-    active = sum(1 for s in producer_sales.values() if s >= threshold)
-
-    ret_usd = sum(
-        i.usd_y3 for i in items
-        if "RET" in (i.sector_canonical or i.sector or "")
-    )
-    ret_share = _safe_div(ret_usd, usd_y3)
-
-    sorted_shares = sorted(
-        (s / usd_y3 for s in producer_sales.values() if usd_y3 > 0),
-        reverse=True,
-    )
-    top3 = sum(sorted_shares[:3]) if sorted_shares else None
-    hhi = (
-        sum(s * s for s in sorted_shares) * 10000
-        if sorted_shares else None
-    )
-
-    forms = {(i.lf_canonical or i.lf_avp) for i in items if i.lf_canonical or i.lf_avp}
-    strengths = {i.strength for i in items if i.strength}
-
-    econ, _ = calculate_economic_score(
-        usd_y3=usd_y3, usd_growth=usd_growth,
-        un_growth=un_growth, un_y3=un_y3, asp_growth=asp_growth,
-    )
-    struct, _ = calculate_structure_score(
-        active_competitors=active, top3_share=top3, hhi=hhi,
-        ret_share=ret_share, forms_count=len(forms),
-        strengths_count=len(strengths),
-    )
-    mnn_grls = [
-        g for g in grls_rows
-        if (g.mnn_canonical or "") == mnn_key
-    ]
-    active_grls = [
-        g for g in mnn_grls if g.status in GRLS_ACTIVE_STATUSES
-    ]
-    grls_registrants = len({
-        g.ru_holder_canonical or g.ru_holder
-        for g in active_grls
-        if g.ru_holder_canonical or g.ru_holder
-    })
-    reg, _ = calculate_regulatory_score(
-        grls_active_count=len(active_grls),
-        grls_registrants=grls_registrants,
-        pc_flag=mnn_key in pc_mnns,
-        has_grls=has_grls, has_pc=has_pc,
-    )
-    raw_total = econ + struct + reg
-    total_score = round(raw_total / (50 + 30 + 15) * 100, 1)
-    rec, color = get_recommendation(total_score)
-
-    return {
-        "mnn": mnn_key,
-        "usd": usd_y3,
-        "total_score": total_score,
-        "recommendation": rec,
-        "color": color,
-    }
-
-
-def _build_decision(
-    items: list[BdpRaw],
-    pc_mnns: set[str],
-    grls_rows: list[GrlsEntry],
-    has_grls: bool,
-    has_pc: bool,
-) -> dict:
-    by_mnn: dict[str, list[BdpRaw]] = defaultdict(list)
-    for i in items:
-        key = i.mnn_canonical or i.mnn
-        by_mnn[key].append(i)
-
-    scores = [
-        _score_single_mnn(
-            its, pc_mnns, grls_rows, has_grls, has_pc, key,
-        )
-        for key, its in by_mnn.items()
-    ]
-
-    distribution: dict[str, int] = defaultdict(int)
-    for s in scores:
-        distribution[s["color"]] += 1
-
-    top_opportunities = sorted(
-        scores, key=lambda x: (-x["total_score"], -x["usd"])
-    )[:10]
-    top_avoid = sorted(
-        scores, key=lambda x: (x["total_score"], -x["usd"])
-    )[:10]
-
-    return {
-        "distribution": dict(distribution),
-        "top_opportunities": top_opportunities,
-        "top_avoid": top_avoid,
+            for i in passed[:DECISION_TOP_N]
+        ],
     }
 
 
 # ────────────────────── endpoint ──────────────────────
 
 async def _load_market_rows(db: AsyncSession, market_id: int):
-    """Грузит BDP/GRLS/PC через Core columns (lightweight Row),
+    """Грузит BDP через Core columns (lightweight Row),
     минуя дорогую ORM-гидратацию объектов."""
     bdp_q = select(
-        BdpRaw.mnn, BdpRaw.mnn_canonical, BdpRaw.tm,
-        BdpRaw.producer, BdpRaw.producer_canonical,
-        BdpRaw.sector, BdpRaw.sector_canonical,
-        BdpRaw.atc, BdpRaw.lf, BdpRaw.lf_avp, BdpRaw.lf_canonical,
+        BdpRaw.mnn, BdpRaw.tm,
+        BdpRaw.producer,
+        BdpRaw.sector,
+        BdpRaw.atc, BdpRaw.lf, BdpRaw.lf_avp,
         BdpRaw.strength, BdpRaw.country_mfr, BdpRaw.bg_g,
         BdpRaw.usd_y1, BdpRaw.usd_y2, BdpRaw.usd_y3,
         BdpRaw.un_y1, BdpRaw.un_y2, BdpRaw.un_y3,
     ).where(BdpRaw.market_id == market_id)
 
-    grls_q = select(
-        GrlsEntry.mnn_canonical, GrlsEntry.ru_holder,
-        GrlsEntry.ru_holder_canonical,
-        GrlsEntry.status, GrlsEntry.reg_date, GrlsEntry.expire_date,
-    ).where(GrlsEntry.market_id == market_id)
-
-    pc_q = select(
-        PcEntry.mnn_canonical, PcEntry.owner, PcEntry.owner_canonical,
-        PcEntry.pack_qty_parsed, PcEntry.price_rub_no_vat,
-        PcEntry.price_effective_date,
-    ).where(PcEntry.market_id == market_id)
-
-    bdp = (await db.execute(bdp_q)).all()
-    grls = (await db.execute(grls_q)).all()
-    pc = (await db.execute(pc_q)).all()
-    return bdp, grls, pc
+    return (await db.execute(bdp_q)).all()
 
 
 def _collect_atc3_options(items) -> list[dict]:
@@ -713,9 +408,7 @@ async def _compute_overview(
         if not market:
             raise HTTPException(404, "Рынок не найден")
 
-    all_bdp_items, grls_rows, pc_rows = await _load_market_rows(
-        db, market_id,
-    )
+    all_bdp_items = await _load_market_rows(db, market_id)
     if not all_bdp_items:
         raise HTTPException(400, "Для рынка не загружены данные БДП")
 
@@ -737,12 +430,12 @@ async def _compute_overview(
     if sector == "ret":
         bdp_items = [
             i for i in bdp_items
-            if "RET" in (i.sector_canonical or i.sector or "")
+            if "RET" in (i.sector or "")
         ]
     elif sector == "hos":
         bdp_items = [
             i for i in bdp_items
-            if "HOS" in (i.sector_canonical or i.sector or "")
+            if "HOS" in (i.sector or "")
         ]
 
     if atc3:
@@ -756,43 +449,20 @@ async def _compute_overview(
             400, "По заданным фильтрам нет строк БДП. Снимите фильтры.",
         )
 
-    # ── scope-MNN: ограничиваем GRLS/PC теми МНН, что прошли фильтр ──
-    scope_mnns = {i.mnn_canonical or i.mnn for i in bdp_items}
-    scoped_grls = [
-        g for g in grls_rows
-        if (g.mnn_canonical or "") in scope_mnns
-    ]
-    scoped_pc = [
-        p for p in pc_rows
-        if (p.mnn_canonical or "") in scope_mnns
-    ]
+    scope_mnns = {i.mnn for i in bdp_items}
 
     # ── header counters (на отфильтрованных данных) ──
     producer_set = {
-        i.producer_canonical or i.producer
+        i.producer
         for i in bdp_items
-        if i.producer_canonical or i.producer
+        if i.producer
     }
     tm_set = {i.tm for i in bdp_items if i.tm}
-    active_grls_count = sum(
-        1 for g in scoped_grls if g.status in GRLS_ACTIVE_STATUSES
-    )
-
-    grls_block = (
-        _build_grls(scoped_grls, bdp_items)
-        if scoped_grls else None
-    )
-
-    pc_block = _build_pc(scoped_pc, bdp_items, market.fx_rate_usd_rub)
-    pc_mnns = {p.mnn_canonical for p in scoped_pc if p.mnn_canonical}
 
     portfolio = _build_portfolio(bdp_items)
     volume = _build_volume(bdp_items, shifted_year_list)
-    decision = _build_decision(
-        bdp_items, pc_mnns, scoped_grls,
-        has_grls=bool(scoped_grls),
-        has_pc=bool(scoped_pc),
-    )
+    scoring = await get_market_scoring(db, market)
+    decision = _build_decision(scoring, scope_mnns)
 
     header = {
         "market_id": market.id,
@@ -802,18 +472,10 @@ async def _compute_overview(
         "selected_year": selected,
         "regions": regions,
         "language": market.language,
-        "fx_rate_usd_rub": market.fx_rate_usd_rub,
-        "fx_rate_date": (
-            market.fx_rate_date.isoformat() if market.fx_rate_date else None
-        ),
         "has_bdp": True,
-        "has_pc": bool(scoped_pc),
-        "has_grls": bool(scoped_grls),
         "mnn_count": len(scope_mnns),
         "producer_count": len(producer_set),
         "tm_count": len(tm_set),
-        "grls_active_count": active_grls_count,
-        "pc_rows_count": len(scoped_pc),
     }
 
     filters = {
@@ -832,8 +494,6 @@ async def _compute_overview(
         "filters": filters,
         "volume": volume,
         "portfolio": portfolio,
-        "grls": grls_block,
-        "pc": pc_block,
         "decision": decision,
     }
     _OVERVIEW_CACHE[cache_key] = (time.time(), response)

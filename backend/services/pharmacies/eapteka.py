@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncIterator
 
 import aiohttp
@@ -88,6 +89,12 @@ def _parse_price(text: str | None) -> float | None:
         return None
 
 
+# один поток: больше потоков только сильнее отбирают GIL у event loop
+_PARSE_POOL = ThreadPoolExecutor(
+    max_workers=1, thread_name_prefix="eapteka-parse",
+)
+
+
 class EaptekaAdapter(PharmacyAdapter):
     slug = "eapteka"
     display_name = "eApteka"
@@ -100,6 +107,7 @@ class EaptekaAdapter(PharmacyAdapter):
             log.info("eApteka: собрано ссылок %d", len(links))
 
             sem = asyncio.Semaphore(CONCURRENCY)
+            loop = asyncio.get_running_loop()
             total = len(links)
             for i in range(0, total, BATCH_SIZE):
                 batch = links[i:i + BATCH_SIZE]
@@ -113,7 +121,11 @@ class EaptekaAdapter(PharmacyAdapter):
                         if not html:
                             return None
                         try:
-                            product = self._parse_card(html, url)
+                            # разбор HTML — чистый CPU; в event loop он
+                            # подвешивает весь API, поэтому уводим в поток
+                            product = await loop.run_in_executor(
+                                _PARSE_POOL, self._parse_card, html, url,
+                            )
                             if product is None:
                                 return None
                             return product

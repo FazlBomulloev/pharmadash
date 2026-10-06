@@ -15,7 +15,6 @@ import {
 import {
   TrendingUp,
   TrendingDown,
-  Sigma,
   Map as MapIcon,
   Pill,
 } from "lucide-react";
@@ -30,7 +29,6 @@ import { ProducerDetailsLoader } from "../common/ProducerDetails";
 import { CountryDetailsLoader } from "../common/CountryDetails";
 import ScopeChip from "../common/ScopeChip";
 import SplitBar from "../common/SplitBar";
-import RegulatoryTimeline from "./RegulatoryTimeline";
 import { useChartTheme } from "../../hooks/useChartTheme";
 
 const PIE_COLORS = [
@@ -102,23 +100,12 @@ export default function Zone2({
         <SplitBar title="Доля секторов" segments={sectorData} />
       </div>
 
-      {/* Regulatory timeline — unified card replacing tiles + GrlsExtendedCard */}
-      <RegulatoryTimeline
-        grlsText={data.grls}
-        activeCount={data.grls_active_count}
-        registrants={data.grls_registrants}
-        extra={data.grls_extra ?? null}
-        pcFlag={data.pc_flag}
-        pcStats={data.pc_stats}
-      />
-
-      {/* Concentration + Entropy + BG/G */}
+      {/* Concentration + BG/G */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <ConcentrationCard
           hhi={data.hhi}
           top3={data.top3_share}
           leader={data.leader_share}
-          entropy={data.entropy_normalized}
         />
         {data.bg_g_breakdown && (
           <BgGCard data={data.bg_g_breakdown} years={years} />
@@ -596,49 +583,26 @@ function GrowthBadge({ value }: { value: number | null }) {
 }
 
 function ConcentrationCard({
-  hhi, top3, leader, entropy,
+  hhi, top3, leader,
 }: {
   hhi: number | null;
   top3: number | null;
   leader: number | null;
-  entropy: number | null;
 }) {
   const c = concentrationLabel(hhi);
-  const entropyLabel =
-    entropy == null
-      ? { text: "—", color: "text-slate-400 dark:text-slate-500" }
-      : entropy >= 0.75
-        ? { text: "Сбалансированный", color: "text-emerald-600 dark:text-emerald-400" }
-        : entropy >= 0.4
-          ? { text: "Умеренный дисбаланс", color: "text-amber-600 dark:text-amber-400" }
-          : { text: "Доминирование лидера", color: "text-red-600 dark:text-red-400" };
-
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
       <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">
         Концентрация
       </h4>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">HHI</p>
-          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">
-            {hhi != null ? Math.round(hhi) : "—"}
-          </p>
-          <p className={clsx("text-[11px] font-semibold mt-0.5", c.color)}>
-            {c.text}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-            <Sigma size={11} /> Энтропия
-          </p>
-          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">
-            {entropy != null ? entropy.toFixed(2) : "—"}
-          </p>
-          <p className={clsx("text-[11px] font-semibold mt-0.5", entropyLabel.color)}>
-            {entropyLabel.text}
-          </p>
-        </div>
+      <div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">HHI</p>
+        <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">
+          {hhi != null ? Math.round(hhi) : "—"}
+        </p>
+        <p className={clsx("text-[11px] font-semibold mt-0.5", c.color)}>
+          {c.text}
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-sm">
         <div>

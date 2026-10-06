@@ -1,286 +1,295 @@
-import logging
-from backend.config import (
-    SCORE_THRESHOLDS,
-    RECOMMENDATION_RANGES,
-    CONCENTRATION_THRESHOLDS,
+"""Скоринг рынка на уровне МНН.
+
+Чистый расчёт без БД: на входе строки БДП (уже отфильтрованные по
+ЛФ/дозировке, если фильтр выбран) и «Настройки рынка», на выходе —
+метрики, 10 баллов, ИТОГ, ранг и категория по каждому МНН.
+
+Y — последний год БДП (usd_y3/un_y3), базовый — Y-2 (usd_y1/un_y1).
+"""
+from bisect import bisect_left
+from collections import defaultdict
+from typing import Any, Iterable
+
+from backend.services.scoring_settings import ScoringSettings
+
+CRITERIA = (
+    "volume", "import_share", "cagr_usd", "competition", "price",
+    "demand", "hhi", "form", "channel", "class_barrier",
 )
 
-log = logging.getLogger(__name__)
+CATEGORY_STOP = "stop"
+CATEGORY_PRIORITY = "priority"
+CATEGORY_WATCH = "watch"
+CATEGORY_MISS = "miss"
+CATEGORIES = (
+    CATEGORY_PRIORITY, CATEGORY_WATCH, CATEGORY_MISS, CATEGORY_STOP,
+)
+
+STOP_MIN_SALES = "min_sales"
+STOP_MAX_PRICE = "max_price"
+STOP_MAX_PRODUCERS = "max_producers"
+
+CAGR_PERIODS = 2
+HHI_MAX = 10_000
 
 
-def _score_by_ranges(
-    value: float | None,
-    ranges: list[tuple],
-) -> int:
-    if value is None:
-        return 0
-    for threshold, score in ranges:
-        if value < threshold:
-            return score
-    return ranges[-1][1]
+# ────────────────────── элементарные баллы ──────────────────────
 
-
-def _competitor_score(count: int) -> int:
-    mapping = SCORE_THRESHOLDS["market_structure"]["active_competitors"]
-    if 3 <= count <= 15:
-        return mapping["3-15"]
-    elif 16 <= count <= 30:
-        return mapping["16-30"]
-    elif 1 <= count <= 2:
-        return mapping["1-2"]
-    else:
-        return mapping[">30"]
-
-
-def calculate_economic_score(
-    usd_y3: float,
-    usd_growth: float | None,
-    un_growth: float | None,
-    un_y3: float,
-    asp_growth: float | None,
-) -> tuple[float, list[dict]]:
-    cfg = SCORE_THRESHOLDS["economic"]
-    details = []
-
-    s1 = _score_by_ranges(usd_y3, cfg["usd_last_year"])
-    details.append({
-        "metric": "USD Last Year",
-        "value": usd_y3, "score": s1, "max": 15,
-    })
-
-    s2 = _score_by_ranges(usd_growth, cfg["usd_growth"])
-    details.append({
-        "metric": "USD Growth",
-        "value": usd_growth, "score": s2, "max": 10,
-    })
-
-    s3 = _score_by_ranges(un_growth, cfg["un_growth"])
-    details.append({
-        "metric": "UN Growth",
-        "value": un_growth, "score": s3, "max": 10,
-    })
-
-    s4 = _score_by_ranges(un_y3, cfg["un_last_year"])
-    details.append({
-        "metric": "UN Last Year",
-        "value": un_y3, "score": s4, "max": 5,
-    })
-
-    s5 = _score_by_ranges(asp_growth, cfg["asp_quality"])
-    details.append({
-        "metric": "ASP Quality",
-        "value": asp_growth, "score": s5, "max": 10,
-    })
-
-    return s1 + s2 + s3 + s4 + s5, details
-
-
-def calculate_structure_score(
-    active_competitors: int,
-    top3_share: float | None,
-    hhi: float | None,
-    ret_share: float | None,
-    forms_count: int = 0,
-    strengths_count: int = 0,
-) -> tuple[float, list[dict]]:
-    cfg = SCORE_THRESHOLDS["market_structure"]
-    details = []
-
-    s1 = _competitor_score(active_competitors)
-    details.append({
-        "metric": "Active Competitors",
-        "value": active_competitors, "score": s1, "max": 8,
-    })
-
-    s2 = _score_by_ranges(top3_share, cfg["top3_share"])
-    details.append({
-        "metric": "Top-3 Share",
-        "value": top3_share, "score": s2, "max": 7,
-    })
-
-    s3 = _score_by_ranges(hhi, cfg["hhi"])
-    details.append({
-        "metric": "HHI",
-        "value": hhi, "score": s3, "max": 5,
-    })
-
-    rh_fit = cfg["ret_hos_fit"]
-    if ret_share is not None:
-        if 0.3 <= ret_share <= 0.8:
-            s4 = rh_fit["match"]
-        elif 0.2 <= ret_share <= 0.9:
-            s4 = rh_fit["mixed"]
+def percentile_scores(
+    values: dict[str, float | None],
+) -> dict[str, float | None]:
+    """pct(x) = (число значений < x) / (N − 1) по непустым значениям.
+    При N ≤ 1 балл = 1. Пустые значения остаются None."""
+    present = sorted(v for v in values.values() if v is not None)
+    n = len(present)
+    result: dict[str, float | None] = {}
+    for key, value in values.items():
+        if value is None:
+            result[key] = None
+        elif n <= 1:
+            result[key] = 1.0
         else:
-            s4 = rh_fit["mismatch"]
-    else:
-        s4 = rh_fit["mixed"]
-    details.append({
-        "metric": "RET/HOS Fit",
-        "value": ret_share, "score": s4, "max": 5,
+            result[key] = bisect_left(present, value) / (n - 1)
+    return result
+
+
+def competition_score(producers: int, settings: ScoringSettings) -> float:
+    cfg = settings.competition
+    upper = settings.stop.max_producers
+    if producers <= 1:
+        return cfg.single_producer_score
+    if producers <= cfg.no_penalty_until:
+        return 1.0
+    if producers >= upper or upper <= cfg.no_penalty_until:
+        return cfg.min_score
+    progress = (
+        (producers - cfg.no_penalty_until) / (upper - cfg.no_penalty_until)
+    )
+    return 1.0 - progress * (1.0 - cfg.min_score)
+
+
+def channel_score(
+    hospital_share: float | None, settings: ScoringSettings,
+) -> float:
+    if hospital_share is None:
+        return settings.neutral_score
+    cfg = settings.channel
+    if hospital_share <= cfg.hospital_low:
+        return 1.0
+    if hospital_share >= cfg.hospital_high:
+        return cfg.min_score
+    progress = (
+        (hospital_share - cfg.hospital_low)
+        / (cfg.hospital_high - cfg.hospital_low)
+    )
+    return 1.0 - progress * (1.0 - cfg.min_score)
+
+
+def hhi_score(hhi: float | None, settings: ScoringSettings) -> float:
+    if hhi is None:
+        return settings.neutral_score
+    return min(1.0, max(0.0, 1.0 - hhi / HHI_MAX))
+
+
+def _cagr(start: float, end: float) -> float | None:
+    if start <= 0 or end <= 0:
+        return None
+    return (end / start) ** (1 / CAGR_PERIODS) - 1
+
+
+# ────────────────────── метрики по МНН ──────────────────────
+
+def _collect_metrics(
+    rows: Iterable[Any], settings: ScoringSettings,
+) -> dict[str, dict]:
+    home = {c.strip().upper() for c in settings.home_countries}
+    form_map = settings.form_scores.map
+    form_default = settings.form_scores.default
+
+    acc: dict[str, dict] = defaultdict(lambda: {
+        "usd": [0.0, 0.0, 0.0],
+        "un": [0.0, 0.0, 0.0],
+        "import_usd": 0.0,
+        "hospital_usd": 0.0,
+        "producer_usd": defaultdict(float),
+        "class_usd": defaultdict(float),
+        "form_usd": 0.0,
+        "form_weighted": 0.0,
     })
+    for r in rows:
+        a = acc[r.mnn]
+        usd_y = r.usd_y3 or 0.0
+        a["usd"][0] += r.usd_y1 or 0.0
+        a["usd"][1] += r.usd_y2 or 0.0
+        a["usd"][2] += usd_y
+        a["un"][0] += r.un_y1 or 0.0
+        a["un"][1] += r.un_y2 or 0.0
+        a["un"][2] += r.un_y3 or 0.0
 
-    fs_fit = cfg["form_strength_fit"]
-    diversity = forms_count + strengths_count * 0.5
-    if diversity >= 6 or forms_count >= 4:
-        s5 = fs_fit["large"]
-        fs_label = "разнообразный портфель"
-    elif diversity >= 2.5 or forms_count >= 2:
-        s5 = fs_fit["medium"]
-        fs_label = "умеренное разнообразие"
-    else:
-        s5 = fs_fit["small"]
-        fs_label = "узкий портфель"
-    details.append({
-        "metric": "Form/Strength Fit",
-        "value": f"{forms_count} форм, {strengths_count} дозировок ({fs_label})",
-        "score": s5, "max": 5,
-    })
+        country = (r.country_mfr or "").strip().upper()
+        if country and country not in home:
+            a["import_usd"] += usd_y
+        if "HOS" in (r.sector or "").upper():
+            a["hospital_usd"] += usd_y
+        if r.producer:
+            a["producer_usd"][r.producer] += usd_y
+        if r.atc:
+            a["class_usd"][r.atc.strip().upper()] += usd_y
+        form = r.lf_avp or r.lf
+        if form:
+            a["form_usd"] += usd_y
+            a["form_weighted"] += usd_y * form_map.get(form, form_default)
 
-    return s1 + s2 + s3 + s4 + s5, details
-
-
-def calculate_regulatory_score(
-    grls_active_count: int = 0,
-    grls_registrants: int = 0,
-    pc_flag: bool = False,
-    has_grls: bool = False,
-    has_pc: bool = False,
-) -> tuple[float, list[dict]]:
-    details = []
-
-    if not has_grls:
-        s2, v2 = 3, "Нет данных"
-    elif grls_active_count > 5:
-        s2, v2 = 6, f"{grls_active_count} активных РУ"
-    elif grls_active_count >= 2:
-        s2, v2 = 3, f"{grls_active_count} активных РУ"
-    else:
-        s2, v2 = 1, f"{grls_active_count} активных РУ"
-    details.append({"metric": "Активные РУ", "value": v2, "score": s2, "max": 6})
-
-    if not has_grls:
-        s3, v3 = 2, "Нет данных"
-    elif 3 <= grls_registrants <= 10:
-        s3, v3 = 4, f"{grls_registrants} регистрантов"
-    elif grls_registrants > 10:
-        s3, v3 = 2, f"{grls_registrants} (перенасыщено)"
-    else:
-        s3, v3 = 1, f"{grls_registrants} (монополия/мало)"
-    details.append({"metric": "Плотность регистрантов", "value": v3, "score": s3, "max": 4})
-
-    if not has_pc:
-        s4, v4 = 3, "Нет данных РС"
-    elif not pc_flag:
-        s4, v4 = 5, "Не в РС"
-    else:
-        s4, v4 = 3, "В действующем РС"
-    details.append({"metric": "Риск ценового регулирования", "value": v4, "score": s4, "max": 5})
-
-    return s2 + s3 + s4, details
-
-
-def get_recommendation(total_score: float) -> tuple[str, str]:
-    for low, high, label, color in RECOMMENDATION_RANGES:
-        if low <= total_score <= high:
-            return label, color
-    return "Unattractive", "red"
+    metrics: dict[str, dict] = {}
+    for mnn, a in acc.items():
+        sales = a["usd"][2]
+        units = a["un"][2]
+        positive = [v for v in a["producer_usd"].values() if v > 0]
+        positive_total = sum(positive)
+        # при равных продажах класс выбирается по алфавиту — детерминированно
+        cls = (
+            min(a["class_usd"].items(), key=lambda kv: (-kv[1], kv[0]))[0]
+            if a["class_usd"] else None
+        )
+        metrics[mnn] = {
+            "mnn": mnn,
+            "cls": cls,
+            "direction": (
+                settings.directions.map.get(cls, settings.directions.default)
+                if cls else settings.directions.default
+            ),
+            "sales": a["usd"],
+            "units": a["un"],
+            "price": sales / units if units > 0 else None,
+            "cagr_usd": _cagr(a["usd"][0], sales),
+            "cagr_units": _cagr(a["un"][0], units),
+            "import_share": a["import_usd"] / sales if sales > 0 else None,
+            "hospital_share": (
+                a["hospital_usd"] / sales if sales > 0 else None
+            ),
+            "producers": len(positive),
+            "hhi": (
+                sum((v / positive_total * 100) ** 2 for v in positive)
+                if positive_total > 0 else None
+            ),
+            "form_score": (
+                a["form_weighted"] / a["form_usd"]
+                if a["form_usd"] > 0 else None
+            ),
+        }
+    return metrics
 
 
-def generate_drivers_and_flags(
-    usd_y3: float,
-    usd_growth: float | None,
-    un_growth: float | None,
-    asp_growth: float | None,
-    top3_share: float | None,
-    hhi: float | None,
-    active_competitors: int,
-    pc_flag: bool = False,
-    grls_registrants: int = 0,
-    has_grls: bool = False,
-    has_pc: bool = False,
-) -> tuple[list[dict], list[dict], list[str]]:
-    drivers: list[dict] = []
-    flags: list[dict] = []
-    checks: list[str] = []
+# ────────────────────── итог ──────────────────────
 
-    if usd_y3 > 10_000_000:
-        drivers.append({
-            "type": "positive",
-            "text": f"Рынок > $10M (${usd_y3:,.0f})",
-        })
-    elif usd_y3 < 500_000:
-        flags.append({
-            "type": "risk",
-            "text": f"Малый рынок (${usd_y3:,.0f})",
-        })
+def _stop_reasons(m: dict, settings: ScoringSettings) -> list[str]:
+    stop = settings.stop
+    reasons = []
+    if m["sales"][2] < stop.min_sales_usd:
+        reasons.append(STOP_MIN_SALES)
+    if m["price"] is not None and m["price"] > stop.max_price_usd:
+        reasons.append(STOP_MAX_PRICE)
+    if m["producers"] > stop.max_producers:
+        reasons.append(STOP_MAX_PRODUCERS)
+    return reasons
 
-    if usd_growth is not None:
-        if usd_growth > 0.10:
-            drivers.append({
-                "type": "positive",
-                "text": f"Рост USD +{usd_growth:.1%}",
-            })
-        elif usd_growth < -0.10:
-            flags.append({
-                "type": "risk",
-                "text": f"Падение USD {usd_growth:.1%}",
-            })
 
-    if un_growth is not None:
-        if un_growth > 0.10:
-            drivers.append({
-                "type": "positive",
-                "text": f"Рост потребления UN +{un_growth:.1%}",
-            })
-        elif un_growth < -0.15:
-            flags.append({
-                "type": "risk",
-                "text": f"Падение потребления UN {un_growth:.1%}",
-            })
+def _category(
+    total: float, stopped: bool, settings: ScoringSettings,
+) -> str:
+    if stopped:
+        return CATEGORY_STOP
+    if total >= settings.thresholds.priority:
+        return CATEGORY_PRIORITY
+    if total >= settings.thresholds.watch:
+        return CATEGORY_WATCH
+    return CATEGORY_MISS
 
-    if asp_growth is not None and asp_growth < -0.05:
-        flags.append({
-            "type": "price",
-            "text": f"Ценовое давление ASP {asp_growth:.1%}",
-        })
 
-    if top3_share is not None and top3_share > 0.70:
-        flags.append({
-            "type": "competition",
-            "text": f"Высокая концентрация Top-3 {top3_share:.1%}",
-        })
-    elif top3_share is not None and top3_share < 0.40:
-        drivers.append({
-            "type": "positive",
-            "text": "Умеренная конкуренция",
-        })
+def compute_scoring(
+    rows: Iterable[Any], settings: ScoringSettings,
+) -> dict:
+    """Возвращает {"items": [...], "summary": {...}}.
+    items отсортированы по рангу (при равном ранге — по продажам Y)."""
+    metrics = _collect_metrics(rows, settings)
+    neutral = settings.neutral_score
+    weights = settings.weights.model_dump()
+    weight_sum = sum(weights.values())
 
-    if hhi is not None and hhi > 2500:
-        flags.append({
-            "type": "competition",
-            "text": f"HHI > 2500 ({hhi:.0f})",
-        })
+    # Объём — перцентиль внутри своего класса, остальное — по всей выборке
+    by_class: dict[str | None, dict[str, float | None]] = defaultdict(dict)
+    for mnn, m in metrics.items():
+        by_class[m["cls"]][mnn] = m["sales"][2]
+    volume_pct: dict[str, float | None] = {}
+    for class_values in by_class.values():
+        volume_pct.update(percentile_scores(class_values))
 
-    if active_competitors <= 2:
-        flags.append({
-            "type": "competition",
-            "text": "Мало конкурентов — возможен закрытый рынок",
-        })
+    cagr_pct = percentile_scores(
+        {k: m["cagr_usd"] for k, m in metrics.items()}
+    )
+    price_pct = percentile_scores(
+        {k: m["price"] for k, m in metrics.items()}
+    )
+    demand_pct = percentile_scores(
+        {k: m["cagr_units"] for k, m in metrics.items()}
+    )
 
-    if has_pc and pc_flag:
-        flags.append({"type": "regulatory", "text": "Действующая предельная цена — риск маржинальности"})
+    def _or_neutral(value: float | None) -> float:
+        return neutral if value is None else value
 
-    if has_grls and grls_registrants > 10:
-        flags.append({
-            "type": "competition",
-            "text": f"Высокая регистрационная насыщенность ({grls_registrants} регистрантов)",
-        })
+    barriers = settings.class_barriers
+    items: list[dict] = []
+    for mnn, m in metrics.items():
+        scores = {
+            "volume": _or_neutral(volume_pct[mnn]),
+            "import_share": _or_neutral(m["import_share"]),
+            "cagr_usd": _or_neutral(cagr_pct[mnn]),
+            "competition": competition_score(m["producers"], settings),
+            "price": _or_neutral(price_pct[mnn]),
+            "demand": _or_neutral(demand_pct[mnn]),
+            "hhi": hhi_score(m["hhi"], settings),
+            "form": _or_neutral(m["form_score"]),
+            "channel": channel_score(m["hospital_share"], settings),
+            "class_barrier": (
+                barriers.map.get(m["cls"], barriers.default)
+                if m["cls"] else neutral
+            ),
+        }
+        raw = (
+            sum(scores[c] * weights[c] for c in CRITERIA)
+            / weight_sum * 100
+        )
+        items.append({**m, "scores": scores, "raw": raw})
 
-    if has_grls and has_pc and not pc_flag:
-        drivers.append({"type": "positive", "text": "Регуляторно чистый продукт"})
+    if items:
+        raw_min = min(i["raw"] for i in items)
+        raw_max = max(i["raw"] for i in items)
+        spread = raw_max - raw_min
+        for i in items:
+            i["total"] = (
+                (i["raw"] - raw_min) / spread * 100 if spread > 0 else 100.0
+            )
 
-    checks.append("Проверить форму завода, цену, GMP/БЭ")
-    if top3_share and top3_share > 0.50:
-        checks.append("Проверить позицию лидера и барьеры входа")
+    # Ранг по убыванию ИТОГА; у равных — одинаковый (1, 1, 3, …)
+    items.sort(key=lambda i: (-i["total"], -i["sales"][2], i["mnn"]))
+    prev_total = None
+    prev_rank = 0
+    for position, i in enumerate(items, start=1):
+        if i["total"] != prev_total:
+            prev_rank = position
+            prev_total = i["total"]
+        i["rank"] = prev_rank
+        i["stop_reasons"] = _stop_reasons(i, settings)
+        i["passed"] = not i["stop_reasons"]
+        i["category"] = _category(i["total"], not i["passed"], settings)
 
-    return drivers, flags, checks
+    categories = {c: 0 for c in CATEGORIES}
+    for i in items:
+        categories[i["category"]] += 1
+    summary = {
+        "total": len(items),
+        "passed": sum(1 for i in items if i["passed"]),
+        "categories": categories,
+        "sales": [sum(i["sales"][k] for i in items) for k in range(3)],
+    }
+    return {"items": items, "summary": summary}
