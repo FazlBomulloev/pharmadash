@@ -454,6 +454,7 @@ def _build_pc(
 def _score_single_mnn(
     items: list[BdpRaw],
     pc_mnns: set[str],
+    grls_rows: list[GrlsEntry],
     has_grls: bool,
     has_pc: bool,
     mnn_key: str,
@@ -506,9 +507,21 @@ def _score_single_mnn(
         ret_share=ret_share, forms_count=len(forms),
         strengths_count=len(strengths),
     )
+    mnn_grls = [
+        g for g in grls_rows
+        if (g.mnn_canonical or "") == mnn_key
+    ]
+    active_grls = [
+        g for g in mnn_grls if g.status in GRLS_ACTIVE_STATUSES
+    ]
+    grls_registrants = len({
+        g.ru_holder_canonical or g.ru_holder
+        for g in active_grls
+        if g.ru_holder_canonical or g.ru_holder
+    })
     reg, _ = calculate_regulatory_score(
-        grls_active_count=1 if has_grls else 0,
-        grls_registrants=1 if has_grls else 0,
+        grls_active_count=len(active_grls),
+        grls_registrants=grls_registrants,
         pc_flag=mnn_key in pc_mnns,
         has_grls=has_grls, has_pc=has_pc,
     )
@@ -528,6 +541,7 @@ def _score_single_mnn(
 def _build_decision(
     items: list[BdpRaw],
     pc_mnns: set[str],
+    grls_rows: list[GrlsEntry],
     has_grls: bool,
     has_pc: bool,
 ) -> dict:
@@ -538,7 +552,7 @@ def _build_decision(
 
     scores = [
         _score_single_mnn(
-            its, pc_mnns, has_grls, has_pc, key,
+            its, pc_mnns, grls_rows, has_grls, has_pc, key,
         )
         for key, its in by_mnn.items()
     ]
@@ -775,7 +789,7 @@ async def _compute_overview(
     portfolio = _build_portfolio(bdp_items)
     volume = _build_volume(bdp_items, shifted_year_list)
     decision = _build_decision(
-        bdp_items, pc_mnns,
+        bdp_items, pc_mnns, scoped_grls,
         has_grls=bool(scoped_grls),
         has_pc=bool(scoped_pc),
     )
