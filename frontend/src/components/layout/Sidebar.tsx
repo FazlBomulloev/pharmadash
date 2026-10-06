@@ -7,6 +7,7 @@ import {
   ChevronRight,
   BookOpen,
   Compass,
+  Store,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -45,8 +46,21 @@ function marketItems(marketId: string) {
       icon: LayoutDashboard,
       to: `/market/${marketId}/dashboard`,
     },
+    {
+      label: "Цены аптек",
+      icon: Store,
+      to: `/pharmacies`,
+    },
   ];
 }
+
+const pharmaciesItem = [
+  {
+    label: "Цены аптек (БДЦ)",
+    icon: Store,
+    to: "/pharmacies",
+  },
+];
 
 type NavItem = {
   label: string;
@@ -98,6 +112,14 @@ export default function Sidebar() {
           <NavGroup
             label="Рынок"
             items={marketItems(marketId)}
+            collapsed={collapsed}
+          />
+        )}
+
+        {!marketId && (
+          <NavGroup
+            label="Аптеки"
+            items={pharmaciesItem}
             collapsed={collapsed}
           />
         )}

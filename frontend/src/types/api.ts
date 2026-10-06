@@ -593,3 +593,77 @@ export interface CountryDetails {
   mnn_portfolio?: CountryMnnItem[];
   forms_breakdown: CountryFormItem[];
 }
+
+// ─────────────── Pharmacy prices (БДЦ) ───────────────
+
+export interface PharmacySourceRun {
+  id: number;
+  source: string;
+  started_at: string;
+  finished_at: string | null;
+  status: "running" | "success" | "error";
+  items_count: number;
+  error: string | null;
+}
+
+export interface PharmacySource {
+  slug: string;
+  display_name: string;
+  items_count: number;
+  running: boolean;
+  last_run: PharmacySourceRun | null;
+}
+
+export interface PharmacyPrice {
+  id: number;
+  source: string;
+  sku: string | null;
+  name: string;
+  mnn: string | null;
+  trade_name: string | null;
+  manufacturer: string | null;
+  country: string | null;
+  form: string | null;
+  dosage: string | null;
+  pack_qty: string | null;
+  price: number | null;
+  price_discount: number | null;
+  url: string | null;
+  image_url: string | null;
+  scraped_at: string;
+}
+
+export interface PharmacyPricesResponse {
+  total: number;
+  offset: number;
+  limit: number;
+  items: PharmacyPrice[];
+}
+
+export interface PharmacyFilterOption {
+  value: string;
+  count: number;
+}
+
+export interface PharmacyFiltersResponse {
+  sources: { slug: string; display_name: string }[];
+  manufacturers: PharmacyFilterOption[];
+  countries: PharmacyFilterOption[];
+  forms: PharmacyFilterOption[];
+  mnns: PharmacyFilterOption[];
+}
+
+export interface PharmacyPricesQuery {
+  source?: string;
+  search?: string;
+  mnn?: string;
+  manufacturer?: string;
+  country?: string;
+  form?: string;
+  price_min?: number;
+  price_max?: number;
+  offset?: number;
+  limit?: number;
+  sort?: string;
+  order?: "asc" | "desc";
+}

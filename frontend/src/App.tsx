@@ -7,6 +7,7 @@ import MarketOverviewPage from "./pages/MarketOverviewPage";
 import MarketReferencePage from "./pages/MarketReferencePage";
 import DictionaryPage from "./pages/DictionaryPage";
 import DictionaryImportPage from "./pages/DictionaryImportPage";
+import PharmaciesPage from "./pages/PharmaciesPage";
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           />
           <Route path="/admin/dictionary" element={<DictionaryPage />} />
           <Route path="/admin/dictionary/import" element={<DictionaryImportPage />} />
+          <Route path="/pharmacies" element={<PharmaciesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

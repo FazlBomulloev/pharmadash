@@ -221,3 +221,39 @@ class GrlsMapping(Base):
     file_column = Column(String(200), nullable=False)
 
     market = relationship("Market", back_populates="grls_mappings")
+
+
+class PharmacyPrice(Base):
+    __tablename__ = "pharmacy_prices"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source = Column(String(50), nullable=False, index=True)
+    sku = Column(String(100), nullable=True, index=True)
+    name = Column(String(500), nullable=False)
+    mnn = Column(String(300), nullable=True, index=True)
+    trade_name = Column(String(300), nullable=True, index=True)
+    manufacturer = Column(String(300), nullable=True, index=True)
+    country = Column(String(200), nullable=True, index=True)
+    form = Column(String(300), nullable=True, index=True)
+    dosage = Column(String(200), nullable=True)
+    pack_qty = Column(String(100), nullable=True)
+    price = Column(Float, nullable=True, index=True)
+    price_discount = Column(Float, nullable=True)
+    url = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)
+    extra_json = Column(Text, nullable=True)
+    scraped_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, index=True,
+    )
+
+
+class PharmacySourceRun(Base):
+    __tablename__ = "pharmacy_source_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source = Column(String(50), nullable=False, index=True)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    finished_at = Column(DateTime, nullable=True)
+    status = Column(String(20), nullable=False, default="running")
+    items_count = Column(Integer, nullable=False, default=0)
+    error = Column(Text, nullable=True)

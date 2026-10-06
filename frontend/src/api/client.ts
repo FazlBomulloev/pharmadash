@@ -20,6 +20,11 @@ import type {
   RecanonicalizeResponse,
   ProducerDetails,
   CountryDetails,
+  PharmacySource,
+  PharmacySourceRun,
+  PharmacyPricesResponse,
+  PharmacyPricesQuery,
+  PharmacyFiltersResponse,
 } from "../types/api";
 
 const api = axios.create({ baseURL: "/api" });
@@ -289,5 +294,48 @@ export async function getCountryDetails(
     ? `/markets/${marketId}/mnn/${encodeURIComponent(mnn)}/country/${encodeURIComponent(name)}`
     : `/markets/${marketId}/country/${encodeURIComponent(name)}`;
   const { data } = await api.get<CountryDetails>(url);
+  return data;
+}
+
+// ─────────────────── Pharmacies (БДЦ) ───────────────────
+
+export async function getPharmacySources(): Promise<PharmacySource[]> {
+  const { data } = await api.get<PharmacySource[]>("/pharmacies");
+  return data;
+}
+
+export async function triggerPharmacyRun(
+  slug: string, limit?: number,
+): Promise<{ ok: boolean; launched: boolean }> {
+  const params: Record<string, number> = {};
+  if (limit != null) params.limit = limit;
+  const { data } = await api.post(`/pharmacies/${slug}/run`, null, { params });
+  return data;
+}
+
+export async function getPharmacyRuns(
+  slug: string, limit = 10,
+): Promise<PharmacySourceRun[]> {
+  const { data } = await api.get(`/pharmacies/${slug}/runs`, {
+    params: { limit },
+  });
+  return data;
+}
+
+export async function getPharmacyPrices(
+  query: PharmacyPricesQuery = {},
+): Promise<PharmacyPricesResponse> {
+  const params: Record<string, string | number> = {};
+  Object.entries(query).forEach(([k, v]) => {
+    if (v != null && v !== "") params[k] = v as string | number;
+  });
+  const { data } = await api.get<PharmacyPricesResponse>("/pharmacies/prices", {
+    params,
+  });
+  return data;
+}
+
+export async function getPharmacyFilters(): Promise<PharmacyFiltersResponse> {
+  const { data } = await api.get<PharmacyFiltersResponse>("/pharmacies/filters");
   return data;
 }

@@ -4,6 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from backend.database import init_db
+from backend.services.pharmacies.scheduler import (
+    start_scheduler, stop_scheduler,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,7 +19,9 @@ log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     log.info("Запуск PharmDash API")
     await init_db()
+    start_scheduler()
     yield
+    stop_scheduler()
     log.info("Остановка PharmDash API")
 
 
@@ -50,7 +55,7 @@ async def timing_middleware(request: Request, call_next):
 
 from backend.routers import (  # noqa: E402
     markets, dashboard, references, dictionary, overview,
-    drilldown,
+    drilldown, pharmacies,
 )
 
 app.include_router(markets.router, prefix="/api")
@@ -59,3 +64,4 @@ app.include_router(references.router, prefix="/api")
 app.include_router(dictionary.router, prefix="/api")
 app.include_router(overview.router, prefix="/api")
 app.include_router(drilldown.router, prefix="/api")
+app.include_router(pharmacies.router, prefix="/api")

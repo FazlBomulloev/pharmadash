@@ -29,6 +29,7 @@ _MIGRATIONS = [
     ("markets", "fx_rate_usd_rub", "FLOAT"),
     ("markets", "fx_rate_date", "DATE"),
     ("pc_entry", "pack_qty_parsed", "FLOAT"),
+    ("pharmacy_prices", "image_url", "TEXT"),
 ]
 
 
@@ -56,4 +57,15 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _apply_migrations(conn)
+        # осиротевшие запуски парсеров (сервер упал/перезапустился в
+        # разгар работы) помечаем как error, чтобы в UI не висело "running"
+        await conn.execute(
+            text(
+                "UPDATE pharmacy_source_runs "
+                "SET status = 'error', "
+                "    finished_at = CURRENT_TIMESTAMP, "
+                "    error = COALESCE(error, 'Прервано при перезапуске сервера') "
+                "WHERE status = 'running'"
+            )
+        )
     log.info("База данных инициализирована")
