@@ -2,7 +2,6 @@ import clsx from "clsx";
 import { fmtInt } from "../../lib/format";
 import { Segmented } from "./Segmented";
 
-/** Номера страниц: первая, текущая ±1, последняя и «…» между ними. */
 function pageWindow(page: number, pages: number): (number | "gap")[] {
   const wanted = new Set([1, pages, page - 1, page, page + 1]);
   const list = [...wanted]
@@ -16,7 +15,6 @@ function pageWindow(page: number, pages: number): (number | "gap")[] {
   return out;
 }
 
-/** Подвал таблицы с серверной пагинацией. */
 export function Pagination({
   page, pageSize, total, sizes = [15, 30, 50], onPage, onPageSize,
 }: {

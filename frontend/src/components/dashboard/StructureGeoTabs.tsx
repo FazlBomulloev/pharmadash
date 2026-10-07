@@ -18,8 +18,6 @@ const HOSPITAL = "oklch(0.72 0.14 60)";
 const FORM_HUES = [268, 195, 155, 45, 300, 20, 230, 100];
 const REGIONS_COLLAPSED = 8;
 
-// ─────────────────────────── Структура ───────────────────────────
-
 export function StructureTab({
   data, t,
 }: {
@@ -123,7 +121,6 @@ function BrandGeneric({
         ? "Преимущественно генерик · до 40% бренд"
         : "Смешанный портфель · 40–60% бренд";
 
-  // Сдвиг доли бренда между первым и последним годом с данными.
   const known = bg.bg_share_by_year
     .map((share, i) => ({ share, year: years[i] }))
     .filter((p): p is { share: number; year: number } =>
@@ -292,8 +289,6 @@ function SectorFigure({
     </span>
   );
 }
-
-// ─────────────────────────── География ───────────────────────────
 
 type GeoMode = "usd" | "un";
 

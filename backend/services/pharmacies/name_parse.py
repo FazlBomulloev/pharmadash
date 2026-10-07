@@ -1,9 +1,3 @@
-"""Разбор названия аптечного товара: форма выпуска, дозировка, фасовка.
-
-Каталожные списки аптек отдают эти поля только внутри названия
-(«Нурофен таблетки покрыт.плен.об. 200 мг 20 шт»). Разбор названия
-позволяет не открывать страницу каждого товара.
-"""
 from __future__ import annotations
 
 import re
@@ -14,7 +8,6 @@ _DOSE_RE = re.compile(
 )
 _PACK_RE = re.compile(r"(\d+)\s*шт", re.IGNORECASE)
 
-# Начала слов, с которых в названии начинается форма выпуска.
 _FORM_STEMS = (
     "таблет", "табл", "капсул", "капс", "раствор", "р-р", "порош", "мазь",
     "гель", "крем", "спрей", "капли", "сироп", "суппозитор", "свечи",
@@ -30,21 +23,16 @@ _FORM_RE = re.compile(
 
 
 def parse_dosage(name: str) -> str:
-    """Первая дозировка в названии: «200 мг», «0,05 %», «100 мг/мл»."""
     match = _DOSE_RE.search(name or "")
     return match.group(1).strip() if match else ""
 
 
 def parse_pack_qty(name: str) -> str:
-    """Количество в упаковке: «20» из «… 20 шт»."""
     match = _PACK_RE.search(name or "")
     return match.group(1) if match else ""
 
 
 def parse_form(name: str) -> str:
-    """Форма выпуска: от первого слова-формы до первой цифры.
-    «Нурофен таблетки покрыт.плен.об. 200 мг 20 шт» → «таблетки
-    покрыт.плен.об.»."""
     text = (name or "").replace("\xa0", " ")
     match = _FORM_RE.search(text)
     if not match:
@@ -56,8 +44,6 @@ def parse_form(name: str) -> str:
 
 
 def parse_trade_name(name: str) -> str:
-    """Торговое название: часть названия до формы выпуска (или до первой
-    цифры, если форма не распознана)."""
     text = (name or "").replace("\xa0", " ").strip()
     form = _FORM_RE.search(text)
     digit = re.search(r"\d", text)

@@ -52,7 +52,6 @@ function writeUrl(s: UrlState): Record<string, string> {
   return out;
 }
 
-/** Открыта одна панель: страны или производителя. */
 type Panel =
   | { kind: "country"; name: string }
   | { kind: "producer"; name: string; isHome: boolean }

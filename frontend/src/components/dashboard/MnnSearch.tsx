@@ -8,29 +8,22 @@ import { fmtScore, fmtUsd } from "../../lib/format";
 import { CATEGORY_COLOR } from "../../lib/palette";
 import { Autocomplete } from "../ui/Autocomplete";
 
-/**
- * Поиск МНН с автокомплитом из БДП. В пустом поле — лучшие по скорингу,
- * при вводе — поиск по названию или началу класса ATC.
- */
 export function MnnSearch({
   marketId, value, onChange,
 }: {
   marketId: number;
-  /** Выбранный МНН ("" — не выбран). */
   value: string;
   onChange: (mnn: string) => void;
 }) {
   const [query, setQuery] = useState(value);
   const [focused, setFocused] = useState(false);
 
-  // Выбранный МНН сменился снаружи (ссылка, история) — поле следует за ним.
   const [seenValue, setSeenValue] = useState(value);
   if (seenValue !== value) {
     setSeenValue(value);
     setQuery(value);
   }
 
-  // Текст равен выбранному МНН — показываем лучших, а не один пункт.
   const typed = query.trim() === value.trim() ? "" : query.trim();
   const debounced = useDebounce(typed, 180);
   const { data } = useFetch<MnnSuggestion[]>(
@@ -101,7 +94,6 @@ export function MnnSearch({
             }}
             onBlur={() => {
               setFocused(false);
-              // незавершённый ввод не подменяет выбранный МНН
               setQuery(value);
               input.onBlur();
             }}

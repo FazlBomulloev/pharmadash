@@ -17,12 +17,9 @@ from .name_parse import (
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://ozerki.ru"
-# Список категории в выбранном регионе: цены и наличие — региональные.
 LISTING_TPL = BASE_URL + "/_next/data/{build_id}/{region}/catalog/{slug}.json"
 REGION = os.getenv("OZERKI_REGION", "sankt-peterburg")
 MAX_RETRIES = 4
-# Список категории уже содержит цену, МНН, бренд, производителя, страну и
-# фото, поэтому страницы товаров не открываем: ~400 запросов вместо ~12 000.
 CONCURRENCY = 8
 REQUEST_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
 ROOT_SLUG = "lekarstvennye-i-profilakticheskie-sredstva"
@@ -118,7 +115,6 @@ class OzerkiAdapter(PharmacyAdapter):
                         )
                         return {}
 
-            # Первая страница каждой категории сообщает число страниц.
             first_pages = await asyncio.gather(
                 *(page(slug, 1) for slug in categories),
             )
@@ -189,7 +185,6 @@ class OzerkiAdapter(PharmacyAdapter):
             return 1
 
     def _extract_product(self, p: dict) -> PharmacyProduct | None:
-        """Товар из элемента списка категории."""
         product_id = p.get("productId")
         if not product_id:
             return None

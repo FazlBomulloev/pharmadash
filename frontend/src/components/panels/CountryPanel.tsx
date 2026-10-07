@@ -18,10 +18,6 @@ const THIN_BAR = "oklch(0.72 0.09 262)";
 
 type Tab = "producers" | "mnn";
 
-/**
- * Панель страны производства. Без `mnn` — в масштабе всего рынка
- * (с портфелем МНН), с `mnn` — внутри выбранного МНН.
- */
 export function CountryPanel({
   marketId, country, mnn, onClose,
 }: {

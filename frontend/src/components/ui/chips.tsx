@@ -7,15 +7,12 @@ import {
 } from "../../lib/palette";
 import { CATEGORY_LABEL } from "../scoring/meta";
 
-/** Пилюля роста. pill — крупная, table — компактная для таблиц. */
 export function GrowthChip({
   value, onInk = false, size = "pill", suffix, className,
 }: {
   value: number | null | undefined;
-  /** На тёмном hero. */
   onInk?: boolean;
   size?: "pill" | "table";
-  /** Текст после значения, например «г/г». */
   suffix?: string;
   className?: string;
 }) {
@@ -52,7 +49,6 @@ export function GrowthChip({
   );
 }
 
-/** Двухбуквенный код страны на фоне её оттенка. */
 export function CountryChip({
   country, isHome = false, className,
 }: {
@@ -74,7 +70,6 @@ export function CountryChip({
   );
 }
 
-/** Категория скоринга. solid — заливка цветом, soft — светлая подложка. */
 export function CategoryPill({
   category, variant = "soft", dot = false, className,
 }: {
@@ -107,7 +102,6 @@ export function CategoryPill({
   );
 }
 
-/** Класс ATC — чип оттенком класса. */
 export function AtcChip({
   cls, className,
 }: {
@@ -128,7 +122,6 @@ export function AtcChip({
   );
 }
 
-/** Произвольная пилюля-бейдж. */
 export function Pill({
   children, style, className,
 }: {

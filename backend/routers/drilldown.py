@@ -1,14 +1,3 @@
-"""Drill-down эндпоинты по производителю и стране производства.
-
-Четыре endpoint'а:
-  1. GET /markets/{market_id}/producer/{producer_name}
-  2. GET /markets/{market_id}/mnn/{mnn}/producer/{producer_name}
-  3. GET /markets/{market_id}/country/{country_name}
-  4. GET /markets/{market_id}/mnn/{mnn}/country/{country_name}
-
-Оптимизация: не тянем всё БДП рынка. WHERE-фильтр по producer/country/mnn
-в SQL, выбираем только нужные колонки (не ORM instances).
-"""
 import json
 import logging
 from collections import defaultdict
@@ -26,9 +15,6 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["drilldown"])
 
 
-# Набор колонок, нужных builder-ам. Не тянем ORM instance (20+ колонок,
-# hydrate 51K объектов — это и есть тормоз). Row поддерживает
-# attribute access, поэтому builders работают без изменений.
 BDP_COLS = (
     BdpRaw.mnn,
     BdpRaw.tm,
@@ -44,8 +30,6 @@ BDP_COLS = (
     BdpRaw.un_y1, BdpRaw.un_y2, BdpRaw.un_y3,
 )
 
-
-# ────────────────────── helpers ──────────────────────
 
 def _safe_div(num: float, den: float) -> float | None:
     return num / den if den else None
@@ -89,8 +73,6 @@ def _years_labels(market: Market) -> list[str]:
     years = json.loads(market.years_json)
     return [str(y) for y in sorted(years)[-3:]]
 
-
-# ────────────────────── loaders (SQL-filtered, only needed cols) ──────────────────────
 
 async def _load_producer_items(
     db: AsyncSession, market_id: int, producer_name: str,
@@ -156,8 +138,6 @@ async def _market_totals_3y(
 async def _mnn_competitors_map(
     db: AsyncSession, market_id: int,
 ) -> dict[str, int]:
-    """MNN (as stored) → count distinct producers на этом МНН.
-    Один aggregate SQL — быстрее чем python-loop над всем БДП."""
     mnn_expr = BdpRaw.mnn.label("m")
     result = await db.execute(
         select(
@@ -169,8 +149,6 @@ async def _mnn_competitors_map(
     )
     return {row.m: int(row.c) for row in result.all()}
 
-
-# ────────────────────── producer builders ──────────────────────
 
 def _producer_kpi(
     items: Sequence[Any],
@@ -221,11 +199,6 @@ def _producer_mnn_portfolio(
     market_mnn_competitors: dict[str, int],
     market_total_usd_y3: float,
 ) -> list[dict]:
-    """Разбивка производителя по МНН (только market-scope).
-    Каждая строка включает топ-1 ТМ и форму этого производителя внутри
-    данного МНН, плюс BG/G-флаг по агрегированному USD.
-    competitors_in_mnn берётся из pre-computed aggregate по всему рынку.
-    """
     producer_total_y3 = sum(i.usd_y3 for i in items)
 
     mnn_data: dict[str, dict] = defaultdict(
@@ -381,7 +354,6 @@ def _producer_top_regions(items: Sequence[Any]) -> list[dict]:
 
 
 def _producer_atc_breakdown(items: Sequence[Any]) -> list[dict]:
-    """Классы ATC в портфеле производителя по USD последнего года."""
     total = sum(i.usd_y3 for i in items)
     atc_usd: dict[str, float] = defaultdict(float)
     for i in items:
@@ -398,7 +370,6 @@ def _producer_atc_breakdown(items: Sequence[Any]) -> list[dict]:
 async def _producer_rank(
     db: AsyncSession, market_id: int, producer_usd_y3: float,
 ) -> int:
-    """Место производителя на рынке по USD последнего года."""
     totals = (
         select(func.sum(BdpRaw.usd_y3).label("usd"))
         .where(BdpRaw.market_id == market_id)
@@ -411,8 +382,6 @@ async def _producer_rank(
     )).scalar() or 0
     return int(ahead) + 1
 
-
-# ────────────────────── country builders ──────────────────────
 
 def _country_kpi(
     items: Sequence[Any],
@@ -562,8 +531,6 @@ def _country_forms_breakdown(items: Sequence[Any]) -> list[dict]:
     return result
 
 
-# ────────────────────── endpoints: producer ──────────────────────
-
 @router.get("/{market_id}/producer/{producer_name}")
 async def producer_market_scope(
     market_id: int,
@@ -645,8 +612,6 @@ async def producer_mnn_scope(
         "top_regions": _producer_top_regions(items),
     }
 
-
-# ────────────────────── endpoints: country ──────────────────────
 
 @router.get("/{market_id}/country/{country_name}")
 async def country_market_scope(

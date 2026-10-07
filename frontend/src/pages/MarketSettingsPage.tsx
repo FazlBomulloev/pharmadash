@@ -40,7 +40,6 @@ const ZONES = [
   { key: "miss" as const, label: "Мимо" },
 ];
 
-/** Сколько параметров отличается от сохранённой версии. */
 function countChanges(form: ScoringSettings, base: ScoringSettings): number {
   let n = 0;
   CRITERIA.forEach((c) => {
@@ -82,7 +81,6 @@ export default function MarketSettingsPage() {
   }
   return (
     <Editor
-      // сохранённая версия сменилась — черновик начинается с неё
       key={JSON.stringify(loaded.data.settings)}
       id={id}
       meta={loaded.data}
@@ -109,7 +107,6 @@ function Editor({
   const valid = isValid(form);
   const differsFromDefaults = countChanges(form, meta.defaults) > 0;
 
-  // Предпросмотр: пересчёт зон и стоп-фильтров по черновику без сохранения.
   const draft = useDebounce(form, 400);
   const draftValid = isValid(draft);
   const preview = useFetch(
@@ -137,7 +134,6 @@ function Editor({
     patch({ weights: { ...form.weights, [key]: value } });
   }
 
-  // Пороги не пересекаются: ползунок подтягивает соседний.
   function setWatch(value: number) {
     patch({
       thresholds: {
@@ -193,7 +189,6 @@ function Editor({
         </Link>
       </PageHeader>
 
-      {/* ───────── Веса ───────── */}
       <Card index={0} className="flex flex-col gap-1.5 px-6!">
         <div className="flex flex-wrap items-baseline justify-between gap-3 pb-2.5">
           <span className="text-[17px] font-semibold tracking-[-0.01em]">
@@ -274,7 +269,6 @@ function Editor({
         )}
       </Card>
 
-      {/* ───────── Пороги ───────── */}
       <Card index={1} className="flex flex-col gap-5 px-6!">
         <SectionHead
           title="Пороги категорий"
@@ -323,7 +317,6 @@ function Editor({
         )}
       </Card>
 
-      {/* ───────── Стоп-фильтры ───────── */}
       <Card index={2} className="flex flex-col gap-[18px] px-6!">
         <SectionHead
           title="Стоп-фильтры"
@@ -373,7 +366,6 @@ function Editor({
         </div>
       </Card>
 
-      {/* ───────── Отечественный рынок ───────── */}
       <Card index={3} className="flex flex-col gap-3.5 px-6!">
         <SectionHead
           title="Отечественный рынок"
@@ -491,7 +483,6 @@ function ThresholdSlider({
   );
 }
 
-/** Чипсы стран и поле добавления с автокомплитом по странам БДП рынка. */
 function HomeCountries({
   value, options, onChange,
 }: {
@@ -538,7 +529,6 @@ function HomeCountries({
         items={suggestions}
         itemKey={(o) => o.value}
         onPick={(o) => {
-          // значение хранится как в БДП — с ним сопоставляется скоринг
           onChange([...value, o.value]);
           setQuery("");
         }}

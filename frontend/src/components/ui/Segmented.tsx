@@ -6,7 +6,6 @@ export interface SegmentOption<T extends string | number> {
   label: ReactNode;
 }
 
-/** Сегмент-контрол. dark — вариант для тёмного hero. */
 export function Segmented<T extends string | number>({
   options, value, onChange, dark = false, size = "md", className, ariaLabel,
 }: {

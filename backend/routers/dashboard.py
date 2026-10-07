@@ -30,7 +30,6 @@ from backend.services.year_shift import (
 
 
 def _gini(values: list[float]) -> float | None:
-    """Коэффициент Джини на положительных значениях. None если <2 точек."""
     pos = [v for v in values if v > 0]
     n = len(pos)
     if n < 2:
@@ -47,10 +46,6 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["dashboard"])
 
 
-# ────────────────────── dashboard cache ──────────────────────
-# Полный ответ /dashboard/{mnn}?lf&dose кешируется на 10 минут
-# как готовые JSON-байты (обходит Pydantic-валидацию при попадании
-# в кеш). Инвалидируется через invalidate_dashboard_cache(market_id).
 _DASHBOARD_CACHE: dict[tuple, tuple[float, bytes]] = {}
 _DASHBOARD_CACHE_TTL_SEC = 600
 
@@ -101,8 +96,6 @@ async def mnn_suggest(
     limit: int = Query(SUGGEST_LIMIT, ge=1, le=20),
     db: AsyncSession = Depends(get_db),
 ):
-    """Автокомплит МНН по БДП с баллом скоринга; при пустом q —
-    лучшие по баллу."""
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
@@ -183,7 +176,6 @@ async def dashboard(
 
     raw_selection = _selection(all_items)
 
-    # Сдвигаем окно годов если выбран не последний год.
     all_items = shift_items(all_items, year_idx)
     items = _selection(all_items)
 
@@ -195,7 +187,6 @@ async def dashboard(
     )
 
     zone1 = _build_zone1(items, shifted_year_list)
-    # продажи по годам без сдвига окна — для графика в hero
     zone1["series"] = {
         "years": years[:3],
         "usd": [sum(getattr(i, f"usd_y{k}") for i in raw_selection)
@@ -204,8 +195,6 @@ async def dashboard(
                for k in (1, 2, 3)],
     }
     zone2 = _build_zone2(items, all_items)
-    # Скоринг считается по всей выборке рынка с тем же фильтром
-    # ЛФ/дозировки; из неё берём строку текущего МНН.
     scoring = await get_market_scoring(db, market, lf, dose)
     zone3 = {
         "item": scoring["by_mnn"].get(real_mnn),
@@ -305,8 +294,6 @@ TMS_PER_PRODUCER = 6
 
 
 def _top_movers(producer_data: dict[str, dict]) -> list[dict]:
-    """Производители с наибольшим |Δ USD| к прошлому году,
-    от наибольшего роста к наибольшему падению."""
     everyone = len(producer_data)
     rows = build_movers(producer_data, up=everyone, down=everyone)
     rows.sort(key=lambda r: -abs(r["delta"]))
@@ -316,7 +303,6 @@ def _top_movers(producer_data: dict[str, dict]) -> list[dict]:
 
 
 def _producer_tms(tms: dict[str, dict], producer_usd: float) -> list[dict]:
-    """Торговые марки производителя внутри МНН с долей в его продажах."""
     ranked = sorted(tms.items(), key=lambda x: (-x[1]["usd"], x[0]))
     return [
         {
@@ -485,7 +471,6 @@ def _build_zone2(items, all_items=None) -> dict:
         )[:10]
     ]
 
-    # ─── Концентрация по формам (по всему МНН, без lf/dose-фильтра) ───
     base_items = all_items if all_items is not None else items
     forms_groups: dict[str, list] = defaultdict(list)
     for it in base_items:
@@ -532,7 +517,6 @@ def _build_zone2(items, all_items=None) -> dict:
         key=lambda x: x["usd_total"], reverse=True,
     )
 
-    # ─── Региональная концентрация (Gini) ───
     region_usd: dict[str, float] = defaultdict(float)
     for i in items:
         if i.region:
@@ -554,7 +538,6 @@ def _build_zone2(items, all_items=None) -> dict:
         "regions_count": len(region_usd),
     } if len(region_usd) >= 2 else None
 
-    # ─── БГ vs Г разрез: динамика Y1→Y3 + ASP по годам + gap ───
     bg = {"usd": [0.0, 0.0, 0.0], "un": [0.0, 0.0, 0.0]}
     g = {"usd": [0.0, 0.0, 0.0], "un": [0.0, 0.0, 0.0]}
     for i in items:

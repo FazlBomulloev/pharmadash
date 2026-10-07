@@ -16,18 +16,15 @@ function inkTone(v: number | null | undefined) {
   return v != null && v < 0 ? NEG_ON_INK : POS_ON_INK;
 }
 
-/** Тёмный hero обзора: главный показатель, 4 метрики и график по годам. */
 export function OverviewHero({
   volume, scopeNote, mode, onMode, selectedYear, onYear, t,
 }: {
   volume: OverviewVolume;
-  /** «все секторы · 2024». */
   scopeNote: string;
   mode: HeroMode;
   onMode: (mode: HeroMode) => void;
   selectedYear: number | null;
   onYear: (year: number) => void;
-  /** Прогресс появления 0…1 (count-up и прорисовка графика). */
   t: number;
 }) {
   const isUsd = mode === "usd";

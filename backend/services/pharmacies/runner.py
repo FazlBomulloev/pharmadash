@@ -19,7 +19,6 @@ from .registry import get_adapter
 
 log = logging.getLogger(__name__)
 
-# slug → процесс-воркер, запущенный из этого процесса API
 _active_runs: dict[str, subprocess.Popen] = {}
 _locks: dict[str, asyncio.Lock] = {}
 BATCH_SIZE = 500
@@ -46,8 +45,6 @@ def is_running(slug: str) -> bool:
 async def run_source(
     slug: str, limit: Optional[int] = None,
 ) -> int:
-    """Snapshot-обновление: очищает старые записи источника, кладёт свежие.
-    Возвращает количество загруженных товаров."""
     async with _lock(slug):
         adapter_cls = get_adapter(slug)
         adapter = adapter_cls(limit=limit)
@@ -132,8 +129,6 @@ async def _flush(db: AsyncSession, rows: list[dict]) -> None:
 
 
 def _worker_flags() -> int:
-    """На Windows воркер идёт с пониженным приоритетом и без окна консоли,
-    чтобы API получал процессор первым."""
     if sys.platform != "win32":
         return 0
     return subprocess.BELOW_NORMAL_PRIORITY_CLASS | subprocess.CREATE_NO_WINDOW
@@ -142,12 +137,10 @@ def _worker_flags() -> int:
 def launch_background(
     slug: str, limit: Optional[int] = None,
 ) -> bool:
-    """Запустить обновление в отдельном процессе (см. worker.py).
-    Возвращает False, если уже идёт."""
     if is_running(slug):
         return False
 
-    get_adapter(slug)  # неизвестный источник — KeyError до запуска процесса
+    get_adapter(slug)
     command = [sys.executable, "-m", WORKER_MODULE, slug]
     if limit is not None:
         command += ["--limit", str(limit)]

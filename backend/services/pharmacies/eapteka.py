@@ -24,9 +24,6 @@ CATEGORY_URLS = (
     f"/{REGION}/goods/drugs/",
     f"/{REGION}/goods/vitaminy_i_bad/",
 )
-# Карточка в списке категории уже содержит цену, производителя, МНН и
-# фото, поэтому страницы товаров не открываем: ~700 страниц списка вместо
-# ~13 500 страниц товаров по мегабайту каждая.
 CONCURRENCY = 8
 BATCH_SIZE = 40
 REQUEST_TIMEOUT = 40
@@ -62,8 +59,6 @@ _PAGES_RE = re.compile(r"PAGEN_1=(\d+)")
 
 
 async def _fetch(client: httpx.AsyncClient, url: str) -> str | None:
-    """HTML страницы или None. Клиент — httpx: запросы через aiohttp сайт
-    отклоняет антибот-заглушкой (HTTP 503) при тех же заголовках."""
     for attempt in range(MAX_RETRIES):
         try:
             resp = await client.get(url)
@@ -106,7 +101,6 @@ def _parse_price(text: str | None) -> float | None:
 
 
 def _clean(fragment: str | None) -> str:
-    """Текст из HTML-фрагмента: без тегов, сущностей и лишних пробелов."""
     if not fragment:
         return ""
     text = html_lib.unescape(re.sub(r"<[^>]+>", " ", fragment))
@@ -114,7 +108,6 @@ def _clean(fragment: str | None) -> str:
 
 
 def parse_listing(page_html: str) -> list[PharmacyProduct]:
-    """Товары со страницы списка категории."""
     products: list[PharmacyProduct] = []
     for card in _CARD_SPLIT_RE.split(page_html)[1:]:
         product = _parse_card(card)
@@ -170,7 +163,6 @@ def _parse_card(card: str) -> PharmacyProduct | None:
         form=parse_form(name),
         dosage=parse_dosage(name),
         pack_qty=parse_pack_qty(name),
-        # цена без скидки — основная; со скидкой — отдельным полем
         price=old if old is not None else current,
         price_discount=current if old is not None else None,
         url=BASE_URL + href.group(1),
@@ -207,7 +199,6 @@ class EaptekaAdapter(PharmacyAdapter):
                     )
 
             def fresh(page_html: str | None) -> list[PharmacyProduct]:
-                """Товары страницы, которых ещё не было."""
                 result = []
                 for product in parse_listing(page_html or ""):
                     if product.sku not in seen:

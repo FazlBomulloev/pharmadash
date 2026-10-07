@@ -42,7 +42,6 @@ export const STOP_REASON_LABEL: Record<StopReason, string> = {
   max_producers: "Много производителей",
 };
 
-/** Сырое значение метрики, из которой получен балл критерия. */
 export function criterionValue(item: ScoringItem, key: ScoringCriterion): string {
   switch (key) {
     case "volume":
@@ -82,7 +81,6 @@ export function criterionValue(item: ScoringItem, key: ScoringCriterion): string
   }
 }
 
-/** Вклад критерия в сырой итог (0…100) и сумма вкладов. */
 export function contributions(
   item: ScoringItem, weights: Record<ScoringCriterion, number>,
 ) {
@@ -92,7 +90,6 @@ export function contributions(
     score: item.scores[c.key],
     weight: weights[c.key],
     contribution: (item.scores[c.key] * weights[c.key]) / weightSum * 100,
-    /** Максимально возможный вклад критерия. */
     ceiling: (weights[c.key] / weightSum) * 100,
   }));
   return { rows, raw: rows.reduce((s, r) => s + r.contribution, 0) };

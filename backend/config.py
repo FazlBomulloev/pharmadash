@@ -10,6 +10,5 @@ DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# Порог активного конкурента: max(MIN_COMPETITOR_USD, COMPETITOR_PCT * total)
 MIN_COMPETITOR_USD = 10_000
 COMPETITOR_PCT = 0.001

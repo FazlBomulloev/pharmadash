@@ -4,11 +4,6 @@ import {
 import clsx from "clsx";
 import { useOutsideClose } from "../../hooks/useDismiss";
 
-/**
- * Поле с выпадающими подсказками. Открывается при фокусе, ↑/↓ — навигация,
- * Enter — выбрать, Esc — закрыть. Свободный ввод не принимается: выбрать
- * можно только пункт из списка.
- */
 export function Autocomplete<T>({
   query, onQuery, items, itemKey, renderItem, onPick, header, emptyText,
   children, className, menuClassName,
@@ -19,10 +14,8 @@ export function Autocomplete<T>({
   itemKey: (item: T) => string;
   renderItem: (item: T) => ReactNode;
   onPick: (item: T) => void;
-  /** Серый подзаголовок списка. */
   header?: ReactNode;
   emptyText: string;
-  /** Рендер поля ввода: получает пропсы для <input>. */
   children: (input: {
     value: string;
     onChange: (e: { target: { value: string } }) => void;
@@ -43,7 +36,6 @@ export function Autocomplete<T>({
   const [highlight, setHighlight] = useState(0);
   const ref = useOutsideClose<HTMLDivElement>(open, () => setOpen(false));
 
-  // Список сменился — подсветка возвращается к первому пункту.
   const [seenItems, setSeenItems] = useState(items);
   if (seenItems !== items) {
     setSeenItems(items);
@@ -119,7 +111,6 @@ export function Autocomplete<T>({
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === highlight}
-              // mousedown + preventDefault: поле не теряет фокус при клике
               onMouseDown={(e) => {
                 e.preventDefault();
                 pick(item);

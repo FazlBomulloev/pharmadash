@@ -6,26 +6,19 @@ import { useOutsideClose } from "../../hooks/useDismiss";
 export interface SelectOption {
   value: string;
   label: string;
-  /** Серая подпись справа (доля, количество). */
   hint?: ReactNode;
 }
 
 const SEARCH_FROM = 12;
 
-/**
- * Кнопка-селект с выпадающим меню. Пустое значение ("") — пункт «все».
- * При длинном списке в меню появляется строка поиска.
- */
 export function Select({
   label, value, options, onChange, allLabel, align = "left", width = 260,
   maxLabelWidth = 220, className,
 }: {
-  /** Серый ключ перед значением: «Форма», «Доза». */
   label?: string;
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
-  /** Подпись пункта без фильтра; без неё пустого пункта нет. */
   allLabel?: string;
   align?: "left" | "right";
   width?: number;

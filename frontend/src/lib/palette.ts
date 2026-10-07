@@ -1,7 +1,5 @@
-/** Палитры данных: классы ATC, страны, аптеки, категории и баллы скоринга. */
 import type { ScoringCategory } from "../types/api";
 
-/** Детерминированный оттенок 0…359 по строке. */
 export function hashHue(name: string): number {
   let h = 0;
   for (let i = 0; i < name.length; i += 1) {
@@ -10,12 +8,9 @@ export function hashHue(name: string): number {
   return h;
 }
 
-// ─────────────── Классы ATC ───────────────
-
 const ATC_HUES = [268, 355, 155, 300, 45, 230, 100, 20, 195, 130];
 const atcHueCache = new Map<string, number>();
 
-/** Оттенок класса: в БДП класс — название («ОНКО», «КАРДИО»). */
 export function atcHue(cls: string | null | undefined): number {
   const key = (cls ?? "").trim().toUpperCase();
   let hue = atcHueCache.get(key);
@@ -29,15 +24,12 @@ export function atcHue(cls: string | null | undefined): number {
 export const atcColor = (cls: string | null | undefined) =>
   `oklch(0.56 0.15 ${atcHue(cls)})`;
 
-/** Чип на светлом фоне: фон и текст одного оттенка. */
 export function tintChip(hue: number) {
   return {
     background: `oklch(0.95 0.035 ${hue})`,
     color: `oklch(0.38 0.1 ${hue})`,
   };
 }
-
-// ─────────────── Страны ───────────────
 
 const COUNTRIES: Record<string, [code: string, hue: number]> = {
   "РОССИЯ": ["RU", 20],
@@ -89,7 +81,6 @@ export interface CountryMeta {
   hue: number;
 }
 
-/** Двухбуквенный код и оттенок страны; для неизвестных — хеш названия. */
 export function countryMeta(
   name: string | null | undefined, isHome = false,
 ): CountryMeta {
@@ -109,16 +100,11 @@ export function countryChip(hue: number) {
   };
 }
 
-// ─────────────── Аптеки ───────────────
-
 const PHARMACY_HUES = [262, 155, 45, 320, 195, 20];
 
-/** Оттенок аптеки по её порядку в списке источников. */
 export function pharmacyHue(index: number): number {
   return PHARMACY_HUES[Math.max(0, index) % PHARMACY_HUES.length];
 }
-
-// ─────────────── Категории скоринга ───────────────
 
 export const CATEGORY_COLOR: Record<
   ScoringCategory, { bg: string; fg: string; tint: string; ink: string }
@@ -141,9 +127,6 @@ export const CATEGORY_COLOR: Record<
   },
 };
 
-// ─────────────── Тепловые шкалы ───────────────
-
-/** Последовательная шкала индиго по доле: t = min(v / max, 1). */
 export function heatIndigo(value: number, max = 25) {
   const t = Math.min(Math.max(value, 0) / max, 1);
   const l = 0.97 - 0.52 * t;
@@ -154,7 +137,6 @@ export function heatIndigo(value: number, max = 25) {
   };
 }
 
-/** Балл критерия 0…1: зелёный / янтарный / красный. */
 export function scoreTone(v: number) {
   if (v >= 0.75) {
     return {
@@ -174,21 +156,17 @@ export function scoreTone(v: number) {
   };
 }
 
-// ─────────────── Рост / падение ───────────────
-
 export const POS = "oklch(0.52 0.13 155)";
 export const NEG = "oklch(0.55 0.18 25)";
 export const POS_BAR = "oklch(0.62 0.15 155)";
 export const NEG_BAR = "oklch(0.62 0.19 25)";
 export const MUTED = "#8b8f97";
 
-/** Цвет текста роста: зелёный, красный или серый для пустого значения. */
 export function growthTone(v: number | null | undefined): string {
   if (v == null || v === 0) return MUTED;
   return v > 0 ? POS : NEG;
 }
 
-/** Уровень концентрации по HHI (0…10000). */
 export function hhiLevel(hhi: number | null | undefined) {
   if (hhi == null) return null;
   if (hhi < 1500) {

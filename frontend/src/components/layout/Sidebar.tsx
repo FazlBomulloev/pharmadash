@@ -32,8 +32,6 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const [markets, setMarkets] = useState<Market[]>([]);
 
-  // Список рынков перечитывается при переходах: рынок могли создать,
-  // удалить или перезагрузить на другой странице.
   const section = pathname.split("/")[1] ?? "";
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +40,6 @@ export default function Sidebar() {
         if (!cancelled) setMarkets(list);
       })
       .catch(() => {
-        /* сайдбар работает и без списка рынков */
       });
     return () => {
       cancelled = true;
@@ -54,7 +51,6 @@ export default function Sidebar() {
   return (
     <aside className="sticky top-0 flex h-(--screen-h) w-56 shrink-0 flex-col gap-6 border-r border-seg bg-sidebar px-3 py-5">
       <div className="flex flex-col gap-3">
-        {/* Логотип белый, поэтому стоит на тёмной плашке. */}
         <NavLink
           to="/"
           aria-label="Evolet — на список рынков"
@@ -121,7 +117,6 @@ function MarketSwitcher({
   const [open, setOpen] = useState(false);
   const ref = useOutsideClose<HTMLDivElement>(open, () => setOpen(false));
 
-  // Остаёмся в том же разделе при смене рынка.
   const page = pathname.split("/")[3] ?? "overview";
   const regions = current?.regions?.length ?? 0;
 

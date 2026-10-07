@@ -11,7 +11,6 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 
-# openssl нужен скрипту 40-htpasswd.sh для хеша пароля
 RUN apk add --no-cache openssl
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf

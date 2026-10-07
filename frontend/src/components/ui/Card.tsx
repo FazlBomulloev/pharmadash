@@ -3,9 +3,7 @@ import clsx from "clsx";
 import { stagger } from "../../lib/anim";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  /** Порядок в каскаде появления. */
   index?: number;
-  /** rise — появление страницы, tab — смена вкладки. */
   anim?: "rise" | "tab" | "none";
 }
 
@@ -30,7 +28,6 @@ export function CardTitle({
   children, note, right, className,
 }: {
   children: ReactNode;
-  /** Серое пояснение справа от заголовка. */
   note?: ReactNode;
   right?: ReactNode;
   className?: string;
@@ -51,7 +48,6 @@ export function CardTitle({
   );
 }
 
-/** Тёмный hero-блок наверху экрана. */
 export function DarkHero({
   index = 0, className, style, ...rest
 }: HTMLAttributes<HTMLElement> & { index?: number }) {
@@ -68,7 +64,6 @@ export function DarkHero({
   );
 }
 
-/** Шапка страницы: заголовок слева, фильтры справа. */
 export function PageHeader({
   title, subtitle, children,
 }: {

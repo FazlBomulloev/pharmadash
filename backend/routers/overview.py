@@ -1,13 +1,3 @@
-"""Обзор рынка целиком (все МНН разом).
-
-Возвращает 4 блока:
-  1. header  — шапка, счётчики
-  2. volume  — общий объём БДП
-  3. portfolio — топ МНН, топ производители, ATC, страны
-  4. decision — распределение МНН по категориям скоринга
-
-ВСЕ суммы в USD.
-"""
 import asyncio
 import json
 import logging
@@ -36,16 +26,11 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["overview"])
 
 
-# ────────────────────── overview cache ──────────────────────
-# Полный ответ кешируется по (market_id, sector, atc3).
-# Инвалидируется через invalidate_overview_cache(market_id) при любых
-# изменениях BDP этого рынка.
 _OVERVIEW_CACHE: dict[tuple, tuple[float, dict]] = {}
-_CACHE_TTL_SEC = 600  # 10 минут
+_CACHE_TTL_SEC = 600
 
 
 def invalidate_overview_cache(market_id: int | None = None) -> None:
-    """Сбросить кеш обзора. Без аргумента — весь, иначе только для рынка."""
     if market_id is None:
         _OVERVIEW_CACHE.clear()
         log.info("Кеш обзора сброшен целиком")
@@ -57,8 +42,6 @@ def invalidate_overview_cache(market_id: int | None = None) -> None:
         log.info("Кеш обзора сброшен для market_id=%d (%d ключей)",
                  market_id, len(keys))
 
-
-# ────────────────────── helpers ──────────────────────
 
 def _safe_div(num: float, den: float) -> float | None:
     return num / den if den else None
@@ -93,15 +76,11 @@ def _apply_filters(items, sector: str | None, atc3: str | None) -> list:
 
 
 def _atc3(code: str | None) -> str | None:
-    """Класс ATC как лежит в БДП — это уже название класса
-    (например, «КРОВЬ», «АНАЛЬГЕТИК»), не WHO-код. Только нормализуем."""
     if not code:
         return None
     s = code.strip().upper()
     return s or None
 
-
-# ────────────────────── builders ──────────────────────
 
 def _build_volume(items: list[BdpRaw], years: list[int]) -> dict:
     usd_y1 = sum(i.usd_y1 for i in items)
@@ -164,9 +143,6 @@ MOVERS_DOWN = 3
 def build_movers(
     deltas: dict[str, dict], up: int = MOVERS_UP, down: int = MOVERS_DOWN,
 ) -> list[dict]:
-    """«Кто двигает рынок»: лидеры роста и падения по абсолютному Δ USD
-    к прошлому году. deltas: имя → {"usd_y2", "usd_y3"}.
-    Результат отсортирован от наибольшего роста к наибольшему падению."""
     rows = [
         {"name": k, "usd": d["usd_y3"], "delta": d["usd_y3"] - d["usd_y2"]}
         for k, d in deltas.items()
@@ -179,7 +155,6 @@ def build_movers(
 
 
 def _build_series(items, years: list[int]) -> dict:
-    """Продажи по годам без сдвига окна — для графика в hero."""
     return {
         "years": years[:3],
         "usd": [
@@ -331,8 +306,6 @@ DECISION_TOP_N = 10
 
 
 def _build_decision(scoring: dict, scope_mnns: set[str]) -> dict:
-    """Сводка скоринга рынка по МНН, попавшим в текущую выборку обзора.
-    Баллы и ранги — общерыночные, фильтры обзора их не пересчитывают."""
     items = [i for i in scoring["items"] if i["mnn"] in scope_mnns]
     categories = {c: 0 for c in CATEGORIES}
     for i in items:
@@ -358,11 +331,7 @@ def _build_decision(scoring: dict, scope_mnns: set[str]) -> dict:
     }
 
 
-# ────────────────────── endpoint ──────────────────────
-
 async def _load_market_rows(db: AsyncSession, market_id: int):
-    """Грузит BDP через Core columns (lightweight Row),
-    минуя дорогую ORM-гидратацию объектов."""
     bdp_q = select(
         BdpRaw.mnn, BdpRaw.tm,
         BdpRaw.producer,
@@ -377,7 +346,6 @@ async def _load_market_rows(db: AsyncSession, market_id: int):
 
 
 def _collect_atc3_options(items) -> list[dict]:
-    """Список ATC-3 классов в данных с долей по USD (для селектора)."""
     atc_usd: dict[str, float] = defaultdict(float)
     for i in items:
         code = _atc3(i.atc)
@@ -390,16 +358,12 @@ def _collect_atc3_options(items) -> list[dict]:
     ]
 
 
-# Комбинации фильтров, которые прогреваются в фоне после первого
-# холодного запроса (без atc3 — он user-specific).
 _PREWARM_COMBOS: list[tuple[str | None, str | None]] = [
     (None, None),
     ("ret", None),
     ("hos", None),
 ]
 
-# По одному активному прогреву на market_id — чтобы не плодить
-# параллельные SQLite-нагрузки.
 _PREWARM_LOCKS: dict[int, asyncio.Lock] = {}
 
 
@@ -412,11 +376,9 @@ def _prewarm_lock(market_id: int) -> asyncio.Lock:
 
 
 async def _prewarm_market_overview(market_id: int) -> None:
-    """Фоновая прогревка кеша для типовых комбинаций фильтров.
-    Сериализуется лок-ом на market_id."""
     lock = _prewarm_lock(market_id)
     if lock.locked():
-        return  # уже идёт прогрев, не дублируем
+        return
     async with lock:
         async with async_session() as db:
             for sector, atc3 in _PREWARM_COMBOS:
@@ -455,7 +417,6 @@ async def market_overview(
     response = await _compute_overview(
         db, market_id, sector, atc3, year_idx, market,
     )
-    # Прогрев только если запрос был холодный — иначе плодим лишние задачи.
     if not was_cached:
         background_tasks.add_task(_prewarm_market_overview, market_id)
     return response
@@ -485,7 +446,6 @@ async def _compute_overview(
     if not raw_rows:
         raise HTTPException(400, "Для рынка не загружены данные БДП")
 
-    # Сдвигаем окно годов если выбран не последний.
     all_bdp_items = shift_items(raw_rows, year_idx)
 
     years = parse_years(market)
@@ -495,13 +455,10 @@ async def _compute_overview(
         json.loads(market.regions_json) if market.regions_json else []
     )
 
-    # ── ATC options строим до фильтра по классу, чтобы селектор и карточка
-    # «Классы ATC» оставались полными; сектор при этом учитывается ──
     atc_options = _collect_atc3_options(
         _apply_filters(all_bdp_items, sector, None),
     )
 
-    # ── применяем фильтры к BDP ──
     bdp_items = _apply_filters(all_bdp_items, sector, atc3)
 
     if not bdp_items:
@@ -511,7 +468,6 @@ async def _compute_overview(
 
     scope_mnns = {i.mnn for i in bdp_items}
 
-    # ── header counters (на отфильтрованных данных) ──
     producer_set = {
         i.producer
         for i in bdp_items

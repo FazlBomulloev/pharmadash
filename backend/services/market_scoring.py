@@ -1,5 +1,3 @@
-"""Скоринг рынка поверх БД: загрузка строк БДП, фильтр ЛФ/дозировки,
-кеш результата. Сам расчёт — в scoring.py."""
 import logging
 from collections import defaultdict
 
@@ -21,12 +19,8 @@ _SCORING_COLS = (
     BdpRaw.un_y1, BdpRaw.un_y2, BdpRaw.un_y3,
 )
 
-# (market_id, lf, dose) → результат. Сбрасывается при перезагрузке БДП
-# и при изменении «Настроек рынка».
 _SCORING_CACHE: dict[tuple, dict] = {}
 _CACHE_MAX_ENTRIES = 64
-# market_id → строки БДП для скоринга; нужны предпросмотру настроек,
-# который пересчитывает скоринг на каждое изменение черновика.
 _ROWS_CACHE: dict[int, list] = {}
 
 
@@ -60,10 +54,6 @@ async def get_market_scoring(
     lf: str | None = None,
     dose: str | None = None,
 ) -> dict:
-    """Скоринг всех МНН рынка в выборке, заданной фильтром ЛФ/дозировки.
-
-    Возвращает items, summary, by_mnn (индекс по МНН), years и filters
-    (доступные ЛФ и дозировки с учётом второго фильтра)."""
     cache_key = (market.id, lf or "", dose or "")
     cached = _SCORING_CACHE.get(cache_key)
     if cached is not None:
@@ -92,7 +82,6 @@ async def get_market_scoring(
     result["years"] = parse_years(market)[-3:]
     result["filters"] = {
         "applied": {"lf": lf or None, "dose": dose or None},
-        # каждая опция сужается вторым фильтром, чтобы не было пустых выборок
         "forms": sorted(
             f for f, doses in forms_doses.items()
             if not dose or dose in doses

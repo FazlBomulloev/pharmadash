@@ -89,7 +89,6 @@ export default function AdminPage() {
     "Не удалось прочитать лист",
   );
 
-  /** Обёртка шага: блокирует кнопки и показывает ошибку запроса. */
   async function attempt(fallback: string, action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -143,7 +142,6 @@ export default function AdminPage() {
       setError("Введите название и минимум 2 года");
       return;
     }
-    // Рынок уже создан на этом шаге — повторно не создаём.
     if (market && market.name === name.trim()) {
       goTo(1);
       return;
@@ -188,7 +186,6 @@ export default function AdminPage() {
           .map(([system_field, file_column]) => ({ system_field, file_column })),
       });
       setResult(res);
-      // Сводка для экрана «Готово»; её отсутствие загрузку не отменяет.
       const [card, overview] = await Promise.all([
         getMarket(market.id).catch(() => null),
         getMarketOverview(market.id).catch(() => null),
@@ -696,7 +693,6 @@ function Dropzone({
     onFile(candidate);
   }
 
-  // Сброс значения — чтобы тот же файл можно было выбрать повторно.
   useEffect(() => {
     if (!file && inputRef.current) inputRef.current.value = "";
   }, [file]);

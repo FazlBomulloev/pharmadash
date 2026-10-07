@@ -6,7 +6,6 @@ const H = 200;
 const TOP = 34;
 const BOTTOM = 168;
 
-/** Гладкая кривая через точки (монотонные кубические сегменты). */
 function smoothPath(points: [number, number][]): string {
   if (points.length === 0) return "";
   let d = `M${points[0][0]},${points[0][1]}`;
@@ -19,12 +18,6 @@ function smoothPath(points: [number, number][]): string {
   return d;
 }
 
-/**
- * График в тёмном hero: продажи по годам, подсветка выбранного года,
- * под графиком — кнопки годов (клик = выбор года в фильтре).
- *
- * В БДП продажи хранятся по годам, поэтому точка — год.
- */
 export function HeroTrend({
   years, values, selectedYear, onPick, format, t = 1,
 }: {
@@ -33,7 +26,6 @@ export function HeroTrend({
   selectedYear: number | null;
   onPick: (year: number) => void;
   format: (v: number) => string;
-  /** Прогресс прорисовки 0…1. */
   t?: number;
 }) {
   const gradientId = useId();
@@ -51,7 +43,6 @@ export function HeroTrend({
   const centers = values.map(
     (v, i) => [band * (i + 0.5), y(v)] as [number, number],
   );
-  // Линия дотягивается до краёв графика на уровне крайних точек.
   const points: [number, number][] = [
     [0, centers[0][1]], ...centers, [W, centers[n - 1][1]],
   ];
@@ -92,15 +83,12 @@ export function HeroTrend({
             />
           ))}
           <path d={area} fill={`url(#${gradientId})`} fillOpacity={t} />
-          {/* Прорисовка слева направо — через обрезку: штриховой приём
-              (pathLength + dasharray) ломается при растяжении SVG. */}
           <path
             d={line} fill="none" stroke="#fff" strokeWidth="2.5"
             strokeLinejoin="round" vectorEffect="non-scaling-stroke"
             clipPath={`url(#${clipId})`}
           />
         </svg>
-        {/* Точки годов — HTML, чтобы не растягивались вместе с SVG. */}
         {centers.map(([cx, cy], i) => (
           <span
             key={years[i]}

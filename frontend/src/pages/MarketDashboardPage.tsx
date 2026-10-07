@@ -83,7 +83,6 @@ export default function MarketDashboardPage() {
     [id, state.mnn, state.lf, state.dose, state.year],
     "МНН не найден или ошибка загрузки",
   );
-  // Ответ относится к выбранному МНН (а не к предыдущему, пока идёт запрос).
   const current = state.mnn ? data : null;
   const loadedMnn = current?.mnn;
 
@@ -91,11 +90,9 @@ export default function MarketDashboardPage() {
     if (loadedMnn) pushRecentMnn(id, loadedMnn);
   }, [id, loadedMnn]);
 
-  // Прогресс появления перезапускается при новых данных и смене вкладки.
   const animKey = useMemo(() => ({ current, tab: state.tab }), [current, state.tab]);
   const t = useProgress(animKey);
 
-  // Смена МНН сбрасывает фильтры: формы и дозировки у каждого МНН свои.
   const pickMnn = useCallback(
     (mnn: string) => {
       setCountry(null);
@@ -117,7 +114,6 @@ export default function MarketDashboardPage() {
     !!state.lf || !!state.dose
     || (state.year != null && state.year !== lastYear);
 
-  // Каждый фильтр сужается вторым, чтобы не получить пустую выборку.
   const forms = current
     ? state.dose
       ? current.doses_forms_map[state.dose] ?? []
@@ -200,7 +196,6 @@ export default function MarketDashboardPage() {
         {!state.mnn && <MnnEmptyState marketId={id} onPick={pickMnn} />}
 
         {current && (
-          // key — вкладка: при переключении карточки появляются заново
           <TabContent
             key={state.tab}
             tab={state.tab}

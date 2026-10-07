@@ -1,10 +1,6 @@
-/* Классы ищем только в src: иначе Tailwind сканирует весь репозиторий
-   (прототипы дизайна, служебные файлы) и перезагружает страницу при их
-   изменении. */
 @import "tailwindcss" source("./");
 @import "./theme.css";
 
-/* Дизайн сделан только для светлой темы. */
 :root {
   color-scheme: light;
 }
@@ -15,8 +11,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Общий масштаб интерфейса: один множитель на все размеры и шрифты.
-   Высоты во весь экран делятся на него, чтобы оставаться ровно в экран. */
 :root {
   --ui-zoom: 0.9;
   --screen-h: calc(100vh / var(--ui-zoom));
@@ -29,7 +23,6 @@ html {
   min-height: var(--screen-h);
 }
 
-/* В слое base, чтобы утилиты Tailwind (text-fg, bg-…) их переопределяли. */
 @layer base {
   a {
     color: var(--color-accent);
@@ -59,7 +52,6 @@ html {
   background: #b5b8be;
 }
 
-/* Ряд вкладок прокручивается без полосы прокрутки. */
 .scrollbar-none {
   scrollbar-width: none;
 }
@@ -67,7 +59,6 @@ html {
   display: none;
 }
 
-/* Клавиатурный фокус: кольцо только для клавиатуры. */
 @layer base {
   :focus {
     outline: none;
@@ -84,7 +75,6 @@ html {
   }
 }
 
-/* Hover интерактивных строк и кнопок. */
 .tr-soft {
   transition:
     background-color 0.2s ease,
@@ -95,9 +85,6 @@ html {
     opacity 0.2s ease;
 }
 
-/* ─────────────── Анимации появления ───────────────
-   fill-mode: backwards — начальное состояние держится только на время
-   задержки; если анимация не запустилась, элемент остаётся видимым. */
 @keyframes rise {
   from {
     opacity: 0;
@@ -134,16 +121,13 @@ html {
   }
 }
 
-/* Шапка страницы. */
 .anim-head {
   animation: drop 700ms var(--ease-out-soft) backwards;
 }
-/* Карточки и hero верхнего уровня: задержка 120 мс + 90 мс × индекс. */
 .anim-rise {
   animation: rise 900ms var(--ease-out-soft) backwards;
   animation-delay: calc(120ms + 90ms * var(--i, 0));
 }
-/* Смена вкладки / новые карточки: 650 мс, шаг 70 мс. */
 .anim-tab {
   animation: rise 650ms var(--ease-out-soft) backwards;
   animation-delay: calc(70ms * var(--i, 0));

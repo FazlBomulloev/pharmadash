@@ -10,7 +10,7 @@ from .runner import launch_background
 
 log = logging.getLogger(__name__)
 
-DAILY_HOUR = 6  # 06:00 локального времени сервера
+DAILY_HOUR = 6
 DAILY_MINUTE = 0
 
 _scheduler: AsyncIOScheduler | None = None

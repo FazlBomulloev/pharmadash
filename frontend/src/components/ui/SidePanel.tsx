@@ -3,18 +3,12 @@ import { X } from "lucide-react";
 import clsx from "clsx";
 import { useEscape } from "../../hooks/useDismiss";
 
-/**
- * Боковая панель справа поверх затемнения. Закрывается кликом по фону,
- * кнопкой ✕ и по Esc. Родитель рендерит не больше одной панели.
- */
 export function SidePanel({
   onClose, width = 580, eyebrow, title, headerExtra, children, gap = 30,
 }: {
   onClose: () => void;
   width?: number;
-  /** Серый надзаголовок. */
   eyebrow?: ReactNode;
-  /** Без заголовка шапка сжимается до кнопки закрытия. */
   title?: ReactNode;
   headerExtra?: ReactNode;
   children: ReactNode;
@@ -75,7 +69,6 @@ export function SidePanel({
   );
 }
 
-/** Сетка KPI 3×N в панели. */
 export function KpiGrid({
   items,
 }: {
@@ -98,7 +91,6 @@ export function KpiGrid({
   );
 }
 
-/** Вкладки с подчёркиванием. */
 export function UnderlineTabs<T extends string>({
   tabs, value, onChange, className,
 }: {
@@ -139,7 +131,6 @@ export function UnderlineTabs<T extends string>({
   );
 }
 
-/** Заголовок секции внутри панели. */
 export function PanelSection({
   title, note, children, gap = 12,
 }: {

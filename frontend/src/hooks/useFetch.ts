@@ -7,18 +7,12 @@ interface FetchState<T> {
   key: string | null;
 }
 
-/**
- * Загрузка данных с отменой устаревших запросов. Пока идёт новый запрос,
- * `data` хранит предыдущий ответ, а `loading` = true — страница может
- * приглушить контент, не теряя его.
- */
 export function useFetch<T>(
   fetcher: (signal: AbortSignal) => Promise<T>,
   deps: unknown[],
   fallbackError = "Не удалось загрузить данные",
 ) {
   const [nonce, setNonce] = useState(0);
-  // Ключ запроса: меняется вместе с зависимостями (они сериализуемы).
   const key = JSON.stringify([deps, nonce]);
   const latest = useRef(fetcher);
   useEffect(() => {

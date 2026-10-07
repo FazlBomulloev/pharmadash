@@ -126,7 +126,6 @@ const GRID: Record<TableMode, { template: string; minWidth: number }> = {
 const ARROW = { asc: " ↑", desc: " ↓" };
 const JUSTIFY = { right: "justify-end", center: "justify-center" };
 
-/** Таблица скоринга: закреплённая колонка МНН, липкий заголовок, сортировка. */
 export function ScoringTable({
   items, mode, years, sort, onSort, selected, onSelect,
 }: {

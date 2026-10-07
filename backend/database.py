@@ -19,9 +19,6 @@ engine = create_async_engine(
 
 @event.listens_for(engine.sync_engine, "connect")
 def _sqlite_pragmas(dbapi_connection, _record):
-    """WAL: запись парсеров БДЦ (идёт из отдельного процесса) не блокирует
-    чтение дашборда. busy_timeout: вместо ошибки «database is locked»
-    соединение ждёт освобождения базы."""
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA busy_timeout=30000")
@@ -44,8 +41,6 @@ _MIGRATIONS = [
     ("markets", "scoring_settings_json", "TEXT"),
 ]
 
-# Колонки, которых больше нет в моделях. NOT NULL без дефолта ломает
-# INSERT в старых базах, поэтому удаляем их вместе с индексами.
 _DROPPED_COLUMNS = [
     ("bdp_raw", "mnn_canonical"),
     ("bdp_raw", "lf_canonical"),
@@ -84,8 +79,6 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _apply_migrations(conn)
-        # осиротевшие запуски парсеров (сервер упал/перезапустился в
-        # разгар работы) помечаем как error, чтобы в UI не висело "running"
         await conn.execute(
             text(
                 "UPDATE pharmacy_source_runs "

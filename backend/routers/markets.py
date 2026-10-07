@@ -53,7 +53,6 @@ def _upload_path(market_id: int) -> Path:
 
 
 async def _market_card(db: AsyncSession, m: Market) -> MarketOut:
-    """Рынок со сводкой для карточки: объём, рост и категории скоринга."""
     cnt, usd_prev, usd_last = (await db.execute(
         select(
             func.count(func.distinct(BdpRaw.mnn)),
@@ -224,7 +223,6 @@ async def sheet_preview(
     rows: int = Query(8, ge=1, le=30),
     db: AsyncSession = Depends(get_db),
 ):
-    """Первые строки листа как есть — для выбора строки заголовков."""
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
@@ -317,8 +315,6 @@ async def apply_mapping(
     if not rows:
         raise HTTPException(400, "Не удалось распарсить строки. Проверьте маппинг.")
 
-    # Core executemany вместо ORM-объектов: на 50K строк это секунды,
-    # а не минута с лишним на unit-of-work.
     bdp_values = [
         {
             "market_id": market_id,

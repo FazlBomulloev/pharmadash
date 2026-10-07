@@ -9,7 +9,6 @@ import { HeroTrend } from "../ui/HeroTrend";
 const POS_ON_INK = "oklch(0.84 0.14 155)";
 const NEG_ON_INK = "oklch(0.78 0.14 25)";
 
-/** Пилюля категории на тёмном фоне. */
 const INK_CATEGORY: Record<
   ScoringCategory, { background: string; color: string; dot: string }
 > = {
@@ -31,13 +30,11 @@ const INK_CATEGORY: Record<
   },
 };
 
-/** Тёмный hero МНН: показатели, плитка скоринга и график по годам. */
 export function MnnHero({
   data, onYear, onScore, t,
 }: {
   data: DashboardResponse;
   onYear: (year: number) => void;
-  /** Переход на вкладку «Скоринг». */
   onScore: () => void;
   t: number;
 }) {

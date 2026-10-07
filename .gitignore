@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -6,41 +5,32 @@ __pycache__/
 venv/
 *.egg
 
-# SQLite
 *.db
 *.db-journal
 *.db.bak*
 
-# Environment
 .env
 .env.local
 
-# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
 Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Node
 node_modules/
 dist/
 .cache/
 
-# Uploads
 backend/data/uploads/
 
-# Samples (Excel files)
 samples/
 
-# Build
 *.log
 
-# Playwright MCP
 .playwright-mcp/
 *.db-wal
 *.db-shm

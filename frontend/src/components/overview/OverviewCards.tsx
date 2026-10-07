@@ -190,7 +190,6 @@ export function TopMnnCard({
   );
 }
 
-/** Классы ATC: клик по строке включает фильтр всей страницы. */
 export function AtcCard({
   options, selected, onPick, index,
 }: {

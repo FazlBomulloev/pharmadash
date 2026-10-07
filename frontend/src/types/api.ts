@@ -6,21 +6,18 @@ export interface Market {
   regions: string[] | null;
   created_at: string;
   mnn_count?: number | null;
-  /** Объём последнего года БДП, USD; null — БДП не загружен. */
   usd_last?: number | null;
   usd_growth?: number | null;
   categories?: Record<ScoringCategory, number> | null;
   bdp_loaded_at?: string | null;
 }
 
-/** Продажи по годам без сдвига окна — для графика в hero. */
 export interface YearSeries {
   years: number[];
   usd: number[];
   un: number[];
 }
 
-/** Строка «Кто двигает рынок»: изменение USD к прошлому году. */
 export interface Mover {
   name: string;
   usd: number;
@@ -78,11 +75,9 @@ export interface KpiZone1 {
 
 export type BgGFlag = "BG" | "G" | "MIXED";
 
-/** Торговая марка производителя внутри МНН. */
 export interface CompetitorTm {
   tm: string;
   usd: number;
-  /** Доля ТМ в продажах производителя по этому МНН. */
   share: number;
   forms: string[];
   doses: string[];
@@ -160,8 +155,6 @@ export interface Zone2Data {
   bg_g_breakdown: BgGBreakdown | null;
 }
 
-// ─────────────── Скоринг рынка (уровень МНН) ───────────────
-
 export type ScoringCategory = "priority" | "watch" | "miss" | "stop";
 
 export type ScoringCriterion =
@@ -211,7 +204,6 @@ export interface ScoringResponse {
   summary: ScoringSummary;
   thresholds: ScoringThresholds;
   weights: Record<ScoringCriterion, number>;
-  /** Число строк после фильтров (для пагинации). */
   total: number;
   page: number;
   page_size: number;
@@ -238,7 +230,6 @@ export interface MnnSuggestion {
   category: ScoringCategory;
 }
 
-/** Предпросмотр настроек: пересчёт без сохранения. */
 export interface SettingsPreview {
   total: number;
   passed: number;
@@ -290,7 +281,6 @@ export interface MarketSettingsResponse {
   classes: string[];
   forms: string[];
   countries: string[];
-  /** Страны производителей в БДП рынка с числом позиций. */
   country_options: { value: string; count: number }[];
 }
 
@@ -326,7 +316,6 @@ export interface MnnListResponse {
   mnns: string[];
 }
 
-// Market Overview
 export interface OverviewHeader {
   market_id: number;
   name: string;
@@ -450,8 +439,6 @@ export interface OverviewQuery {
   year?: number | null;
 }
 
-// ─────────────── Drill-down: Producer / Country ───────────────
-
 export interface ProducerKpi {
   usd_y1: number;
   usd_y2: number;
@@ -467,7 +454,6 @@ export interface ProducerKpi {
   share_of_market: number | null;
   top_country: string | null;
   years_labels: string[];
-  // только для производителя в масштабе всего рынка
   shares_by_year?: (number | null)[];
   mnn_count?: number;
   tm_count?: number;
@@ -572,8 +558,6 @@ export interface CountryDetails {
   forms_breakdown: CountryFormItem[];
 }
 
-// ─────────────── Pharmacy prices (БДЦ) ───────────────
-
 export interface PharmacySourceRun {
   id: number;
   source: string;
@@ -657,6 +641,5 @@ export interface PriceCompareItem {
 
 export interface ColumnsResponse {
   columns: string[];
-  /** Примеры значений по каждой колонке. */
   samples: Record<string, string[]>;
 }

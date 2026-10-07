@@ -42,7 +42,6 @@ export function ErrorNote({
   );
 }
 
-/** Пустое состояние в карточке. */
 export function EmptyCard({
   title, description, children,
 }: {

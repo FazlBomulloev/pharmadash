@@ -1,6 +1,4 @@
 #!/bin/sh
-# Собирает файл паролей для basic-auth из переменных окружения.
-# Запускается штатным entrypoint образа nginx до старта сервера.
 set -eu
 
 if [ -z "${BASIC_AUTH_USER:-}" ] || [ -z "${BASIC_AUTH_PASSWORD:-}" ]; then

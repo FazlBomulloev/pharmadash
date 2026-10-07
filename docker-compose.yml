@@ -9,7 +9,6 @@ services:
       EAPTEKA_REGION: ${EAPTEKA_REGION:-spb}
       OZERKI_REGION: ${OZERKI_REGION:-sankt-peterburg}
     volumes:
-      # SQLite-база и загруженные xlsx лежат на хосте и переживают пересборку
       - ./backend/data:/app/backend/data
     healthcheck:
       test:

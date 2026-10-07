@@ -12,13 +12,12 @@ export function readRecentMnn(marketId: number): string[] {
   }
 }
 
-/** Запомнить просмотренный МНН (свежие — первыми, без повторов). */
 export function pushRecentMnn(marketId: number, mnn: string) {
   const next = [mnn, ...readRecentMnn(marketId).filter((m) => m !== mnn)]
     .slice(0, RECENT_LIMIT);
   try {
     localStorage.setItem(recentKey(marketId), JSON.stringify(next));
   } catch {
-    /* хранилище недоступно — список недавних просто не сохранится */
+    return;
   }
 }

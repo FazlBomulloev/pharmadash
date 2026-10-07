@@ -26,7 +26,6 @@ class Market(Base):
     created_at = Column(
         DateTime, nullable=False, default=datetime.utcnow
     )
-    # «Настройки рынка» для скоринга; NULL — значения по умолчанию
     scoring_settings_json = Column(Text, nullable=True)
 
     field_mappings = relationship(

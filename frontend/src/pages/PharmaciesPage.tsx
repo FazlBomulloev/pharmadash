@@ -88,7 +88,6 @@ export default function PharmaciesPage() {
   const sourceList = useMemo(() => sources.data ?? [], [sources.data]);
   const reloadSources = sources.reload;
 
-  // Пока идёт хоть одно обновление — перечитываем статусы источников.
   const anyRunning = sourceList.some((s) => s.running);
   useEffect(() => {
     if (!anyRunning) return;
@@ -418,7 +417,6 @@ function Thumb({
       className="size-full object-contain"
     />
   );
-  // В таблице миниатюра — просто картинка: клик по строке открывает панель.
   if (size === "row") {
     return (
       <div className={clsx("overflow-hidden border border-line bg-white", frame)}>
@@ -447,7 +445,6 @@ function Thumb({
   );
 }
 
-/** Фото во весь экран. Закрывается кликом, кнопкой ✕ и по Esc. */
 function Lightbox({
   url, name, onClose,
 }: {
@@ -456,7 +453,6 @@ function Lightbox({
   onClose: () => void;
 }) {
   useEffect(() => {
-    // Перехват на capture: Esc закрывает только фото, а не панель под ним.
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopImmediatePropagation();
@@ -517,7 +513,6 @@ function SourceChip({
   );
 }
 
-/** Таблица цен: строки подгружаются страницами по мере прокрутки. */
 function PriceTable({
   filters, sort, onSort, meta, selectedId, onSelect,
 }: {
@@ -550,7 +545,6 @@ function PriceTable({
     sort.key, sort.order,
   ]);
 
-  // Новая выборка — таблица начинает с первой страницы.
   const [seenQuery, setSeenQuery] = useState(query);
   if (seenQuery !== query) {
     setSeenQuery(query);

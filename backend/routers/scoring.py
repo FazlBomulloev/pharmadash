@@ -1,11 +1,3 @@
-"""Скоринг рынка (уровень МНН) и «Настройки рынка».
-
-  GET /markets/{market_id}/scoring?lf=&dose=&category=&passed=&q=
-      &sort=&order=&page=&page_size=
-  GET /markets/{market_id}/settings
-  PUT /markets/{market_id}/settings
-  POST /markets/{market_id}/settings/preview
-"""
 import asyncio
 import logging
 
@@ -70,7 +62,6 @@ async def market_scoring(
         "market_id": market.id,
         "years": scoring["years"],
         "filters": scoring["filters"],
-        # сводка — по всей выборке ЛФ/дозировки, а не по странице
         "summary": scoring["summary"],
         "thresholds": scoring["settings"]["thresholds"],
         "weights": scoring["settings"]["weights"],
@@ -92,7 +83,6 @@ async def _distinct(db: AsyncSession, market_id: int, column) -> list[str]:
 
 
 async def _country_options(db: AsyncSession, market_id: int) -> list[dict]:
-    """Страны производителей в БДП рынка с числом позиций."""
     result = await db.execute(
         select(BdpRaw.country_mfr, func.count())
         .where(BdpRaw.market_id == market_id)
@@ -107,7 +97,6 @@ async def _settings_payload(db: AsyncSession, market: Market) -> dict:
         "market_id": market.id,
         "settings": market_settings(market).model_dump(),
         "defaults": ScoringSettings().model_dump(),
-        # значения, реально встречающиеся в БДП рынка, — для справочников
         "classes": await _distinct(db, market.id, BdpRaw.atc),
         "forms": await _distinct(db, market.id, BdpRaw.lf_avp),
         "countries": await _distinct(db, market.id, BdpRaw.country_mfr),
@@ -148,10 +137,8 @@ async def preview_settings(
     body: ScoringSettings,
     db: AsyncSession = Depends(get_db),
 ):
-    """Пересчёт скоринга с черновиком настроек без сохранения."""
     market = await _get_market(db, market_id)
     if body == market_settings(market):
-        # черновик совпадает с сохранёнными настройками — берём готовый расчёт
         return preview_counts(await get_market_scoring(db, market))
     rows = await load_scoring_rows(db, market_id)
     scoring = await asyncio.to_thread(compute_scoring, rows, body)

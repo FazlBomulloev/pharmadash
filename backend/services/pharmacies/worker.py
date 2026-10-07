@@ -1,11 +1,3 @@
-"""Отдельный процесс для обновления одного источника БДЦ.
-
-    python -m backend.services.pharmacies.worker <slug> [--limit N]
-
-Парсер качает и разбирает десятки тысяч страниц. В процессе API он делил
-бы с ним event loop и GIL, и дашборд на это время начинал бы тормозить —
-поэтому каждый запуск живёт в своём процессе.
-"""
 from __future__ import annotations
 
 import argparse

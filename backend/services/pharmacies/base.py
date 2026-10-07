@@ -33,8 +33,6 @@ class PharmacyProduct:
 
 
 class PharmacyAdapter:
-    """Base contract for one pharmacy source."""
-
     slug: str = ""
     display_name: str = ""
 
@@ -42,7 +40,6 @@ class PharmacyAdapter:
         self.limit = limit
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
-        """Yield PharmacyProduct items. Override in subclass."""
         if False:
-            yield  # pragma: no cover — makes this an async generator
+            yield  # pragma: no cover
         raise NotImplementedError

@@ -15,7 +15,6 @@ class MarketOut(BaseModel):
     regions: list[str] | None
     created_at: str
     mnn_count: int | None = None
-    # карточка рынка: объём последнего года, рост г/г, категории скоринга
     usd_last: float | None = None
     usd_growth: float | None = None
     categories: dict[str, int] | None = None
@@ -76,8 +75,6 @@ class Zone2Data(BaseModel):
     countries: list[dict]
 
 
-# --- Market Overview schemas ---
-
 class OverviewHeader(BaseModel):
     market_id: int
     name: str
@@ -119,8 +116,6 @@ class OverviewPortfolio(BaseModel):
     atc_distribution: list[dict]
     countries: list[dict]
 
-
-# --- Drill-down schemas (Producer / Country) ---
 
 class ProducerKpi(BaseModel):
     usd_y1: float

@@ -29,7 +29,6 @@ import { Select } from "../components/ui/Select";
 import { SidePanel } from "../components/ui/SidePanel";
 import { ErrorNote, Loading } from "../components/ui/states";
 
-/** Фильтр таблицы: все, прошедшие стоп-фильтр или одна категория. */
 type CatFilter = "all" | "passed" | ScoringCategory;
 
 const TEXT_SORT = new Set(["mnn", "cls", "direction", "rank"]);
@@ -59,7 +58,6 @@ export default function MarketScoringPage() {
   const [selected, setSelected] = useState<ScoringItem | null>(null);
   const search = useDebounce(q.trim(), 250);
 
-  // Смена любого условия выборки возвращает на первую страницу.
   const refine = <T,>(setter: (value: T) => void) => (value: T) => {
     setter(value);
     setPage(1);

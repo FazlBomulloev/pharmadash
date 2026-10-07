@@ -1,4 +1,3 @@
-/** Текст ошибки из ответа API (detail строкой или списком валидации). */
 export function apiErrorText(e: unknown, fallback: string): string {
   const detail = (
     e as { response?: { data?: { detail?: unknown } } }

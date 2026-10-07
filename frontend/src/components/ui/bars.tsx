@@ -4,7 +4,6 @@ import clsx from "clsx";
 import { fmtDeltaUsd } from "../../lib/format";
 import { NEG, NEG_BAR, POS, POS_BAR, heatIndigo, scoreTone } from "../../lib/palette";
 
-/** Полоска-индикатор: value 0…1. */
 export function ProgressBar({
   value, color = "oklch(0.52 0.16 268)", height = 6, track = "#f0f0ec",
   className,
@@ -38,16 +37,12 @@ export interface StackSegment {
   key: string;
   value: number;
   color: string;
-  /** Цвет текста внутри сегмента. */
   fg?: string;
-  /** Подпись внутри сегмента (число, название). */
   label?: ReactNode;
   title?: string;
-  /** Приглушить сегмент (не выбран при активном фильтре). */
   dim?: boolean;
 }
 
-/** Составная полоса. С подписями внутри — высоты 28–56px. */
 export function StackedBar({
   segments, height, gap = 3, radius = 12, minWidth = 0, onPick, className,
   textClass = "text-base font-bold",
@@ -56,7 +51,6 @@ export function StackedBar({
   height: number;
   gap?: number;
   radius?: number;
-  /** Минимальная ширина сегмента с подписью. */
   minWidth?: number;
   onPick?: (key: string) => void;
   className?: string;
@@ -102,7 +96,6 @@ export function StackedBar({
   );
 }
 
-/** Легенда под полосой: точка + название + значение. */
 export function Legend({
   items, onPick, className,
 }: {
@@ -145,20 +138,13 @@ export interface DivergingRow {
   key: string;
   name: string;
   delta: number;
-  /** Ссылка строки (Дашборд МНН). */
   to?: string;
 }
 
-/**
- * «Кто двигает рынок»: рост вправо от оси, падение влево.
- * axis — положение оси 0…1; без него ось смещается пропорционально
- * соотношению наибольшего падения и роста.
- */
 export function DivergingBars({
   rows, t = 1, axis, barHeight = 22,
 }: {
   rows: DivergingRow[];
-  /** Прогресс появления 0…1. */
   t?: number;
   axis?: number;
   barHeight?: number;
@@ -169,7 +155,6 @@ export function DivergingBars({
   const zero = axis ?? (
     span > 0 ? Math.min(Math.max(maxNeg / span, 0.12), 0.88) : 0.5
   );
-  // Общий масштаб: самый длинный бар упирается в край своей стороны.
   const scale = Math.max(maxPos / (1 - zero), maxNeg / zero, 1e-9);
 
   return (
@@ -221,13 +206,11 @@ export function DivergingBars({
   );
 }
 
-/** Три столбика по годам (в боковой панели). */
 export function YearBars({
   items, height = 96, t = 1,
 }: {
   items: {
     label: string;
-    /** Высота столбика 0…1. */
     value: number;
     text: string;
     selected?: boolean;
@@ -261,11 +244,9 @@ export function YearBars({
   );
 }
 
-/** Ячейка тепловой карты: доля в процентах, шкала индиго. */
 export function HeatCell({
   share, max = 25, className,
 }: {
-  /** Доля 0…1 или null. */
   share: number | null | undefined;
   max?: number;
   className?: string;
@@ -288,7 +269,6 @@ export function HeatCell({
   );
 }
 
-/** Балл критерия 0…1 — ячейка / пилюля цветом уровня. */
 export function ScoreCell({
   value, className,
 }: {
@@ -309,10 +289,6 @@ export function ScoreCell({
   );
 }
 
-/**
- * Шкала зон с маркером. zones — границы зон 0…max по возрастанию;
- * value — положение маркера.
- */
 export function ZoneScale({
   zones, value, max = 100, height = 16, marker = 20, onInk = false,
 }: {

@@ -43,7 +43,6 @@ def _cell_text(value) -> str:
 def read_first_rows(
     file_path: Path, sheet_name: str, limit: int,
 ) -> list[list[str]]:
-    """Первые строки листа как есть — чтобы выбрать строку заголовков."""
     wb = load_workbook(file_path, read_only=True, data_only=True)
     ws = wb[sheet_name]
     rows = [
@@ -57,7 +56,6 @@ def read_first_rows(
 def read_column_samples(
     file_path: Path, sheet_name: str, header_row: int, per_column: int = 3,
 ) -> dict[str, list[str]]:
-    """Примеры значений по каждой колонке (первые непустые)."""
     headers = read_columns_at_row(file_path, sheet_name, header_row)
     samples: dict[str, list[str]] = {h: [] for h in headers}
     wb = load_workbook(file_path, read_only=True, data_only=True)

@@ -1,11 +1,3 @@
-"""Скоринг рынка на уровне МНН.
-
-Чистый расчёт без БД: на входе строки БДП (уже отфильтрованные по
-ЛФ/дозировке, если фильтр выбран) и «Настройки рынка», на выходе —
-метрики, 10 баллов, ИТОГ, ранг и категория по каждому МНН.
-
-Y — последний год БДП (usd_y3/un_y3), базовый — Y-2 (usd_y1/un_y1).
-"""
 from bisect import bisect_left
 from collections import defaultdict
 from typing import Any, Iterable
@@ -33,13 +25,9 @@ CAGR_PERIODS = 2
 HHI_MAX = 10_000
 
 
-# ────────────────────── элементарные баллы ──────────────────────
-
 def percentile_scores(
     values: dict[str, float | None],
 ) -> dict[str, float | None]:
-    """pct(x) = (число значений < x) / (N − 1) по непустым значениям.
-    При N ≤ 1 балл = 1. Пустые значения остаются None."""
     present = sorted(v for v in values.values() if v is not None)
     n = len(present)
     result: dict[str, float | None] = {}
@@ -97,8 +85,6 @@ def _cagr(start: float, end: float) -> float | None:
     return (end / start) ** (1 / CAGR_PERIODS) - 1
 
 
-# ────────────────────── метрики по МНН ──────────────────────
-
 def _collect_metrics(
     rows: Iterable[Any], settings: ScoringSettings,
 ) -> dict[str, dict]:
@@ -146,7 +132,6 @@ def _collect_metrics(
         units = a["un"][2]
         positive = [v for v in a["producer_usd"].values() if v > 0]
         positive_total = sum(positive)
-        # при равных продажах класс выбирается по алфавиту — детерминированно
         cls = (
             min(a["class_usd"].items(), key=lambda kv: (-kv[1], kv[0]))[0]
             if a["class_usd"] else None
@@ -180,8 +165,6 @@ def _collect_metrics(
     return metrics
 
 
-# ────────────────────── итог ──────────────────────
-
 def _stop_reasons(m: dict, settings: ScoringSettings) -> list[str]:
     stop = settings.stop
     reasons = []
@@ -209,14 +192,11 @@ def _category(
 def compute_scoring(
     rows: Iterable[Any], settings: ScoringSettings,
 ) -> dict:
-    """Возвращает {"items": [...], "summary": {...}}.
-    items отсортированы по рангу (при равном ранге — по продажам Y)."""
     metrics = _collect_metrics(rows, settings)
     neutral = settings.neutral_score
     weights = settings.weights.model_dump()
     weight_sum = sum(weights.values())
 
-    # Объём — перцентиль внутри своего класса, остальное — по всей выборке
     by_class: dict[str | None, dict[str, float | None]] = defaultdict(dict)
     for mnn, m in metrics.items():
         by_class[m["cls"]][mnn] = m["sales"][2]
@@ -270,7 +250,6 @@ def compute_scoring(
                 (i["raw"] - raw_min) / spread * 100 if spread > 0 else 100.0
             )
 
-    # Ранг по убыванию ИТОГА; у равных — одинаковый (1, 1, 3, …)
     items.sort(key=lambda i: (-i["total"], -i["sales"][2], i["mnn"]))
     prev_total = None
     prev_rank = 0

@@ -1,7 +1,3 @@
-"""Выборка из результата скоринга: фильтр, сортировка, пагинация,
-подсказки МНН и сводка для предпросмотра «Настроек рынка».
-
-Чистые функции поверх items из compute_scoring — без БД."""
 from typing import Any, Callable
 
 from backend.services.scoring import (
@@ -67,7 +63,6 @@ def filter_items(
 def sort_items(
     items: list[dict], sort: str | None, order: str | None,
 ) -> list[dict]:
-    """Сортировка по ключу; пустые значения — всегда в конце."""
     key = _SORT_KEYS.get(sort or "rank", _SORT_KEYS["rank"])
     present = [i for i in items if key(i) is not None]
     missing = [i for i in items if key(i) is None]
@@ -84,9 +79,6 @@ def paginate(items: list[dict], page: int, page_size: int) -> list[dict]:
 def suggest_mnn(
     items: list[dict], q: str | None, limit: int = SUGGEST_LIMIT,
 ) -> list[dict]:
-    """Подсказки МНН: по подстроке названия или началу класса; при пустом
-    запросе — лучшие по баллу среди прошедших стоп-фильтр.
-    items уже отсортированы по рангу."""
     needle = (q or "").strip().upper()
     if needle:
         matched = [
@@ -109,8 +101,6 @@ def suggest_mnn(
 
 
 def preview_counts(scoring: dict) -> dict:
-    """Сводка для предпросмотра настроек: сколько МНН в каждой зоне и
-    сколько отсекает каждый стоп-фильтр."""
     stop = {STOP_MIN_SALES: 0, STOP_MAX_PRICE: 0, STOP_MAX_PRODUCERS: 0}
     for i in scoring["items"]:
         for reason in i["stop_reasons"]:

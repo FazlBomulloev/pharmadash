@@ -16,14 +16,6 @@ function shouldSkip(): boolean {
   );
 }
 
-/**
- * Прогресс появления 0→1 за 1900 мс (easeInOutCubic) — для count-up,
- * прорисовки линии графика и роста полосок.
- *
- * Перезапускается при смене `key`. В фоновой вкладке, при печати и
- * prefers-reduced-motion сразу отдаёт 1; таймер-страховка выставляет 1,
- * даже если requestAnimationFrame не отработал.
- */
 export function useProgress(key: unknown = 0): number {
   const [state, setState] = useState<{ key: unknown; t: number }>(() => ({
     key,
@@ -39,7 +31,6 @@ export function useProgress(key: unknown = 0): number {
     let frame = 0;
     const started = performance.now();
     const tick = (now: number) => {
-      // первый кадр может прийти с меткой времени раньше started
       const raw = Math.min(Math.max((now - started) / DURATION_MS, 0), 1);
       setState({ key, t: easeInOutCubic(raw) });
       if (raw < 1) frame = requestAnimationFrame(tick);
@@ -59,6 +50,5 @@ export function useProgress(key: unknown = 0): number {
     };
   }, [key]);
 
-  // На первом рендере после смены key состояние ещё от прошлого ключа.
   return state.key === key ? state.t : 0;
 }

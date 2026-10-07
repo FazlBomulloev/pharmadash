@@ -14,7 +14,6 @@ import { ErrorNote, Loading } from "../ui/states";
 const ATC_LEGEND_LIMIT = 6;
 const PORTFOLIO_LIMIT = 8;
 
-/** Панель производителя в масштабе всего рынка. */
 export function ProducerPanel({
   marketId, producer, isHome, onClose,
 }: {
@@ -59,7 +58,6 @@ function Body({ data, marketId }: { data: ProducerDetails; marketId: number }) {
   const lastYear = years[years.length - 1] ?? "";
   const shares = kpi.shares_by_year ?? [null, null, kpi.share_of_market];
 
-  // Хвост классов сворачивается в «Прочие», чтобы легенда не разрасталась.
   const atcAll = data.atc_breakdown ?? [];
   const atcHead = atcAll.slice(0, ATC_LEGEND_LIMIT);
   const tailShare = atcAll

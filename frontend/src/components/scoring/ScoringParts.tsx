@@ -7,7 +7,6 @@ import { scoreTone } from "../../lib/palette";
 import { ProgressBar, ZoneScale } from "../ui/bars";
 import { STOP_REASON_LABEL, contributions, criterionValue } from "./meta";
 
-/** Шкала зон «мимо / смотреть / приоритет» с маркером итога. */
 export function ScoreScale({
   total, thresholds, height = 16, marker = 20,
 }: {
@@ -40,7 +39,6 @@ export function ScoreScale({
   );
 }
 
-/** Блок стоп-фильтра: зелёный — пройден, красный — список причин. */
 export function StopNote({ item }: { item: ScoringItem }) {
   if (item.passed) {
     return (
@@ -104,17 +102,12 @@ const FULL_GRID =
 const COMPACT_GRID =
   "grid items-center gap-3 grid-cols-[minmax(0,1fr)_minmax(110px,1fr)_52px]";
 
-/**
- * Таблица 10 критериев. full — критерий, значение, балл, вес, вклад;
- * compact (для боковой панели) — критерий, балл-полоска, вклад.
- */
 export function CriteriaTable({
   item, weights, variant = "full", t = 1,
 }: {
   item: ScoringItem;
   weights: Record<ScoringCriterion, number>;
   variant?: "full" | "compact";
-  /** Прогресс появления полосок 0…1. */
   t?: number;
 }) {
   const { rows, raw } = contributions(item, weights);

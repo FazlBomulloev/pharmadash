@@ -11,7 +11,6 @@ interface Column {
   empty: string;
 }
 
-/** МНН не выбран: три списка для быстрого старта. */
 export function MnnEmptyState({
   marketId, onPick,
 }: {

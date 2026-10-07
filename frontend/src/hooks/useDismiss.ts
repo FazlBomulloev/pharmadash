@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 
-/** Закрытие по Esc. */
 export function useEscape(active: boolean, onClose: () => void) {
   const handler = useRef(onClose);
   useEffect(() => {
@@ -16,7 +15,6 @@ export function useEscape(active: boolean, onClose: () => void) {
   }, [active]);
 }
 
-/** Закрытие по клику вне элемента и по Esc — для выпадающих меню. */
 export function useOutsideClose<T extends HTMLElement>(
   active: boolean, onClose: () => void,
 ) {

@@ -1,13 +1,8 @@
-"""«Настройки рынка» для скоринга.
-
-Значения по умолчанию заданы здесь и только здесь; расчёт в
-scoring.py читает все числа из экземпляра ScoringSettings.
-"""
 import json
 
 from pydantic import BaseModel, Field, model_validator
 
-Score = float  # балл критерия, 0…1
+Score = float
 
 
 class Weights(BaseModel):
@@ -69,7 +64,6 @@ class ChannelSettings(BaseModel):
 
 
 class ScoreDictionary(BaseModel):
-    """Справочник «значение → балл»; default — для всего остального."""
     default: Score = Field(ge=0, le=1)
     map: dict[str, Score]
 
@@ -100,7 +94,6 @@ def _default_form_scores() -> ScoreDictionary:
     )
     scores = {code: 0.3 for code in injections_inhalations}
     scores.update({code: 1.0 for code in oral_and_topical})
-    # глазные, вагинальные и все прочие формы — балл по умолчанию
     return ScoreDictionary(default=0.6, map=scores)
 
 
@@ -169,14 +162,12 @@ class ScoringSettings(BaseModel):
     directions: DirectionDictionary = Field(
         default_factory=_default_directions,
     )
-    # страны, производство в которых не считается импортом
     home_countries: list[str] = Field(
         default_factory=lambda: ["РОССИЯ"],
     )
 
 
 def load_settings(raw_json: str | None) -> ScoringSettings:
-    """Настройки рынка: сохранённые значения поверх значений по умолчанию."""
     if not raw_json:
         return ScoringSettings()
     return ScoringSettings.model_validate(json.loads(raw_json))

@@ -90,7 +90,6 @@ async def list_prices(
     db: AsyncSession = Depends(get_db),
 ):
     conds = []
-    # source — один слаг или несколько через запятую
     slugs = [x for x in (source or "").split(",") if x]
     if slugs:
         conds.append(PharmacyPrice.source.in_(slugs))
@@ -127,8 +126,6 @@ async def list_prices(
         "price": PharmacyPrice.price,
         "scraped_at": PharmacyPrice.scraped_at,
     }.get(sort, PharmacyPrice.scraped_at)
-    # NULL-значения в конец при обоих направлениях —
-    # иначе при DESC цены сверху вылезает толпа NULL
     if order == "desc":
         direction = sort_col.is_(None).asc(), sort_col.desc()
     else:
@@ -157,8 +154,6 @@ async def compare_prices(
     price_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Цена той же ТМ и дозировки в каждой аптеке (минимальная по
-    источнику). Позиция без ТМ сравнивается только сама с собой."""
     current = await db.get(PharmacyPrice, price_id)
     if not current:
         raise HTTPException(404, "Позиция не найдена")
@@ -180,8 +175,6 @@ async def compare_prices(
 
 
 def cheapest_per_source(rows, current) -> list[dict]:
-    """По одной позиции на аптеку — самая дешёвая; для аптеки текущей
-    позиции показывается именно она."""
     best: dict[str, PharmacyPrice] = {}
     for r in rows:
         if r.price is None:

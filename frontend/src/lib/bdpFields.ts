@@ -1,5 +1,3 @@
-/** Поля БДП для маппинга колонок файла и автоподбор колонок по названию. */
-
 export interface BdpField {
   key: string;
   label: string;
@@ -44,7 +42,6 @@ const TEXT_PATTERNS: Record<string, RegExp> = {
 const USD = /(usd|\$|долл|руб|rub|value|сумм|стоимост)/;
 const UNITS = /(^un\b|\bun\b|упак|шт|unit|pack|натур|количеств)/;
 
-/** Подбирает колонку для каждого поля по её названию; занятые не повторяет. */
 export function autoMap(
   columns: string[], years: number[],
 ): Record<string, string> {
@@ -60,7 +57,6 @@ export function autoMap(
     }
   };
 
-  // Годовые колонки — первыми: «USD 2024» не должно уйти в текстовое поле.
   years.slice(0, 3).forEach((year, i) => {
     const hasYear = (name: string) => name.includes(String(year));
     take(`usd_y${i + 1}`, (name) => hasYear(name) && USD.test(name));

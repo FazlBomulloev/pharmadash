@@ -13,8 +13,6 @@ export default function Layout() {
   );
 }
 
-/** Колонка контента страницы: по умолчанию во всю ширину экрана;
- *  maxWidth задают только экраны-формы. */
 export function Page({
   maxWidth, children,
 }: {

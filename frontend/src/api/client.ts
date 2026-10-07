@@ -86,7 +86,6 @@ export async function getColumns(
   return data;
 }
 
-/** Первые строки листа как есть — для выбора строки заголовков. */
 export async function getSheetPreview(
   marketId: number,
   sheetName: string,
@@ -138,8 +137,6 @@ export async function getDashboard(
   return data;
 }
 
-// ─────────────────── Скоринг и настройки рынка ───────────────────
-
 export async function getMarketScoring(
   id: number,
   query: ScoringQuery = {},
@@ -155,7 +152,6 @@ export async function getMarketScoring(
   return data;
 }
 
-/** Автокомплит МНН по БДП; при пустом q — лучшие по баллу. */
 export async function suggestMnn(
   marketId: number,
   q: string,
@@ -168,7 +164,6 @@ export async function suggestMnn(
   return data.items;
 }
 
-/** Пересчёт скоринга с черновиком настроек без сохранения. */
 export async function previewMarketSettings(
   id: number,
   body: ScoringSettings,
@@ -199,8 +194,6 @@ export async function updateMarketSettings(
   return data;
 }
 
-// ─────────────────── Drill-down: Producer / Country ───────────────────
-
 export async function getProducerDetails(
   marketId: number,
   name: string,
@@ -224,8 +217,6 @@ export async function getCountryDetails(
   const { data } = await api.get<CountryDetails>(url);
   return data;
 }
-
-// ─────────────────── Pharmacies (БДЦ) ───────────────────
 
 export async function getPharmacySources(): Promise<PharmacySource[]> {
   const { data } = await api.get<PharmacySource[]>("/pharmacies");
@@ -263,7 +254,6 @@ export async function getPharmacyPrices(
   return data;
 }
 
-/** Цена той же ТМ и дозировки в каждой аптеке. */
 export async function getPriceComparison(
   priceId: number,
   signal?: AbortSignal,
