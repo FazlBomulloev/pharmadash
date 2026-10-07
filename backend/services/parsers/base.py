@@ -36,6 +36,43 @@ def read_columns_at_row(
     return headers
 
 
+def _cell_text(value) -> str:
+    return "" if value is None else str(value).strip()
+
+
+def read_first_rows(
+    file_path: Path, sheet_name: str, limit: int,
+) -> list[list[str]]:
+    """Первые строки листа как есть — чтобы выбрать строку заголовков."""
+    wb = load_workbook(file_path, read_only=True, data_only=True)
+    ws = wb[sheet_name]
+    rows = [
+        [_cell_text(cell.value) for cell in row]
+        for row in ws.iter_rows(min_row=1, max_row=limit)
+    ]
+    wb.close()
+    return rows
+
+
+def read_column_samples(
+    file_path: Path, sheet_name: str, header_row: int, per_column: int = 3,
+) -> dict[str, list[str]]:
+    """Примеры значений по каждой колонке (первые непустые)."""
+    headers = read_columns_at_row(file_path, sheet_name, header_row)
+    samples: dict[str, list[str]] = {h: [] for h in headers}
+    wb = load_workbook(file_path, read_only=True, data_only=True)
+    ws = wb[sheet_name]
+    scan_until = header_row + 50
+    for row in ws.iter_rows(min_row=header_row + 1, max_row=scan_until):
+        for header, cell in zip(headers, row):
+            text = _cell_text(cell.value)
+            bucket = samples[header]
+            if text and len(bucket) < per_column and text not in bucket:
+                bucket.append(text)
+    wb.close()
+    return samples
+
+
 def build_col_index(
     headers: list[str], mappings: dict[str, str],
 ) -> dict[str, int]:

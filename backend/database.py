@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -14,6 +14,20 @@ engine = create_async_engine(
     echo=False,
     connect_args={"check_same_thread": False},
 )
+
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _sqlite_pragmas(dbapi_connection, _record):
+    """WAL: запись парсеров БДЦ (идёт из отдельного процесса) не блокирует
+    чтение дашборда. busy_timeout: вместо ошибки «database is locked»
+    соединение ждёт освобождения базы."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=30000")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
+
 
 async_session = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False

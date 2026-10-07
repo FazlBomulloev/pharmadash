@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f4f4f1;color:#16181d;font-family:Onest,system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}a{color:oklch(0.47 0.14 262);text-decoration:none}a:hover{color:oklch(0.38 0.14 262)}*{box-sizing:border-box}button{font:inherit}</style>
+</helmet>
+<div style="display:flex;min-height:100vh">
+  <aside style="width:224px;flex-shrink:0;position:sticky;top:0;height:100vh;padding:20px 12px;display:flex;flex-direction:column;gap:24px;background:#fbfbfa;border-right:1px solid #ebebe7">
+    <div style="display:flex;align-items:center;gap:10px;padding:4px 10px">
+      <div style="width:24px;height:24px;border-radius:7px;background:oklch(0.47 0.14 262);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700">P</div>
+      <span style="font-weight:700;font-size:15px;letter-spacing:-0.01em">PharmDash</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 10px;margin-bottom:8px;border-radius:9px;background:#fff;border:1px solid #ebebe7;cursor:pointer">
+        <div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:13px;font-weight:600">Казахстан</span><span style="font-size:11px;color:#8b8f97;white-space:nowrap">2023–2025 · 17 рег.</span></div>
+        <span style="color:#9a9ea6;font-size:12px">⌄</span>
+      </div>
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+        <a href="{{ n.href }}" style="display:block;padding:8px 10px;border-radius:8px;font-size:14px;color:{{ n.color }};background:{{ n.bg }};font-weight:{{ n.weight }};transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f0f0ed;color:#16181d">{{ n.label }}</a>
+      </sc-for>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:2px">
+      <a href="PharmDash-Markets.dc.html" style="padding:8px 10px;border-radius:8px;font-size:14px;color:#5d616a;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f0f0ed;color:#16181d">Все рынки</a>
+      <a href="PharmDash-Upload.dc.html" style="padding:8px 10px;border-radius:8px;font-size:14px;color:#5d616a;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f0f0ed;color:#16181d">Загрузка данных</a>
+    </div>
+  </aside>
+
+  <main style="flex:1;min-width:0;padding:28px clamp(20px,3vw,40px) 72px;display:flex;flex-direction:column;gap:24px;max-width:1360px">
+    <header style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <h1 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.02em">Казахстан</h1>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:14px;color:#6b6f78">
+          <span style="white-space:nowrap"><b style="color:#16181d;font-weight:600">1 006</b> МНН</span>
+          <span style="white-space:nowrap"><b style="color:#16181d;font-weight:600">412</b> производителей</span>
+          <span style="white-space:nowrap"><b style="color:#16181d;font-weight:600">3 870</b> ТМ</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;background:#ededea;border-radius:10px;padding:3px;gap:2px">
+          <sc-for list="{{ sectors }}" as="s" hint-placeholder-count="3">
+            <button onClick="{{ s.on }}" style="white-space:nowrap;border:0;cursor:pointer;padding:6px 12px;border-radius:8px;font-size:13px;background:{{ s.bg }};color:{{ s.color }};font-weight:{{ s.weight }};box-shadow:{{ s.shadow }}">{{ s.label }}</button>
+          </sc-for>
+        </div>
+        <div style="position:relative">
+          <button onClick="{{ toggleAtc }}" style="white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px;border:1px solid #e3e3df;background:#fff;cursor:pointer;padding:7px 12px;border-radius:10px;font-size:13px;color:#16181d;font-weight:500">{{ atcLabel }}<span style="color:#9a9ea6">⌄</span></button>
+          <sc-if value="{{ atcOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;right:0;top:calc(100% + 6px);z-index:20;width:300px;background:#fff;border:1px solid #ebebe7;border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.12);padding:6px;display:flex;flex-direction:column">
+              <sc-for list="{{ atcMenu }}" as="o" hint-placeholder-count="6">
+                <button onClick="{{ o.on }}" style="display:flex;justify-content:space-between;gap:12px;border:0;background:{{ o.bg }};cursor:pointer;padding:8px 10px;border-radius:8px;font-size:13px;color:#16181d;text-align:left;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f4f4f1"><span>{{ o.label }}</span><span style="color:#8b8f97">{{ o.share }}</span></button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <div style="display:flex;background:#ededea;border-radius:10px;padding:3px;gap:2px">
+          <sc-for list="{{ years }}" as="s" hint-placeholder-count="3">
+            <button onClick="{{ s.on }}" style="white-space:nowrap;border:0;cursor:pointer;padding:6px 11px;border-radius:8px;font-size:13px;background:{{ s.bg }};color:{{ s.color }};font-weight:{{ s.weight }};box-shadow:{{ s.shadow }}">{{ s.label }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ reset }}" style="border:0;background:none;cursor:pointer;font-size:13px;color:oklch(0.47 0.14 262);font-weight:500;padding:6px 4px">Сбросить</button>
+        </sc-if>
+      </div>
+    </header>
+
+    <section style="background:oklch(0.26 0.075 268);color:#fff;border-radius:22px;padding:30px 32px 24px;display:flex;flex-wrap:wrap;gap:28px 48px">
+      <div style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-size:13px;color:oklch(0.84 0.04 268)">{{ hero.label }} · {{ scopeNote }}</span>
+          <span style="font-size:clamp(48px,6vw,72px);font-weight:600;letter-spacing:-0.045em;line-height:0.95">{{ hero.value }}</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-size:14px;font-weight:600;padding:5px 11px;border-radius:999px;background:oklch(0.78 0.16 155 / 0.18);color:oklch(0.86 0.14 155)">{{ hero.g }}</span><span style="font-size:13px;color:oklch(0.84 0.04 268)">{{ hero.sub }}</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px;padding-top:20px;border-top:1px solid oklch(1 0 0 / 0.12)">
+          <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:oklch(0.82 0.04 268)">{{ s.label }}</span><span style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font-size:22px;font-weight:600;letter-spacing:-0.02em">{{ s.value }}</span><span style="font-size:12px;font-weight:600;color:{{ s.tone }}">{{ s.g }}</span></span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:2 1 460px;min-width:0;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:flex-end">
+          <div style="display:flex;background:oklch(1 0 0 / 0.08);border-radius:9px;padding:3px;gap:2px">
+            <sc-for list="{{ modes }}" as="s" hint-placeholder-count="2">
+              <button onClick="{{ s.on }}" style="border:0;cursor:pointer;padding:5px 11px;border-radius:7px;font-size:12px;background:{{ s.bg }};color:{{ s.color }};font-weight:{{ s.weight }}">{{ s.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="position:relative;flex:1;min-height:210px">
+          <svg viewBox="0 0 600 200" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">
+            <defs><linearGradient id="hf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="oklch(0.78 0.12 268)" stop-opacity="0.45"></stop><stop offset="1" stop-color="oklch(0.78 0.12 268)" stop-opacity="0"></stop></linearGradient></defs>
+            <rect x="{{ band.x }}" y="0" width="200" height="200" fill="oklch(1 0 0 / 0.05)"></rect>
+            <line x1="200" x2="200" y1="0" y2="200" stroke="oklch(1 0 0 / 0.12)" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"></line>
+            <line x1="400" x2="400" y1="0" y2="200" stroke="oklch(1 0 0 / 0.12)" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"></line>
+            <path d="{{ hc.area }}" fill="url(#hf)" fill-opacity="{{ hc.op }}"></path>
+            <path d="{{ hc.line }}" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="{{ hc.dash }}" vector-effect="non-scaling-stroke"></path>
+          </svg>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr))">
+          <sc-for list="{{ yearCols }}" as="y" hint-placeholder-count="3">
+            <button onClick="{{ y.on }}" style="display:flex;flex-direction:column;gap:2px;align-items:center;border:0;background:none;cursor:pointer;padding:8px 4px;border-radius:10px;color:#fff;opacity:{{ y.op }};transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:oklch(1 0 0 / 0.06)">
+              <span style="font-size:13px;font-weight:{{ y.weight }}">{{ y.y }}</span>
+              <span style="font-size:12px;color:oklch(0.84 0.04 268)">{{ y.v }} <span style="color:{{ y.tone }};font-weight:600">{{ y.g }}</span></span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+
+    <section style="display:flex;flex-wrap:wrap;gap:24px">
+      <div style="flex:1.3 1 440px;min-width:0;background:#fff;border-radius:20px;padding:24px 26px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-size:17px;font-weight:600;letter-spacing:-0.01em">Кто двигает рынок</span><span style="font-size:12px;color:#8b8f97">изменение продаж к прошлому году, USD</span></div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <sc-for list="{{ movers }}" as="m" hint-placeholder-count="8">
+            <a href="PharmDash-Dashboard.dc.html" style="display:grid;grid-template-columns:minmax(110px,150px) minmax(0,1fr) 84px;gap:14px;align-items:center;padding:7px 8px;margin:0 -8px;border-radius:8px;color:#16181d;font-size:14px;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f6f6f3">
+              <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</span>
+              <span style="position:relative;height:22px">
+                <span style="position:absolute;left:50%;top:-4px;bottom:-4px;width:1px;background:#e3e3df"></span>
+                <span style="position:absolute;top:0;bottom:0;left:{{ m.l }};width:{{ m.w }};background:{{ m.c }};border-radius:5px"></span>
+              </span>
+              <span style="text-align:right;font-weight:600;white-space:nowrap;color:{{ m.tone }}">{{ m.v }}</span>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="flex:1 1 340px;min-width:0;background:#fff;border-radius:20px;padding:24px 26px;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><span style="font-size:17px;font-weight:600;letter-spacing:-0.01em">Скоринг МНН</span><a href="PharmDash-Scoring.dc.html" style="font-size:13px;font-weight:500">Весь скоринг →</a></div>
+        <div style="display:flex;height:48px;gap:3px;border-radius:12px;overflow:hidden">
+          <sc-for list="{{ cats }}" as="c" hint-placeholder-count="4">
+            <a href="PharmDash-Scoring.dc.html" style="flex:{{ c.n }};min-width:44px;background:{{ c.color }};color:{{ c.fg }};display:flex;align-items:center;padding:0 10px;overflow:hidden">
+              <span style="font-size:16px;font-weight:700">{{ c.n }}</span>
+              </a>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:6px 16px;flex-wrap:wrap;margin-top:-6px">
+          <sc-for list="{{ cats }}" as="c" hint-placeholder-count="4">
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#5d616a"><span style="width:8px;height:8px;border-radius:2px;background:{{ c.color }}"></span>{{ c.label }}</span>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <span style="font-size:12px;color:#8b8f97;padding-bottom:6px">Топ-5 кандидатов · 770 прошли стоп-фильтр</span>
+          <sc-for list="{{ top5 }}" as="t" hint-placeholder-count="5">
+            <a href="PharmDash-Dashboard.dc.html" style="display:grid;grid-template-columns:minmax(0,1fr) auto 40px;align-items:center;gap:10px;padding:9px 8px;margin:0 -8px;border-radius:8px;color:#16181d;border-top:1px solid #f3f3f0;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f6f6f3">
+              <span style="display:flex;align-items:center;gap:8px;min-width:0"><span style="width:6px;height:22px;border-radius:3px;flex-shrink:0;background:{{ t.dot }}"></span><span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.mnn }}</span><span style="font-size:11px;color:#8b8f97">{{ t.dir }}</span></span></span>
+              <span style="font-size:13px;color:#5d616a;white-space:nowrap">{{ t.usd }}</span>
+              <span style="font-size:14px;font-weight:700;text-align:center;padding:5px 0;border-radius:8px;background:oklch(0.6 0.15 155);color:#fff">{{ t.score }}</span>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+
+    <section style="display:flex;flex-wrap:wrap;gap:24px">
+      <div style="flex:1 1 400px;min-width:0;background:#fff;border-radius:20px;padding:24px 26px;display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding-bottom:12px"><span style="font-size:17px;font-weight:600;letter-spacing:-0.01em">Топ-10 МНН</span><span style="font-size:12px;color:#8b8f97">USD · доля · г/г</span></div>
+          <sc-for list="{{ topMnn }}" as="m" hint-placeholder-count="10">
+            <a href="PharmDash-Dashboard.dc.html" style="display:grid;grid-template-columns:20px minmax(0,1fr) 92px 48px 56px;gap:10px;align-items:center;padding:9px 8px;margin:0 -8px;border-radius:8px;color:#16181d;font-size:14px;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f7f7f4">
+              <span style="font-size:12px;color:#a3a6ad">{{ m.i }}</span>
+              <span style="display:flex;flex-direction:column;gap:5px;min-width:0"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</span><span style="height:3px;border-radius:2px;background:#f0f0ec"><span style="display:block;height:100%;width:{{ m.w }};background:oklch(0.72 0.09 262);border-radius:2px"></span></span></span>
+              <span style="text-align:right;font-weight:500">{{ m.usd }}</span>
+              <span style="text-align:right;color:#6b6f78;font-size:13px">{{ m.share }}</span>
+              <span style="text-align:right;font-size:13px;color:{{ m.tone }};font-weight:500">{{ m.g }}</span>
+            </a>
+          </sc-for>
+        </div>
+      <div style="flex:1 1 400px;min-width:0;background:#fff;border-radius:20px;padding:24px 26px;display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding-bottom:10px"><span style="font-size:17px;font-weight:600;letter-spacing:-0.01em">Классы ATC</span><span style="font-size:12px;color:#8b8f97">клик — фильтр по классу</span></div>
+          <sc-for list="{{ atcBars }}" as="a" hint-placeholder-count="10">
+            <button onClick="{{ a.on }}" style="display:grid;grid-template-columns:22px minmax(0,1fr) 84px 52px;gap:10px;align-items:center;border:0;background:none;cursor:pointer;padding:7px 8px;margin:0 -8px;border-radius:8px;text-align:left;color:#16181d;font-size:14px;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f7f7f4">
+              <span style="font-weight:600;color:#5d616a">{{ a.code }}</span>
+              <span style="display:flex;flex-direction:column;gap:5px;min-width:0"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{{ a.weight }}">{{ a.name }}</span><span style="height:6px;border-radius:3px;background:#f2f2ef"><span style="display:block;height:100%;width:{{ a.w }};background:{{ a.c }};border-radius:3px;transition:background .2s"></span></span></span>
+              <span style="text-align:right;font-weight:500">{{ a.usd }}</span>
+              <span style="text-align:right;color:#6b6f78;font-size:13px">{{ a.share }}</span>
+            </button>
+          </sc-for>
+        </div>
+    </section>
+
+    <section style="display:flex;flex-wrap:wrap;gap:24px">
+      <div style="flex:1 1 400px;min-width:0;background:#fff;border-radius:20px;padding:24px 26px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding-bottom:8px"><span style="font-size:17px;font-weight:600;letter-spacing:-0.01em">Страны производства</span><span style="font-size:12px;color:#8b8f97">доля USD · клик — детальный анализ</span></div>
+        <div style="display:grid;grid-template-columns:minmax(100px,1fr) repeat(3,minmax(52px,72px)) 56px;gap:4px;font-size:11px;color:#8b8f97;padding:0 6px;margin:0 -6px"><span></span><span style="text-align:center">2023</span><span style="text-align:center">2024</span><span style="text-align:center">2025</span><span style="text-align:right">г/г</span></div>
+        <sc-for list="{{ cHeat }}" as="c" hint-placeholder-count="10">
+          <div onClick="{{ c.on }}" style="display:grid;grid-template-columns:minmax(100px,1fr) repeat(3,minmax(52px,72px)) 56px;gap:4px;align-items:center;font-size:14px;cursor:pointer;padding:2px 6px;margin:0 -6px;border-radius:8px;background:{{ c.bg }};transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f4f5fa">
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span>
+            <sc-for list="{{ c.cells }}" as="x" hint-placeholder-count="3">
+              <span style="height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:{{ x.bg }};color:{{ x.fg }}">{{ x.v }}</span>
+            </sc-for>
+            <span style="text-align:right;font-size:13px;font-weight:600;color:{{ c.tone }}">{{ c.g }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="flex:1 1 400px;min-width:0;background:#fff;border-radius:20px;padding:24px 26px;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:12px;flex-wrap:wrap">
+          <span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:17px;font-weight:600;letter-spacing:-0.01em">Топ-10 производителей</span><span style="font-size:12px;color:#8b8f97">клик — детальный анализ</span></span>
+          <span style="font-size:12px;font-weight:600;padding:4px 9px;border-radius:999px;background:oklch(0.94 0.05 155);color:oklch(0.38 0.11 155)">HHI 640 · низкая концентрация</span>
+        </div>
+        <sc-for list="{{ producers }}" as="p" hint-placeholder-count="10">
+          <div onClick="{{ p.on }}" style="display:grid;grid-template-columns:30px minmax(0,1fr) 84px 54px;gap:10px;align-items:center;padding:7px 8px;margin:0 -8px;border-radius:8px;font-size:14px;cursor:pointer;background:{{ p.bg }};transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f4f5fa">
+            <span style="font-size:10px;font-weight:700;text-align:center;padding:3px 0;border-radius:5px;background:{{ p.chipBg }};color:{{ p.chipFg }}">{{ p.code }}</span>
+            <span style="display:flex;flex-direction:column;gap:5px;min-width:0"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span><span style="height:6px;border-radius:3px;background:#f0f0ec"><span style="display:block;height:100%;width:{{ p.w }};background:{{ p.c }};border-radius:3px"></span></span></span>
+            <span style="text-align:right;font-weight:500">{{ p.usd }}</span>
+            <span style="text-align:right;font-size:13px;color:{{ p.tone }};font-weight:600">{{ p.g }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </main>
+  <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closePanel }}" style="position:fixed;inset:0;background:rgba(22,24,29,.18);z-index:40"></div>
+    <aside style="position:fixed;top:0;right:0;bottom:0;width:min(580px,100%);background:#fff;z-index:41;box-shadow:-16px 0 48px rgba(16,24,40,.12);overflow:auto;display:flex;flex-direction:column">
+      <div style="position:sticky;top:0;background:#fff;padding:24px 28px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid #f1f1ee;z-index:1">
+        <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:#8b8f97">Страна производства · весь рынок</span><span style="font-size:24px;font-weight:600;letter-spacing:-0.02em">{{ panel.name }}</span></div>
+        <button onClick="{{ closePanel }}" style="border:0;background:#f2f2ef;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;color:#5d616a;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#e8e8e4">✕</button>
+      </div>
+      <div style="padding:20px 28px 40px;display:flex;flex-direction:column;gap:32px">
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 16px">
+          <sc-for list="{{ panel.kpis }}" as="k" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:#8b8f97">{{ k.label }}</span><span style="font-size:20px;font-weight:600;color:{{ k.color }}">{{ k.value }}</span></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:14px;font-weight:600">Доля рынка по годам</span>
+          <div style="display:flex;align-items:flex-end;gap:16px;height:96px">
+            <sc-for list="{{ panel.shares }}" as="s" hint-placeholder-count="3">
+              <div style="flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:6px"><span style="font-size:13px;font-weight:600">{{ s.v }}</span><div style="height:{{ s.h }};background:{{ s.c }};border-radius:5px 5px 2px 2px"></div><span style="font-size:12px;color:#8b8f97">{{ s.y }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;gap:20px;border-bottom:1px solid #ecece8;margin-bottom:6px">
+            <sc-for list="{{ ctabs }}" as="t" hint-placeholder-count="2">
+              <button onClick="{{ t.on }}" style="border:0;background:none;cursor:pointer;padding:8px 0;margin-bottom:-1px;font-size:14px;color:{{ t.color }};font-weight:{{ t.weight }};border-bottom:2px solid {{ t.border }}">{{ t.label }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ isProd }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 84px 52px 52px 56px;gap:10px;font-size:11px;color:#8b8f97;padding:4px 0"><span>Производитель</span><span style="text-align:right">USD</span><span style="text-align:right">В стране</span><span style="text-align:right">Рынка</span><span style="text-align:right">г/г</span></div>
+            <sc-for list="{{ cProducers }}" as="p" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 84px 52px 52px 56px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #f3f3f0;font-size:14px">
+                <span style="display:flex;flex-direction:column;gap:5px;min-width:0"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span><span style="height:3px;border-radius:2px;background:#f0f0ec"><span style="display:block;height:100%;width:{{ p.w }};background:oklch(0.72 0.09 262);border-radius:2px"></span></span></span>
+                <span style="text-align:right;font-weight:500">{{ p.usd }}</span><span style="text-align:right;font-size:13px">{{ p.share }}</span><span style="text-align:right;font-size:13px;color:#6b6f78">{{ p.mshare }}</span><span style="text-align:right;font-size:13px;color:{{ p.tone }};font-weight:500">{{ p.g }}</span>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ isMnn }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 84px 60px 56px 16px;gap:10px;font-size:11px;color:#8b8f97;padding:4px 0"><span>МНН</span><span style="text-align:right">USD</span><span style="text-align:right">В стране</span><span style="text-align:right">г/г</span><span></span></div>
+            <sc-for list="{{ cMnn }}" as="m" hint-placeholder-count="6">
+              <a href="PharmDash-Dashboard.dc.html" style="display:grid;grid-template-columns:minmax(0,1fr) 84px 60px 56px 16px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #f3f3f0;font-size:14px;color:#16181d;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f7f7f4">
+                <span style="display:flex;flex-direction:column;gap:5px;min-width:0"><span>{{ m.name }}</span><span style="height:3px;border-radius:2px;background:#f0f0ec"><span style="display:block;height:100%;width:{{ m.w }};background:oklch(0.72 0.09 262);border-radius:2px"></span></span></span>
+                <span style="text-align:right;font-weight:500">{{ m.usd }}</span><span style="text-align:right;font-size:13px">{{ m.share }}</span><span style="text-align:right;font-size:13px;color:{{ m.tone }};font-weight:500">{{ m.g }}</span><span style="color:#b5b8be">→</span>
+              </a>
+            </sc-for>
+          </sc-if>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <span style="font-size:14px;font-weight:600">Формы и торговые марки</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ forms }}" as="f" hint-placeholder-count="4">
+              <button onClick="{{ f.on }}" style="display:flex;gap:6px;align-items:center;cursor:pointer;padding:7px 12px;border-radius:999px;font-size:13px;font-weight:500;background:{{ f.bg }};color:{{ f.color }};border:1px solid {{ f.border }}">{{ f.label }}<span style="opacity:.6">{{ f.share }}</span></button>
+            </sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:#6b6f78;padding-top:4px"><span>{{ formLabel }}</span><span>{{ formUsd }} · {{ formShare }}</span></div>
+          <sc-for list="{{ tms }}" as="t" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 84px 52px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #f3f3f0;font-size:14px">
+              <span style="display:flex;flex-direction:column;gap:5px"><span>{{ t.name }}</span><span style="height:3px;border-radius:2px;background:#f0f0ec"><span style="display:block;height:100%;width:{{ t.w }};background:oklch(0.72 0.09 262);border-radius:2px"></span></span></span>
+              <span style="text-align:right;font-weight:500">{{ t.usd }}</span><span style="text-align:right;font-size:13px;color:#6b6f78">{{ t.share }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </aside>
+  </sc-if>
+  <sc-if value="{{ prodOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeProd }}" style="position:fixed;inset:0;background:rgba(22,24,29,.18);z-index:40"></div>
+    <aside style="position:fixed;top:0;right:0;bottom:0;width:min(580px,100%);background:#fff;z-index:41;box-shadow:-16px 0 48px rgba(16,24,40,.12);overflow:auto;display:flex;flex-direction:column">
+      <div style="position:sticky;top:0;background:#fff;padding:24px 28px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid #f1f1ee;z-index:1">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+          <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8b8f97;flex-wrap:wrap"><span style="font-size:10px;font-weight:700;padding:3px 6px;border-radius:5px;background:{{ pp.chipBg }};color:{{ pp.chipFg }}">{{ pp.code }}</span><span>Производитель · {{ pp.country }} · {{ pp.rank }}-й на рынке</span></span>
+          <span style="font-size:24px;font-weight:600;letter-spacing:-0.02em">{{ pp.name }}</span>
+        </div>
+        <button onClick="{{ closeProd }}" style="border:0;background:#f2f2ef;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;color:#5d616a;flex-shrink:0;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#e8e8e4">✕</button>
+      </div>
+      <div style="padding:20px 28px 40px;display:flex;flex-direction:column;gap:30px">
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 16px">
+          <sc-for list="{{ pp.kpis }}" as="k" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:#8b8f97">{{ k.label }}</span><span style="font-size:20px;font-weight:600;color:{{ k.color }}">{{ k.value }}</span></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:14px;font-weight:600">Доля рынка по годам</span>
+          <div style="display:flex;align-items:flex-end;gap:16px;height:96px">
+            <sc-for list="{{ pp.shares }}" as="x" hint-placeholder-count="3">
+              <div style="flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:6px"><span style="font-size:13px;font-weight:600">{{ x.v }}</span><div style="height:{{ x.h }};background:{{ x.c }};border-radius:5px 5px 2px 2px"></div><span style="font-size:12px;color:#8b8f97">{{ x.y }}</span></div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:14px;font-weight:600">Классы ATC в портфеле</span>
+          <div style="display:flex;height:14px;gap:2px;border-radius:5px;overflow:hidden">
+            <sc-for list="{{ pp.atc }}" as="a" hint-placeholder-count="6"><span style="flex:{{ a.n }};background:{{ a.c }}"></span></sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px">
+            <sc-for list="{{ pp.atc }}" as="a" hint-placeholder-count="6">
+              <span style="display:flex;align-items:center;gap:8px;font-size:13px;min-width:0"><span style="width:9px;height:9px;border-radius:3px;flex-shrink:0;background:{{ a.c }}"></span><b style="font-weight:600;width:12px">{{ a.code }}</b><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#5d616a">{{ a.name }}</span><span style="font-weight:600">{{ a.share }}</span></span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 84px 60px 56px 16px;gap:10px;font-size:11px;color:#8b8f97;padding:0 0 6px"><span>Портфель МНН</span><span style="text-align:right">USD</span><span style="text-align:right">В портф.</span><span style="text-align:right">г/г</span><span></span></div>
+          <sc-for list="{{ pp.mnn }}" as="m" hint-placeholder-count="6">
+            <a href="PharmDash-Dashboard.dc.html" style="display:grid;grid-template-columns:minmax(0,1fr) 84px 60px 56px 16px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #f3f3f0;font-size:14px;color:#16181d;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f7f7f4">
+              <span style="display:flex;flex-direction:column;gap:5px;min-width:0"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</span><span style="height:6px;border-radius:3px;background:#f0f0ec"><span style="display:block;height:100%;width:{{ m.w }};background:oklch(0.52 0.16 268);border-radius:3px"></span></span></span>
+              <span style="text-align:right;font-weight:500">{{ m.usd }}</span><span style="text-align:right;font-size:13px">{{ m.share }}</span><span style="text-align:right;font-size:13px;font-weight:500;color:{{ m.tone }}">{{ m.g }}</span><span style="color:#b5b8be">→</span>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </aside>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  __fx() {
+    const root = document.getElementById('dc-root') || document.body, ease = 'cubic-bezier(.22,.61,.36,1)';
+    if (!root.animate || document.visibilityState !== 'visible') return;
+    const safe = (a, ms) => { setTimeout(() => { try { if (a.playState !== 'finished') a.finish(); } catch (e) {} }, ms + 300); return a; };
+    const anim = (el, kf, o) => safe(el.animate(kf, o), (o.duration || 0) + (o.delay || 0));
+    const rad = el => ['20px', '22px'].includes(el.style && el.style.borderTopLeftRadius);
+    const isCard = el => el.nodeType === 1 && rad(el) && !!(el.style.background || el.style.backgroundColor);
+    const rise = (els, base, step, dur) => els.forEach((el, i) => anim(el, [{ opacity: 0, translate: '0 16px' }, { opacity: 1, translate: '0 0' }], { duration: dur, delay: base + i * step, easing: ease, fill: 'backwards' }));
+    const top = list => list.filter(el => !list.some(o => o !== el && o.contains(el)));
+    const main = root.querySelector('main');
+    if (main) {
+      const head = main.querySelector('header');
+      if (head) anim(head, [{ opacity: 0, translate: '0 -8px' }, { opacity: 1, translate: '0 0' }], { duration: 700, easing: ease, fill: 'backwards' });
+      rise(top([...main.querySelectorAll('*')].filter(isCard)), 120, 90, 900);
+    }
+    this.__mo = new MutationObserver(ms => document.visibilityState === 'visible' && ms.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1 || !n.style) return;
+      const st = n.style;
+      if (st.position === 'fixed' && n.tagName === 'ASIDE') anim(n, [{ opacity: 0, translate: '48px 0' }, { opacity: 1, translate: '0 0' }], { duration: 480, easing: ease });
+      else if (st.position === 'fixed' && (st.inset === '0px' || (st.top === '0px' && st.left === '0px'))) anim(n, [{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out' });
+      else if (st.position === 'fixed') anim(n, [{ opacity: 0, translate: '0 18px' }, { opacity: 1, translate: '0 0' }], { duration: 420, easing: ease });
+      else if (st.position === 'absolute' && st.boxShadow) anim(n, [{ opacity: 0, translate: '0 -6px', scale: '0.98' }, { opacity: 1, translate: '0 0', scale: '1' }], { duration: 220, easing: ease });
+      else { const els = isCard(n) ? [n] : top([...n.querySelectorAll('*')].filter(isCard)); rise(els, 0, 70, 650); }
+    })));
+    this.__mo.observe(root, { childList: true, subtree: true });
+  }
+  
+  state = { sector: 'all', year: 2025, atc: null, atcOpen: false, mode: 'usd', t: 0, country: null, ctab: 'prod', form: 0, prod: null };
+  componentDidMount() {
+    this.__fx();
+    const s0 = performance.now();
+    const f = n => { const t = Math.min(1, (n - s0) / 1900); this.setState({ t }); if (t < 1) this.raf = requestAnimationFrame(f); };
+    this.raf = requestAnimationFrame(f);
+    this.fb = setTimeout(() => { if (this.state.t < 1) this.setState({ t: 1 }); }, 2600);
+  }
+  componentWillUnmount() { this.__mo && this.__mo.disconnect(); cancelAnimationFrame(this.raf); clearTimeout(this.fb); }
+  renderVals() {
+    const S = this.state, set = o => this.setState(o), e = S.t < 0.5 ? 4 * S.t * S.t * S.t : 1 - Math.pow(-2 * S.t + 2, 3) / 2;
+    const up = 'oklch(0.52 0.14 155)', dn = 'oklch(0.55 0.19 25)';
+    const ac = 'oklch(0.47 0.14 262)';
+    const upL = 'oklch(0.84 0.14 155)', dnL = 'oklch(0.78 0.14 25)';
+    const pct = v => (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+    const tone = v => v >= 0 ? up : dn;
+    const seg = (opts, cur, key, dark) => opts.map(([v, l]) => ({ label: l, on: () => set({ [key]: v, atcOpen: false }),
+      bg: cur === v ? (dark ? 'oklch(1 0 0 / 0.16)' : '#fff') : 'transparent', color: cur === v ? (dark ? '#fff' : '#16181d') : (dark ? 'oklch(0.82 0.04 268)' : '#6b6f78'),
+      weight: cur === v ? 600 : 500, shadow: cur === v && !dark ? '0 1px 2px rgba(16,24,40,.08)' : 'none' }));
+    const pages = [['Обзор', 'Overview'], ['Дашборд МНН', 'Dashboard'], ['Скоринг', 'Scoring'], ['Цены аптек (БДЦ)', 'Prices'], ['Настройки', 'Settings']];
+    const nav = pages.map(([l, f], i) => ({ label: l, href: `PharmDash-${f}.dc.html`, color: i === 0 ? '#16181d' : '#5d616a', bg: i === 0 ? '#ebebe7' : 'transparent', weight: i === 0 ? 600 : 400 }));
+
+    const HUE = { A: 268, C: 355, J: 155, N: 300, L: 45, R: 230, M: 100, B: 20, G: 195, D: 130 };
+    const sat = h => `oklch(0.56 0.15 ${h})`;
+    const atcList = [['A', 'Пищеварение и обмен веществ', 21.4], ['C', 'Сердечно-сосудистая система', 17.2], ['J', 'Противомикробные', 14.8], ['N', 'Нервная система', 11.3], ['L', 'Онкология и иммуномодуляторы', 9.1], ['R', 'Дыхательная система', 7.4], ['M', 'Костно-мышечная система', 6.0], ['B', 'Кровь и кроветворение', 5.2], ['G', 'Мочеполовая система', 4.1], ['D', 'Дерматология', 3.5]];
+    const atcObj = atcList.find(a => a[0] === S.atc);
+    const kSec = S.sector === 'all' ? 1 : S.sector === 'ret' ? 0.71 : 0.29;
+    const kAtc = atcObj ? atcObj[2] / 100 : 1;
+    const kYear = { 2023: 0.859, 2024: 0.924, 2025: 1 }[S.year];
+    const K = kSec * kAtc * kYear, base = kSec * kAtc;
+    const money = v => v >= 1000 ? '$' + (v / 1000).toFixed(2).replace('.', ',') + ' млрд' : '$' + v.toFixed(v < 10 ? 1 : 0).replace('.', ',') + ' млн';
+    const units = v => v >= 1 ? Math.round(v) + ' млн' : Math.round(v * 1000) + ' тыс';
+
+    const sectors = seg([['all', 'Все секторы'], ['ret', 'Розница'], ['hos', 'Госпиталь']], S.sector, 'sector');
+    const years = seg([[2023, '2023'], [2024, '2024'], [2025, '2025']], S.year, 'year');
+    const modes = seg([['usd', 'USD'], ['un', 'Упаковки']], S.mode, 'mode', true);
+    const atcMenu = [{ label: 'Все классы ATC', share: '100%', dot: '#c9cbd1', on: () => set({ atc: null, atcOpen: false }), bg: S.atc ? 'transparent' : '#f4f4f1' }]
+      .concat(atcList.map(a => ({ label: a[0] + ' · ' + a[1], share: a[2].toFixed(1).replace('.', ',') + '%', dot: sat(HUE[a[0]]), on: () => set({ atc: a[0], atcOpen: false }), bg: S.atc === a[0] ? '#f4f4f1' : 'transparent' })));
+
+    const TOT = { usd: { 2022: 1458, 2023: 1580, 2024: 1703, 2025: 1840 }, un: { 2022: 366, 2023: 377, 2024: 400, 2025: 412 } };
+    const SEAS = [0.9, 0.88, 1.0, 0.97, 0.98, 0.95, 0.92, 0.94, 1.04, 1.09, 1.08, 1.25], sumS = SEAS.reduce((a, b) => a + b, 0);
+    const yrs = [2023, 2024, 2025];
+    const fmt = S.mode === 'usd' ? money : units;
+    const gy = (md, y) => (TOT[md][y] / TOT[md][y - 1] - 1) * 100;
+    const usd = TOT.usd[S.year] * base, un = TOT.un[S.year] * base;
+
+    const ser36 = yrs.flatMap(y => SEAS.map((s, m) => TOT[S.mode][y] * base * s / sumS * (S.mode === 'un' ? 1 + (((m * 5) % 7) - 3) * 0.012 : 1)));
+    const mx = Math.max(...ser36) * 1.1, mn = Math.min(...ser36) * 0.7;
+    const X = i => ((i + 0.5) / 36 * 600).toFixed(1), Y = v => (200 - (v - mn) / (mx - mn) * 200).toFixed(1);
+    const line = 'M' + ser36.map((v, i) => X(i) + ',' + Y(v)).join(' L');
+    const hc = { line, area: line + ` L${X(35)},200 L${X(0)},200 Z`, dash: (1 - e).toFixed(3), op: e.toFixed(3) };
+    const band = { x: (S.year - 2023) * 200 };
+    const yearCols = yrs.map(y => { const g = gy(S.mode, y);
+      return { y, v: fmt(TOT[S.mode][y] * base), g: pct(g), tone: g >= 0 ? upL : dnL, weight: y === S.year ? 700 : 500, op: y === S.year ? 1 : 0.6, on: () => set({ year: y }) }; });
+
+    const asp = y => TOT.usd[y] / TOT.un[y], ga = (asp(S.year) / asp(S.year - 1) - 1) * 100, gu = gy('un', S.year), gUsd = gy('usd', S.year);
+    const cagr = (Math.pow(TOT.usd[S.year] / TOT.usd[S.year - 2 < 2022 ? 2022 : S.year - 2], 1 / Math.min(2, S.year - 2022)) - 1) * 100;
+    const scopeNote = [S.sector === 'all' ? 'все секторы' : S.sector === 'ret' ? 'розница' : 'госпиталь', atcObj ? 'ATC ' + atcObj[0] : null, S.year].filter(Boolean).join(' · ');
+    const hero = S.mode === 'usd'
+      ? { label: 'Продажи, USD', value: money(usd * e), g: pct(gUsd) + ' г/г', sub: '+' + money((TOT.usd[S.year] - TOT.usd[S.year - 1]) * base) + ' к ' + (S.year - 1) }
+      : { label: 'Продажи, упаковки', value: units(un * e), g: pct(gu) + ' г/г', sub: '+' + units((TOT.un[S.year] - TOT.un[S.year - 1]) * base) + ' к ' + (S.year - 1) };
+    const stats = [
+      S.mode === 'usd' ? { label: 'Упаковки', value: units(un * e), g: pct(gu), tone: gu >= 0 ? upL : dnL } : { label: 'Продажи, USD', value: money(usd * e), g: pct(gUsd), tone: gUsd >= 0 ? upL : dnL },
+      { label: 'Средняя цена упаковки', value: '$' + (usd / un * e).toFixed(2).replace('.', ','), g: pct(ga), tone: ga >= 0 ? upL : dnL },
+      { label: 'Рост USD в среднем за год', value: pct(cagr * e), g: '', tone: upL },
+      { label: 'Розница / госпиталь', value: '71 / 29%', g: '', tone: upL }
+    ];
+
+    const mv = [['Ривароксабан', 3.4], ['Эмпаглифлозин', 2.6], ['Аторвастатин', 2.0], ['Тикагрелор', 1.7], ['Бисопролол', 0.6], ['Омепразол', -0.4], ['Эноксапарин', -0.4], ['Цефтриаксон', -1.7]];
+    const mvMax = 3.4;
+    const movers = mv.map(([n, v]) => { const w = Math.abs(v) / mvMax * 50 * e;
+      return { name: n, l: v >= 0 ? '50%' : (50 - w) + '%', w: w + '%', c: v >= 0 ? 'oklch(0.62 0.15 155)' : 'oklch(0.62 0.19 25)', tone: tone(v),
+        v: (v > 0 ? '+' : '−') + '$' + Math.abs(v * base).toFixed(1).replace('.', ',') + ' млн' }; });
+
+    const cats = [['Приоритет', 42, 'oklch(0.58 0.15 155)', '#fff'], ['Смотреть', 118, 'oklch(0.78 0.15 78)', 'oklch(0.3 0.07 70)'], ['Мимо', 610, '#e2e3e7', '#3d4048'], ['Стоп', 236, 'oklch(0.6 0.19 25)', '#fff']]
+      .map(c => ({ label: c[0], n: c[1], color: c[2], fg: c[3] }));
+    const top5 = [['Ривароксабан', 'Кардиология', 'C', 14.2, 87], ['Эмпаглифлозин', 'Эндокринология', 'A', 9.8, 84], ['Тикагрелор', 'Кардиология', 'C', 7.1, 81], ['Дапаглифлозин', 'Эндокринология', 'A', 6.4, 79], ['Розувастатин + эзетимиб', 'Кардиология', 'C', 5.2, 76]]
+      .map(r => ({ mnn: r[0], dir: r[1], dot: sat(HUE[r[2]]), usd: money(r[3]), score: r[4] }));
+
+    
+
+    const cList = [['Казахстан', 24.1, 9.8], ['Германия', 11.8, 2.1], ['Россия', 10.9, 5.4], ['Индия', 8.7, 12.3], ['Франция', 7.2, 1.4], ['Словения', 6.4, 6.0], ['Швейцария', 5.9, -3.1], ['Венгрия', 4.3, 2.2], ['Турция', 3.8, 15.8], ['США', 3.1, -6.2]];
+    const sc = s => { const t = Math.min(s / 25, 1), L = 0.97 - 0.52 * t; return { bg: `oklch(${L.toFixed(3)} ${(0.02 + 0.14 * t).toFixed(3)} 268)`, fg: L < 0.66 ? '#fff' : 'oklch(0.3 0.1 268)' }; };
+    const cHeat = cList.map(c => ({ name: c[0], g: pct(c[2]), tone: tone(c[2]), bg: S.country === c[0] ? 'oklch(0.97 0.015 262)' : 'transparent', on: () => set({ country: c[0], ctab: 'prod', form: 0, prod: null }),
+      cells: yrs.map(y => { const s = c[1] / Math.pow(1 + (c[2] - 7) / 100, 2025 - y); return { v: s.toFixed(1).replace('.', ',') + '%', ...sc(s) }; }) }));
+
+    const CC = { 'Франция': ['FR', 300], 'Казахстан': ['KZ', 195], 'Швейцария': ['CH', 355], 'Словения': ['SI', 155], 'США': ['US', 230], 'Венгрия': ['HU', 130], 'Германия': ['DE', 268], 'Турция': ['TR', 20] };
+    const producers = [['Sanofi', 'Франция', 92.4, 4.1], ['Нобел АФФ', 'Казахстан', 71.0, 9.7], ['Novartis', 'Швейцария', 66.3, -2.3], ['KRKA', 'Словения', 58.8, 6.2], ['Химфарм', 'Казахстан', 51.5, 11.4], ['Pfizer', 'США', 47.2, -5.6], ['Gedeon Richter', 'Венгрия', 44.9, 1.8], ['Servier', 'Франция', 41.3, 3.3], ['Bayer', 'Германия', 39.6, -0.9], ['Абди Ибрахим', 'Турция', 33.1, 14.2]]
+      .map(p => { const [code, h] = CC[p[1]];
+        return { name: p[0], code, chipBg: `oklch(0.93 0.05 ${h})`, chipFg: `oklch(0.36 0.11 ${h})`, usd: money(p[2] * K), w: (p[2] / 92.4 * 100 * e) + '%',
+          c: p[1] === 'Казахстан' ? 'oklch(0.58 0.12 195)' : 'oklch(0.52 0.16 268)', g: pct(p[3]), tone: tone(p[3]),
+          bg: S.prod === p[0] ? 'oklch(0.97 0.015 262)' : 'transparent', on: () => set({ prod: p[0], country: null }) }; });
+    const PR = [['Sanofi', 'Франция', 92.4, 4.1], ['Нобел АФФ', 'Казахстан', 71.0, 9.7], ['Novartis', 'Швейцария', 66.3, -2.3], ['KRKA', 'Словения', 58.8, 6.2], ['Химфарм', 'Казахстан', 51.5, 11.4], ['Pfizer', 'США', 47.2, -5.6], ['Gedeon Richter', 'Венгрия', 44.9, 1.8], ['Servier', 'Франция', 41.3, 3.3], ['Bayer', 'Германия', 39.6, -0.9], ['Абди Ибрахим', 'Турция', 33.1, 14.2]];
+    const PORT = { 'Sanofi': ['Инсулин гларгин', 'Эноксапарин', 'Клопидогрел', 'Ирбесартан', 'Золпидем', 'Лефлуномид'], 'Нобел АФФ': ['Метформин', 'Парацетамол', 'Цефтриаксон', 'Омепразол', 'Амлодипин', 'Аторвастатин'],
+      'Novartis': ['Валсартан', 'Вилдаглиптин', 'Сакубитрил + валсартан', 'Иматиниб', 'Летрозол', 'Циклоспорин'], 'KRKA': ['Ривароксабан', 'Аторвастатин', 'Периндоприл', 'Лозартан', 'Эзомепразол', 'Розувастатин'],
+      'Химфарм': ['Цефтриаксон', 'Цефазолин', 'Амоксициллин', 'Парацетамол', 'Ибупрофен', 'Метронидазол'], 'Pfizer': ['Апиксабан', 'Аторвастатин', 'Амлодипин', 'Прегабалин', 'Тофацитиниб', 'Линезолид'],
+      'Gedeon Richter': ['Винпоцетин', 'Толперизон', 'Дротаверин', 'Эналаприл', 'Левоноргестрел', 'Флуконазол'], 'Servier': ['Периндоприл', 'Индапамид', 'Гликлазид', 'Ивабрадин', 'Триметазидин', 'Агомелатин'],
+      'Bayer': ['Ривароксабан', 'Ацетилсалициловая кислота', 'Нифедипин', 'Моксифлоксацин', 'Ципрофлоксацин', 'Акарбоза'], 'Абди Ибрахим': ['Амоксициллин + клавуланат', 'Цефуроксим', 'Метформин', 'Аторвастатин', 'Пантопразол', 'Кларитромицин'] };
+    const pi = Math.max(0, PR.findIndex(p => p[0] === S.prod)), pr = PR[pi], [pcode, ph] = CC[pr[1]];
+    const pUsd = pr[2] * K, pShare = pr[2] / 18.4;
+    const atcW = [36, 24, 16, 10, 8, 6];
+    const pAtc = atcW.map((n, j) => { const a = j < 5 ? atcList[(pi * 3 + j * 2) % atcList.length] : null;
+      return { n, code: a ? a[0] : '·', name: a ? a[1] : 'Прочие', share: n + '%', c: a ? sat(HUE[a[0]]) : '#d6d8dc' }; });
+    const mShares = [28, 19, 14, 11, 8, 6];
+    const pp = { name: pr[0], country: pr[1], code: pcode, rank: pi + 1, chipBg: `oklch(0.93 0.05 ${ph})`, chipFg: `oklch(0.36 0.11 ${ph})`,
+      kpis: [['USD ' + S.year, money(pUsd)], ['Доля рынка', pShare.toFixed(1).replace('.', ',') + '%'], ['Рост USD', pct(pr[3])], ['Упаковки', units(pUsd / (3.2 + (pi % 4) * 1.6))], ['МНН в портфеле', String(38 + (pi * 13) % 57)], ['Торговых марок', String(52 + (pi * 17) % 90)]]
+        .map((k, j) => ({ label: k[0], value: k[1], color: j === 2 ? tone(pr[3]) : '#16181d' })),
+      shares: [2023, 2024, 2025].map((y, j) => { const v = pShare / Math.pow(1 + (pr[3] - 7) / 100, 2025 - y); return { y, v: v.toFixed(1).replace('.', ',') + '%', raw: v }; }),
+      atc: pAtc,
+      mnn: PORT[pr[0]].map((n, j) => { const g = (((pi * 7 + j * 11) % 15) - 4) * 1.7; return { name: n, usd: money(pUsd * mShares[j] / 100), share: mShares[j] + '%', w: mShares[j] / 28 * 100 + '%', g: pct(g), tone: tone(g) }; }) };
+    const pmx = Math.max(...pp.shares.map(x => x.raw));
+    pp.shares = pp.shares.map(x => ({ ...x, h: x.raw / pmx * 100 + '%', c: x.y === S.year ? ac : 'oklch(0.88 0.04 262)' }));
+
+    const topMnn = [['Инсулин гларгин', 48.1, 2.6], ['Цефтриаксон', 39.7, -4.2], ['Аторвастатин', 31.2, 6.8], ['Метформин', 27.9, 1.2], ['Омепразол', 22.4, -1.9], ['Амлодипин', 19.8, 3.4], ['Парацетамол', 18.1, 0.7], ['Ривароксабан', 14.2, 31.5], ['Бисопролол', 13.6, 4.9], ['Эноксапарин', 12.9, -2.8]]
+      .map((m, i) => ({ i: i + 1, name: m[0], usd: money(m[1] * K), share: (m[1] / 18.4).toFixed(1).replace('.', ',') + '%', w: (m[1] / 48.1 * 100) + '%', g: pct(m[2]), tone: tone(m[2]) }));
+    
+    const atcBars = atcList.map(a => ({ code: a[0], name: a[1], share: a[2].toFixed(1).replace('.', ',') + '%', usd: money(1840 * kSec * kYear * a[2] / 100), w: (a[2] / 21.4 * 100) + '%',
+      c: S.atc === a[0] ? ac : S.atc ? 'oklch(0.9 0.02 262)' : 'oklch(0.72 0.09 262)', weight: S.atc === a[0] ? 600 : 400,
+      on: () => set({ atc: S.atc === a[0] ? null : a[0] }) }));
+
+    const cListP = [['Казахстан', 24.1, 31.2, 9.8], ['Германия', 11.8, 8.4, 2.1], ['Россия', 10.9, 14.6, 5.4], ['Индия', 8.7, 15.1, 12.3], ['Франция', 7.2, 4.1, 1.4], ['Словения', 6.4, 5.2, 6.0], ['Швейцария', 5.9, 2.3, -3.1], ['Венгрия', 4.3, 3.6, 2.2], ['Турция', 3.8, 4.4, 15.8], ['США', 3.1, 1.2, -6.2]];
+    const countries = cListP.map(c => ({ name: c[0], share: c[1].toFixed(1).replace('.', ',') + '%', unShare: c[2].toFixed(1).replace('.', ',') + '%', usd: money(1840 * K * c[1] / 100), w: (c[1] / 24.1 * 100) + '%', g: pct(c[3]), tone: tone(c[3]),
+      bg: S.country === c[0] ? 'oklch(0.97 0.015 262)' : 'transparent', on: () => set({ country: c[0], ctab: 'prod', form: 0 }) }));
+
+    const cc = cListP.find(c => c[0] === S.country) || cListP[0];
+    const ci = cListP.indexOf(cc);
+    const cUsd = 1840 * cc[1] / 100;
+    const panel = {
+      name: cc[0],
+      kpis: [['USD 2025', money(cUsd)], ['Упаковки', units(412 * cc[2] / 100)], ['Доля рынка', cc[1].toFixed(1).replace('.', ',') + '%'], ['Производителей', String(38 - ci * 3)], ['МНН', String(410 - ci * 31)], ['Рост USD', pct(cc[3])]]
+        .map((k, i) => ({ label: k[0], value: k[1], color: i === 5 ? tone(cc[3]) : '#16181d' })),
+      shares: [cc[1] - 1.6 + ci * 0.2, cc[1] - 0.7, cc[1]].map((v, i) => ({ y: 2023 + i, v: v.toFixed(1).replace('.', ',') + '%', h: (v / (cc[1] + 0.5) * 100) + '%', c: i === 2 ? ac : 'oklch(0.88 0.04 262)' }))
+    };
+    const prodNames = ['Нобел АФФ', 'Химфарм', 'Карагандинский ФК', 'Global Pharm', 'Абди Ибрахим ГФ', 'Келун-Казфарм'];
+    const cProducers = prodNames.map((n, i) => { const s = [34, 22, 14, 11, 8, 5][i]; const g = [9.7, 11.4, 4.2, -1.3, 18.6, 2.0][i];
+      return { name: ci === 0 ? n : cc[0] + ' · производитель ' + (i + 1), usd: money(cUsd * s / 100), share: s + '%', mshare: (cc[1] * s / 100).toFixed(1).replace('.', ',') + '%', w: (s / 34 * 100) + '%', g: pct(g), tone: tone(g) }; });
+    const cMnn = [['Цефтриаксон', 18], ['Метформин', 12], ['Парацетамол', 9], ['Омепразол', 7], ['Амлодипин', 6], ['Эноксапарин', 4]]
+      .map((m, i) => { const g = [3.1, -2.2, 0.4, 5.9, 2.7, 8.8][i]; return { name: m[0], usd: money(cUsd * m[1] / 100), share: m[1] + '%', w: (m[1] / 18 * 100) + '%', g: pct(g), tone: tone(g) }; });
+    const formsRaw = [['Таблетки', 46, ['Метформин-Нобел', 'Омез', 'Амлодипин-Х', 'Парацетамол-ХФ']], ['Раствор для инъекций', 31, ['Цефтриаксон-КФК', 'Эноксарин', 'Кеторол-ХФ']], ['Капсулы', 15, ['Омепразол-Н', 'Флуконазол-ХФ', 'Амоксил']], ['Порошок', 8, ['Цефазолин-КФК', 'Ампициллин-Х']]];
+    const forms = formsRaw.map((f, i) => ({ label: f[0], share: f[1] + '%', on: () => set({ form: i }),
+      bg: S.form === i ? '#16181d' : '#fff', color: S.form === i ? '#fff' : '#16181d', border: S.form === i ? '#16181d' : '#e3e3df' }));
+    const fSel = formsRaw[S.form];
+    const tmShares = [44, 27, 18, 11].slice(0, fSel[2].length);
+    const tms = fSel[2].map((t, i) => ({ name: t, share: tmShares[i] + '%', usd: money(cUsd * fSel[1] / 100 * tmShares[i] / 100), w: tmShares[i] / tmShares[0] * 100 + '%' }));
+    const ctabs = [['prod', 'Производители'], ['mnn', 'Портфель МНН']].map(([v, l]) => ({ label: l, on: () => set({ ctab: v }),
+      color: S.ctab === v ? '#16181d' : '#6b6f78', border: S.ctab === v ? '#16181d' : 'transparent', weight: S.ctab === v ? 600 : 500 }));
+
+    return {
+      nav, sectors, years, modes, atcMenu, atcOpen: S.atcOpen, atcLabel: atcObj ? 'ATC ' + atcObj[0] + ' · ' + atcObj[1] : 'Все классы ATC', atcDot: atcObj ? sat(HUE[atcObj[0]]) : '#c9cbd1',
+      toggleAtc: () => set({ atcOpen: !S.atcOpen }), dirty: S.sector !== 'all' || !!S.atc || S.year !== 2025,
+      reset: () => set({ sector: 'all', atc: null, year: 2025, atcOpen: false }),
+      scopeNote, hero, stats, hc, band, yearCols, movers, cats, top5, cHeat, producers, topMnn, atcBars,
+      panelOpen: !!S.country, closePanel: () => set({ country: null }), panel, prodOpen: !!S.prod, closeProd: () => set({ prod: null }), pp, ctabs, isProd: S.ctab === 'prod', isMnn: S.ctab === 'mnn',
+      cProducers, cMnn, forms, tms, formLabel: fSel[0], formShare: fSel[1] + '% в стране', formUsd: money(cUsd * fSel[1] / 100)
+    };
+  }
+}
+</script>
+</body>
+</html>

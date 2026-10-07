@@ -2,11 +2,13 @@ import asyncio
 import json
 import logging
 import shutil
+from datetime import datetime
 from pathlib import Path
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     UploadFile,
     File,
 )
@@ -25,7 +27,14 @@ from backend.schemas import (
 )
 from backend.routers.overview import invalidate_overview_cache
 from backend.routers.dashboard import invalidate_dashboard_cache
-from backend.services.market_scoring import invalidate_scoring_cache
+from backend.services.market_scoring import (
+    get_market_scoring,
+    invalidate_scoring_cache,
+)
+from backend.services.parsers.base import (
+    read_column_samples,
+    read_first_rows,
+)
 from backend.services.parsers.bdp_parser import (
     get_sheets_and_columns,
     read_columns_at_row,
@@ -43,31 +52,51 @@ def _upload_path(market_id: int) -> Path:
     return UPLOAD_DIR / f"market_{market_id}.xlsx"
 
 
+async def _market_card(db: AsyncSession, m: Market) -> MarketOut:
+    """Рынок со сводкой для карточки: объём, рост и категории скоринга."""
+    cnt, usd_prev, usd_last = (await db.execute(
+        select(
+            func.count(func.distinct(BdpRaw.mnn)),
+            func.sum(BdpRaw.usd_y2),
+            func.sum(BdpRaw.usd_y3),
+        ).where(BdpRaw.market_id == m.id)
+    )).one()
+    has_bdp = bool(cnt)
+
+    categories = None
+    if has_bdp:
+        scoring = await get_market_scoring(db, m)
+        categories = scoring["summary"]["categories"]
+
+    fp = _upload_path(m.id)
+    loaded_at = (
+        datetime.fromtimestamp(fp.stat().st_mtime).isoformat()
+        if has_bdp and fp.exists() else None
+    )
+    return MarketOut(
+        id=m.id,
+        name=m.name,
+        years=json.loads(m.years_json),
+        language=m.language,
+        regions=json.loads(m.regions_json) if m.regions_json else None,
+        created_at=m.created_at.isoformat(),
+        mnn_count=cnt or 0,
+        usd_last=usd_last if has_bdp else None,
+        usd_growth=(
+            (usd_last - usd_prev) / usd_prev
+            if has_bdp and usd_prev else None
+        ),
+        categories=categories,
+        bdp_loaded_at=loaded_at,
+    )
+
+
 @router.get("", response_model=list[MarketOut])
 async def list_markets(db: AsyncSession = Depends(get_db)):
     stmt = select(Market).order_by(Market.created_at.desc())
     result = await db.execute(stmt)
     markets = result.scalars().all()
-
-    out = []
-    for m in markets:
-        cnt_stmt = (
-            select(func.count(func.distinct(BdpRaw.mnn)))
-            .where(BdpRaw.market_id == m.id)
-        )
-        cnt = (await db.execute(cnt_stmt)).scalar() or 0
-
-        out.append(MarketOut(
-            id=m.id,
-            name=m.name,
-            years=json.loads(m.years_json),
-            language=m.language,
-            regions=json.loads(m.regions_json)
-            if m.regions_json else None,
-            created_at=m.created_at.isoformat(),
-            mnn_count=cnt,
-        ))
-    return out
+    return [await _market_card(db, m) for m in markets]
 
 
 @router.get("/{market_id}", response_model=MarketOut)
@@ -78,21 +107,7 @@ async def get_market(
     m = await db.get(Market, market_id)
     if not m:
         raise HTTPException(404, "Рынок не найден")
-
-    cnt = (await db.execute(
-        select(func.count(func.distinct(BdpRaw.mnn)))
-        .where(BdpRaw.market_id == m.id)
-    )).scalar() or 0
-
-    return MarketOut(
-        id=m.id,
-        name=m.name,
-        years=json.loads(m.years_json),
-        language=m.language,
-        regions=json.loads(m.regions_json) if m.regions_json else None,
-        created_at=m.created_at.isoformat(),
-        mnn_count=cnt,
-    )
+    return await _market_card(db, m)
 
 
 @router.post("", response_model=MarketOut)
@@ -196,7 +211,35 @@ async def get_columns(
         raise HTTPException(400, "Сначала загрузите файл")
 
     cols = read_columns_at_row(fp, sheet_name, header_row)
-    return {"columns": cols}
+    samples = await asyncio.to_thread(
+        read_column_samples, fp, sheet_name, header_row,
+    )
+    return {"columns": cols, "samples": samples}
+
+
+@router.get("/{market_id}/sheet-preview")
+async def sheet_preview(
+    market_id: int,
+    sheet_name: str,
+    rows: int = Query(8, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+):
+    """Первые строки листа как есть — для выбора строки заголовков."""
+    market = await db.get(Market, market_id)
+    if not market:
+        raise HTTPException(404, "Рынок не найден")
+
+    fp = _upload_path(market_id)
+    if not fp.exists():
+        raise HTTPException(400, "Сначала загрузите файл")
+
+    try:
+        preview = await asyncio.to_thread(
+            read_first_rows, fp, sheet_name, rows,
+        )
+    except KeyError:
+        raise HTTPException(400, "Лист не найден в файле")
+    return {"rows": preview}
 
 
 @router.get("/{market_id}/preview", response_model=PreviewResponse)

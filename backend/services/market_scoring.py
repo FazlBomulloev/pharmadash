@@ -25,18 +25,33 @@ _SCORING_COLS = (
 # и при изменении «Настроек рынка».
 _SCORING_CACHE: dict[tuple, dict] = {}
 _CACHE_MAX_ENTRIES = 64
+# market_id → строки БДП для скоринга; нужны предпросмотру настроек,
+# который пересчитывает скоринг на каждое изменение черновика.
+_ROWS_CACHE: dict[int, list] = {}
 
 
 def invalidate_scoring_cache(market_id: int | None = None) -> None:
     if market_id is None:
         _SCORING_CACHE.clear()
+        _ROWS_CACHE.clear()
         return
+    _ROWS_CACHE.pop(market_id, None)
     for key in [k for k in _SCORING_CACHE if k[0] == market_id]:
         _SCORING_CACHE.pop(key, None)
 
 
 def market_settings(market: Market) -> ScoringSettings:
     return load_settings(market.scoring_settings_json)
+
+
+async def load_scoring_rows(db: AsyncSession, market_id: int) -> list:
+    rows = _ROWS_CACHE.get(market_id)
+    if rows is None:
+        rows = (await db.execute(
+            select(*_SCORING_COLS).where(BdpRaw.market_id == market_id)
+        )).all()
+        _ROWS_CACHE[market_id] = rows
+    return rows
 
 
 async def get_market_scoring(
@@ -54,9 +69,7 @@ async def get_market_scoring(
     if cached is not None:
         return cached
 
-    rows = (await db.execute(
-        select(*_SCORING_COLS).where(BdpRaw.market_id == market.id)
-    )).all()
+    rows = await load_scoring_rows(db, market.id)
 
     forms_doses: dict[str, set[str]] = defaultdict(set)
     keyed = []

@@ -15,6 +15,11 @@ class MarketOut(BaseModel):
     regions: list[str] | None
     created_at: str
     mnn_count: int | None = None
+    # карточка рынка: объём последнего года, рост г/г, категории скоринга
+    usd_last: float | None = None
+    usd_growth: float | None = None
+    categories: dict[str, int] | None = None
+    bdp_loaded_at: str | None = None
 
     model_config = {"from_attributes": True}
 

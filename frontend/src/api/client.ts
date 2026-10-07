@@ -19,6 +19,11 @@ import type {
   PharmacyPricesResponse,
   PharmacyPricesQuery,
   PharmacyFiltersResponse,
+  ScoringQuery,
+  MnnSuggestion,
+  SettingsPreview,
+  PriceCompareItem,
+  ColumnsResponse,
 } from "../types/api";
 
 const api = axios.create({ baseURL: "/api" });
@@ -74,9 +79,20 @@ export async function getColumns(
   marketId: number,
   sheetName: string,
   headerRow: number,
-): Promise<{ columns: string[] }> {
+): Promise<ColumnsResponse> {
   const { data } = await api.get(`/markets/${marketId}/columns`, {
     params: { sheet_name: sheetName, header_row: headerRow },
+  });
+  return data;
+}
+
+/** Первые строки листа как есть — для выбора строки заголовков. */
+export async function getSheetPreview(
+  marketId: number,
+  sheetName: string,
+): Promise<{ rows: string[][] }> {
+  const { data } = await api.get(`/markets/${marketId}/sheet-preview`, {
+    params: { sheet_name: sheetName },
   });
   return data;
 }
@@ -126,13 +142,40 @@ export async function getDashboard(
 
 export async function getMarketScoring(
   id: number,
-  query: { lf?: string | null; dose?: string | null } = {},
+  query: ScoringQuery = {},
+  signal?: AbortSignal,
 ): Promise<ScoringResponse> {
-  const params: Record<string, string> = {};
-  if (query.lf) params.lf = query.lf;
-  if (query.dose) params.dose = query.dose;
+  const params: Record<string, string | number | boolean> = {};
+  Object.entries(query).forEach(([k, v]) => {
+    if (v != null && v !== "" && v !== false) params[k] = v;
+  });
   const { data } = await api.get<ScoringResponse>(
-    `/markets/${id}/scoring`, { params },
+    `/markets/${id}/scoring`, { params, signal },
+  );
+  return data;
+}
+
+/** Автокомплит МНН по БДП; при пустом q — лучшие по баллу. */
+export async function suggestMnn(
+  marketId: number,
+  q: string,
+  signal?: AbortSignal,
+): Promise<MnnSuggestion[]> {
+  const { data } = await api.get<{ items: MnnSuggestion[] }>(
+    `/markets/${marketId}/mnn-suggest`,
+    { params: q.trim() ? { q: q.trim() } : {}, signal },
+  );
+  return data.items;
+}
+
+/** Пересчёт скоринга с черновиком настроек без сохранения. */
+export async function previewMarketSettings(
+  id: number,
+  body: ScoringSettings,
+  signal?: AbortSignal,
+): Promise<SettingsPreview> {
+  const { data } = await api.post<SettingsPreview>(
+    `/markets/${id}/settings/preview`, body, { signal },
   );
   return data;
 }
@@ -218,6 +261,17 @@ export async function getPharmacyPrices(
     params,
   });
   return data;
+}
+
+/** Цена той же ТМ и дозировки в каждой аптеке. */
+export async function getPriceComparison(
+  priceId: number,
+  signal?: AbortSignal,
+): Promise<PriceCompareItem[]> {
+  const { data } = await api.get<{ items: PriceCompareItem[] }>(
+    `/pharmacies/prices/${priceId}/compare`, { signal },
+  );
+  return data.items;
 }
 
 export async function getPharmacyFilters(): Promise<PharmacyFiltersResponse> {

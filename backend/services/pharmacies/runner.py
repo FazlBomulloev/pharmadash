@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import delete, insert
@@ -16,9 +19,12 @@ from .registry import get_adapter
 
 log = logging.getLogger(__name__)
 
-_active_runs: dict[str, asyncio.Task] = {}
+# slug → процесс-воркер, запущенный из этого процесса API
+_active_runs: dict[str, subprocess.Popen] = {}
 _locks: dict[str, asyncio.Lock] = {}
 BATCH_SIZE = 500
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+WORKER_MODULE = "backend.services.pharmacies.worker"
 
 
 def _lock(slug: str) -> asyncio.Lock:
@@ -28,8 +34,13 @@ def _lock(slug: str) -> asyncio.Lock:
 
 
 def is_running(slug: str) -> bool:
-    task = _active_runs.get(slug)
-    return task is not None and not task.done()
+    proc = _active_runs.get(slug)
+    if proc is None:
+        return False
+    if proc.poll() is None:
+        return True
+    _active_runs.pop(slug, None)
+    return False
 
 
 async def run_source(
@@ -120,19 +131,28 @@ async def _flush(db: AsyncSession, rows: list[dict]) -> None:
     await db.commit()
 
 
+def _worker_flags() -> int:
+    """На Windows воркер идёт с пониженным приоритетом и без окна консоли,
+    чтобы API получал процессор первым."""
+    if sys.platform != "win32":
+        return 0
+    return subprocess.BELOW_NORMAL_PRIORITY_CLASS | subprocess.CREATE_NO_WINDOW
+
+
 def launch_background(
     slug: str, limit: Optional[int] = None,
 ) -> bool:
-    """Запустить обновление в фоне. Возвращает False, если уже идёт."""
+    """Запустить обновление в отдельном процессе (см. worker.py).
+    Возвращает False, если уже идёт."""
     if is_running(slug):
         return False
 
-    async def _job():
-        try:
-            await run_source(slug, limit=limit)
-        finally:
-            _active_runs.pop(slug, None)
-
-    task = asyncio.create_task(_job())
-    _active_runs[slug] = task
+    get_adapter(slug)  # неизвестный источник — KeyError до запуска процесса
+    command = [sys.executable, "-m", WORKER_MODULE, slug]
+    if limit is not None:
+        command += ["--limit", str(limit)]
+    _active_runs[slug] = subprocess.Popen(
+        command, cwd=PROJECT_ROOT, creationflags=_worker_flags(),
+    )
+    log.info("Pharmacy %s: воркер запущен (pid=%d)", slug, _active_runs[slug].pid)
     return True

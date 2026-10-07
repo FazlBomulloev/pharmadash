@@ -1,168 +1,168 @@
-import { NavLink, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import {
-  LayoutDashboard,
-  Upload,
-  FlaskConical,
-  ChevronLeft,
-  ChevronRight,
-  Compass,
-  Store,
-  ListOrdered,
-  SlidersHorizontal,
-} from "lucide-react";
-import { useState } from "react";
+  NavLink, useLocation, useNavigate, useParams,
+} from "react-router-dom";
+import { ChevronDown } from "lucide-react";
 import clsx from "clsx";
+import { getMarkets } from "../../api/client";
+import type { Market } from "../../types/api";
+import { useOutsideClose } from "../../hooks/useDismiss";
+import { yearsRange } from "../../lib/format";
 
-const catalogItems = [
-  {
-    label: "Рынки",
-    icon: FlaskConical,
-    to: "/",
-    end: true,
-  },
+const MARKET_NAV = [
+  { label: "Обзор", page: "overview" },
+  { label: "Дашборд МНН", page: "dashboard" },
+  { label: "Скоринг", page: "scoring" },
+  { label: "Цены аптек (БДЦ)", page: "pharmacies" },
+  { label: "Настройки", page: "settings" },
 ];
 
-const dataItems = [
-  {
-    label: "Загрузка",
-    icon: Upload,
-    to: "/admin",
-  },
-];
-
-function marketItems(marketId: string) {
-  return [
-    {
-      label: "Обзор",
-      icon: Compass,
-      to: `/market/${marketId}/overview`,
-    },
-    {
-      label: "Дашборд",
-      icon: LayoutDashboard,
-      to: `/market/${marketId}/dashboard`,
-    },
-    {
-      label: "Скоринг",
-      icon: ListOrdered,
-      to: `/market/${marketId}/scoring`,
-    },
-    {
-      label: "Цены аптек",
-      icon: Store,
-      to: `/market/${marketId}/pharmacies`,
-    },
-    {
-      label: "Настройки рынка",
-      icon: SlidersHorizontal,
-      to: `/market/${marketId}/settings`,
-    },
-  ];
+function navClass({ isActive }: { isActive: boolean }) {
+  return clsx(
+    "tr-soft block rounded-lg px-2.5 py-2 text-sm",
+    isActive
+      ? "bg-seg font-semibold text-fg hover:text-fg"
+      : "text-muted hover:bg-[#f0f0ed] hover:text-fg",
+  );
 }
 
-type NavItem = {
-  label: string;
-  icon: typeof FlaskConical;
-  to: string;
-  end?: boolean;
-};
-
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
   const { marketId } = useParams<{ marketId: string }>();
+  const { pathname } = useLocation();
+  const [markets, setMarkets] = useState<Market[]>([]);
+
+  // Список рынков перечитывается при переходах: рынок могли создать,
+  // удалить или перезагрузить на другой странице.
+  const section = pathname.split("/")[1] ?? "";
+  useEffect(() => {
+    let cancelled = false;
+    getMarkets()
+      .then((list) => {
+        if (!cancelled) setMarkets(list);
+      })
+      .catch(() => {
+        /* сайдбар работает и без списка рынков */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [section, marketId]);
+
+  const current = markets.find((m) => String(m.id) === marketId);
 
   return (
-    <aside
-      className={clsx(
-        "flex flex-col bg-slate-900 text-slate-300 transition-all duration-300 border-r border-slate-800 relative",
-        collapsed ? "w-[68px]" : "w-[240px]",
-      )}
-    >
-      <div
-        className={clsx(
-          "flex items-center gap-3 px-5 h-16 border-b border-slate-800",
-          collapsed && "justify-center px-0",
-        )}
-      >
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-          <FlaskConical size={18} className="text-white" />
+    <aside className="sticky top-0 flex h-(--screen-h) w-56 shrink-0 flex-col gap-6 border-r border-seg bg-sidebar px-3 py-5">
+      <div className="flex items-center gap-2.5 px-2.5 py-1">
+        <div className="flex size-6 items-center justify-center rounded-[7px] bg-accent text-[13px] font-bold text-white">
+          P
         </div>
-        {!collapsed && (
-          <span className="text-lg font-bold text-white tracking-tight">
-            PharmDash
-          </span>
-        )}
+        <span className="text-[15px] font-bold tracking-[-0.01em]">
+          PharmDash
+        </span>
       </div>
 
-      <nav className="flex-1 py-4 space-y-1 px-3" aria-label="Основная навигация">
-        <NavGroup
-          label="Каталог"
-          items={catalogItems}
-          collapsed={collapsed}
-        />
-        <NavGroup
-          label="Данные"
-          items={dataItems}
-          collapsed={collapsed}
-        />
-
-        {marketId && (
-          <NavGroup
-            label="Рынок"
-            items={marketItems(marketId)}
-            collapsed={collapsed}
+      {marketId && (
+        <nav className="flex flex-col gap-0.5" aria-label="Разделы рынка">
+          <MarketSwitcher
+            marketId={marketId}
+            current={current}
+            markets={markets}
           />
-        )}
-      </nav>
+          {MARKET_NAV.map((item) => (
+            <NavLink
+              key={item.page}
+              to={`/market/${marketId}/${item.page}`}
+              className={navClass}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
-      <button
-        onClick={() => setCollapsed((c) => !c)}
-        aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
-        aria-expanded={!collapsed}
-        className="absolute -right-3 top-20 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-colors z-10"
-      >
-        {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-      </button>
+      <nav className="mt-auto flex flex-col gap-0.5" aria-label="Общие разделы">
+        <NavLink to="/" end className={navClass}>
+          Все рынки
+        </NavLink>
+        <NavLink to="/admin" className={navClass}>
+          Загрузка данных
+        </NavLink>
+      </nav>
     </aside>
   );
 }
 
-function NavGroup({
-  label, items, collapsed,
+function MarketSwitcher({
+  marketId, current, markets,
 }: {
-  label: string;
-  items: NavItem[];
-  collapsed: boolean;
+  marketId: string;
+  current: Market | undefined;
+  markets: Market[];
 }) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClose<HTMLDivElement>(open, () => setOpen(false));
+
+  // Остаёмся в том же разделе при смене рынка.
+  const page = pathname.split("/")[3] ?? "overview";
+  const regions = current?.regions?.length ?? 0;
+
   return (
-    <div className="mb-3 last:mb-0">
-      {!collapsed && (
-        <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold px-3 mb-1.5 mt-2">
-          {label}
-        </p>
-      )}
-      {collapsed && (
-        <div className="my-2 mx-3 border-t border-slate-800" aria-hidden />
-      )}
-      {items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          className={({ isActive }) =>
-            clsx(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-              isActive
-                ? "bg-indigo-600/20 text-indigo-400"
-                : "text-slate-400 hover:bg-slate-800 hover:text-slate-200",
-              collapsed && "justify-center px-0",
-            )
-          }
+    <div ref={ref} className="relative mb-2">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="tr-soft flex w-full items-center justify-between gap-2 rounded-[9px] border border-seg bg-white px-2.5 py-[9px] text-left hover:border-line-strong"
+      >
+        <span className="flex min-w-0 flex-col gap-px">
+          <span className="truncate text-[13px] font-semibold text-fg">
+            {current?.name ?? `Рынок ${marketId}`}
+          </span>
+          {current && (
+            <span className="whitespace-nowrap text-[11px] text-faint">
+              {yearsRange(current.years)}
+              {regions > 0 && ` · ${regions} рег.`}
+            </span>
+          )}
+        </span>
+        <ChevronDown size={14} className="shrink-0 text-[#9a9ea6]" />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          className="anim-pop absolute inset-x-0 top-[calc(100%+6px)] z-40 flex max-h-72 flex-col overflow-y-auto rounded-xl border border-seg bg-white p-1.5 shadow-pop"
         >
-          <item.icon size={20} className="flex-shrink-0" />
-          {!collapsed && <span>{item.label}</span>}
-        </NavLink>
-      ))}
+          {markets.map((m) => {
+            const active = String(m.id) === marketId;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  setOpen(false);
+                  if (!active) navigate(`/market/${m.id}/${page}`);
+                }}
+                className={clsx(
+                  "tr-soft truncate rounded-lg border-0 px-2.5 py-2 text-left text-[13px] text-fg hover:bg-canvas",
+                  active ? "bg-canvas font-medium" : "bg-transparent",
+                )}
+              >
+                {m.name}
+              </button>
+            );
+          })}
+          {markets.length === 0 && (
+            <span className="px-2.5 py-2 text-[13px] text-faint">
+              Нет рынков
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

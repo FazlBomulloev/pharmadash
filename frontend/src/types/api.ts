@@ -6,6 +6,25 @@ export interface Market {
   regions: string[] | null;
   created_at: string;
   mnn_count?: number | null;
+  /** Объём последнего года БДП, USD; null — БДП не загружен. */
+  usd_last?: number | null;
+  usd_growth?: number | null;
+  categories?: Record<ScoringCategory, number> | null;
+  bdp_loaded_at?: string | null;
+}
+
+/** Продажи по годам без сдвига окна — для графика в hero. */
+export interface YearSeries {
+  years: number[];
+  usd: number[];
+  un: number[];
+}
+
+/** Строка «Кто двигает рынок»: изменение USD к прошлому году. */
+export interface Mover {
+  name: string;
+  usd: number;
+  delta: number;
 }
 
 export interface MarketCreate {
@@ -54,9 +73,20 @@ export interface KpiZone1 {
   competitor_threshold_usd: number | null;
   market_status: string;
   trend: TrendData;
+  series: YearSeries;
 }
 
 export type BgGFlag = "BG" | "G" | "MIXED";
+
+/** Торговая марка производителя внутри МНН. */
+export interface CompetitorTm {
+  tm: string;
+  usd: number;
+  /** Доля ТМ в продажах производителя по этому МНН. */
+  share: number;
+  forms: string[];
+  doses: string[];
+}
 
 export interface Competitor {
   corporation: string;
@@ -68,6 +98,7 @@ export interface Competitor {
   un_growth: number | null;
   bg_g_flag: BgGFlag | null;
   country: string | null;
+  tms: CompetitorTm[];
 }
 
 export interface NamedShare {
@@ -76,6 +107,7 @@ export interface NamedShare {
   share: number;
   un?: number;
   un_share?: number;
+  growth?: number | null;
 }
 
 export interface FormConcentration {
@@ -85,6 +117,7 @@ export interface FormConcentration {
   hhi: number;
   top3_share: number;
   leader_share: number;
+  leader: string;
   active_competitors: number;
   producer_count: number;
 }
@@ -114,6 +147,7 @@ export interface Zone2Data {
   ret_share: number | null;
   hos_share: number | null;
   top_competitors: Competitor[];
+  movers: Mover[];
   total_producers: number;
   top3_share: number | null;
   hhi: number | null;
@@ -175,7 +209,41 @@ export interface ScoringResponse {
     doses: string[];
   };
   summary: ScoringSummary;
+  thresholds: ScoringThresholds;
+  weights: Record<ScoringCriterion, number>;
+  /** Число строк после фильтров (для пагинации). */
+  total: number;
+  page: number;
+  page_size: number;
   items: ScoringItem[];
+}
+
+export interface ScoringQuery {
+  lf?: string | null;
+  dose?: string | null;
+  category?: ScoringCategory | null;
+  passed?: boolean;
+  q?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+  page?: number;
+  page_size?: number;
+}
+
+export interface MnnSuggestion {
+  mnn: string;
+  cls: string | null;
+  usd: number;
+  total: number;
+  category: ScoringCategory;
+}
+
+/** Предпросмотр настроек: пересчёт без сохранения. */
+export interface SettingsPreview {
+  total: number;
+  passed: number;
+  zones: Record<"priority" | "watch" | "miss", number>;
+  stop: Record<StopReason, number>;
 }
 
 export interface ScoreDictionary {
@@ -222,6 +290,8 @@ export interface MarketSettingsResponse {
   classes: string[];
   forms: string[];
   countries: string[];
+  /** Страны производителей в БДП рынка с числом позиций. */
+  country_options: { value: string; count: number }[];
 }
 
 export interface Zone3Data {
@@ -290,6 +360,7 @@ export interface OverviewVolume {
   bg_share: number | null;
   g_share: number | null;
   years_labels: string[];
+  series: YearSeries;
 }
 
 export interface OverviewMnn {
@@ -305,6 +376,7 @@ export interface OverviewProducer {
   share: number;
   growth: number | null;
   country: string | null;
+  is_home: boolean;
 }
 
 export interface OverviewAtc {
@@ -319,10 +391,14 @@ export interface OverviewCountry {
   un: number;
   share: number;
   un_share: number;
+  shares_by_year: (number | null)[];
+  growth: number | null;
+  is_home: boolean;
 }
 
 export interface OverviewPortfolio {
   top_mnn: OverviewMnn[];
+  movers: Mover[];
   top_producers: OverviewProducer[];
   hhi: number | null;
   top3_share: number | null;
@@ -356,7 +432,7 @@ export interface OverviewFiltersApplied {
 export interface OverviewFilters {
   applied: OverviewFiltersApplied;
   options: {
-    atc3: { atc: string; share: number }[];
+    atc3: { atc: string; share: number; usd: number }[];
   };
 }
 
@@ -391,6 +467,11 @@ export interface ProducerKpi {
   share_of_market: number | null;
   top_country: string | null;
   years_labels: string[];
+  // только для производителя в масштабе всего рынка
+  shares_by_year?: (number | null)[];
+  mnn_count?: number;
+  tm_count?: number;
+  rank?: number;
 }
 
 export interface MnnPortfolioItem {
@@ -430,6 +511,7 @@ export interface RegionItem {
 export interface ProducerDetails {
   name: string;
   kpi: ProducerKpi;
+  atc_breakdown?: { atc: string; usd: number; share: number }[];
   mnn_portfolio?: MnnPortfolioItem[];
   tm_breakdown: TmBreakdownItem[];
   sector_split: SectorSplit;
@@ -562,4 +644,19 @@ export interface PharmacyPricesQuery {
   limit?: number;
   sort?: string;
   order?: "asc" | "desc";
+}
+
+export interface PriceCompareItem {
+  id: number;
+  source: string;
+  display_name: string;
+  price: number;
+  url: string | null;
+  is_current: boolean;
+}
+
+export interface ColumnsResponse {
+  columns: string[];
+  /** Примеры значений по каждой колонке. */
+  samples: Record<string, string[]>;
 }

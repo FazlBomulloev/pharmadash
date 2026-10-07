@@ -1,763 +1,843 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Upload,
-  FileSpreadsheet,
-  Columns3,
-  Loader2,
-  CheckCircle2,
-  ArrowRight,
-  ArrowLeft,
-  Plus,
-  X,
-  FlaskConical,
-  ChevronDown,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Check, Upload } from "lucide-react";
 import clsx from "clsx";
 import {
-  createMarket,
-  uploadFile,
-  getColumns,
-  applyMapping,
-  getMarkets,
+  applyMapping, createMarket, getColumns, getMarket, getMarketOverview,
+  getMarkets, getSheetPreview, uploadFile,
 } from "../api/client";
 import type {
-  Market,
-  UploadResponse,
-  MappingResult,
+  ColumnsResponse, MappingResult, Market, UploadResponse,
 } from "../types/api";
+import { useFetch } from "../hooks/useFetch";
+import { autoMap, bdpFields } from "../lib/bdpFields";
+import { fmtInt, fmtUsd, plural, yearsRange } from "../lib/format";
+import { Page } from "../components/layout/Layout";
+import { Card, PageHeader } from "../components/ui/Card";
+import { Segmented } from "../components/ui/Segmented";
+import { apiErrorText } from "../lib/apiError";
 
-type MarketMode = "new" | "existing" | null;
+const STEPS = ["Рынок", "Файл", "Лист", "Маппинг", "Готово"];
+const PREVIEW_COLUMNS = 8;
 
-const SYSTEM_FIELDS = [
-  { key: "mnn", label: "МНН", required: true },
-  { key: "tm", label: "Торговое наименование", required: true },
-  { key: "producer", label: "Производитель", required: true },
-  { key: "country_mfr", label: "Страна производства", required: false },
-  { key: "lf_avp", label: "Лекарственная форма", required: true },
-  { key: "strength", label: "Дозировка", required: false },
-  { key: "atc", label: "АТХ код", required: false },
-  { key: "bg_g", label: "БГ/Г", required: false },
-  { key: "region", label: "Регион", required: true },
-  { key: "sector", label: "Сектор (RET/HOS)", required: true },
-  { key: "usd_y1", label: "Продажи USD (год 1)", required: true },
-  { key: "usd_y2", label: "Продажи USD (год 2)", required: true },
-  { key: "usd_y3", label: "Продажи USD (год 3)", required: true },
-  { key: "un_y1", label: "Продажи UN (год 1)", required: true },
-  { key: "un_y2", label: "Продажи UN (год 2)", required: true },
-  { key: "un_y3", label: "Продажи UN (год 3)", required: true },
-];
+const PRIMARY =
+  "tr-soft rounded-ctl border-0 bg-accent px-[18px] py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:cursor-default disabled:opacity-50";
+const SECONDARY =
+  "tr-soft rounded-ctl border-0 bg-[#f2f2ef] px-4 py-2.5 text-sm font-medium text-fg hover:bg-[#e8e8e4]";
+const FIELD =
+  "h-10 rounded-ctl border border-line-strong px-3 text-sm outline-none focus:border-accent";
 
-const bdpSteps = [
-  { label: "Файл", icon: Upload },
-  { label: "Лист", icon: FileSpreadsheet },
-  { label: "Маппинг", icon: Columns3 },
-  { label: "Готово", icon: CheckCircle2 },
-];
+type Kind = "new" | "existing";
+
+interface DoneStats {
+  mnn: number | null;
+  producers: number | null;
+  usd: number | null;
+  year: number | null;
+  priority: number | null;
+}
+
+function parseYears(text: string): number[] {
+  return text
+    .split(/[,\s;]+/)
+    .map((s) => parseInt(s, 10))
+    .filter((n) => Number.isFinite(n));
+}
+
+function fileSize(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} МБ`;
+}
 
 export default function AdminPage() {
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const presetId = parseInt(searchParams.get("market") ?? "", 10);
+  const markets = useFetch<Market[]>(() => getMarkets(), []);
 
-  // ── Market picker ──────────────────────────────
-  const [mode, setMode] = useState<MarketMode>(null);
-  const [market, setMarket] = useState<Market | null>(null);
-  const [existingMarkets, setExistingMarkets] = useState<Market[]>([]);
-  const [loadingMarkets, setLoadingMarkets] = useState(false);
-
-  // Create-new-market form
-  const [name, setName] = useState("");
-  const [yearsStr, setYearsStr] = useState("2022,2023,2024");
-  const [language, setLanguage] = useState<"ru" | "en">("ru");
-
-  // ── BDP wizard state ──────────────────────────
-  const [bdpStep, setBdpStep] = useState(0);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadData, setUploadData] = useState<UploadResponse | null>(
-    null,
+  const [step, setStep] = useState(0);
+  const [kind, setKind] = useState<Kind>(
+    Number.isFinite(presetId) ? "existing" : "new",
   );
-  const [selectedSheet, setSelectedSheet] = useState("");
-  const [headerRow, setHeaderRow] = useState(1);
-  const [columns, setColumns] = useState<string[]>([]);
-  const [mappings, setMappings] = useState<Record<string, string>>({});
-  const [processing, setProcessing] = useState(false);
-  const [result, setResult] = useState<MappingResult | null>(null);
+  const [name, setName] = useState("");
+  const [yearsText, setYearsText] = useState("");
+  const [language, setLanguage] = useState<"ru" | "en">("ru");
+  const [existingId, setExistingId] = useState<number | null>(
+    Number.isFinite(presetId) ? presetId : null,
+  );
+  const [market, setMarket] = useState<Market | null>(null);
 
+  const [file, setFile] = useState<File | null>(null);
+  const [upload, setUpload] = useState<UploadResponse | null>(null);
+  const [sheet, setSheet] = useState("");
+  const [headerRow, setHeaderRow] = useState(1);
+  const [columns, setColumns] = useState<ColumnsResponse | null>(null);
+  const [mappings, setMappings] = useState<Record<string, string>>({});
+  const [auto, setAuto] = useState<Set<string>>(new Set());
+  const [result, setResult] = useState<MappingResult | null>(null);
+  const [stats, setStats] = useState<DoneStats | null>(null);
+
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (mode === "existing" && existingMarkets.length === 0 && !loadingMarkets) {
-      setLoadingMarkets(true);
-      getMarkets()
-        .then(setExistingMarkets)
-        .catch(() => setError("Не удалось загрузить список рынков"))
-        .finally(() => setLoadingMarkets(false));
+  const fields = useMemo(() => bdpFields(market?.years ?? []), [market]);
+  const missing = fields.filter((f) => f.required && !mappings[f.key]);
+
+  const preview = useFetch(
+    () => market && sheet && step === 2
+      ? getSheetPreview(market.id, sheet)
+      : Promise.resolve(null),
+    [market?.id, sheet, step],
+    "Не удалось прочитать лист",
+  );
+
+  /** Обёртка шага: блокирует кнопки и показывает ошибку запроса. */
+  async function attempt(fallback: string, action: () => Promise<void>) {
+    setBusy(true);
+    setError("");
+    try {
+      await action();
+    } catch (e) {
+      setError(apiErrorText(e, fallback));
+    } finally {
+      setBusy(false);
     }
-  }, [mode, existingMarkets.length, loadingMarkets]);
-
-  function resetBdpWizard() {
-    setBdpStep(0);
-    setFile(null);
-    setUploadData(null);
-    setSelectedSheet("");
-    setHeaderRow(1);
-    setColumns([]);
-    setMappings({});
-    setResult(null);
   }
 
-  function switchMarket() {
+  function goTo(target: number) {
+    setError("");
+    setStep(target);
+  }
+
+  function restart() {
+    setStep(0);
+    setKind("new");
+    setName("");
+    setYearsText("");
+    setExistingId(null);
     setMarket(null);
-    setMode(null);
-    resetBdpWizard();
+    setFile(null);
+    setUpload(null);
+    setSheet("");
+    setHeaderRow(1);
+    setColumns(null);
+    setMappings({});
+    setAuto(new Set());
+    setResult(null);
+    setStats(null);
     setError("");
+    markets.reload();
   }
 
-  async function handleCreateMarket() {
-    setError("");
-    const years = yearsStr
-      .split(",")
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n));
+  async function submitMarket() {
+    if (kind === "existing") {
+      const chosen = markets.data?.find((m) => m.id === existingId);
+      if (!chosen) {
+        setError("Выберите рынок");
+        return;
+      }
+      setMarket(chosen);
+      goTo(1);
+      return;
+    }
+    const years = parseYears(yearsText);
     if (!name.trim() || years.length < 2) {
       setError("Введите название и минимум 2 года");
       return;
     }
-    try {
-      const m = await createMarket({ name: name.trim(), years, language });
-      setMarket(m);
-      resetBdpWizard();
-    } catch (e: unknown) {
-      const msg =
-        e instanceof Error ? e.message : "Ошибка создания рынка";
-      setError(msg);
-    }
-  }
-
-  async function handleUpload() {
-    if (!market || !file) return;
-    setError("");
-    try {
-      const data = await uploadFile(market.id, file);
-      setUploadData(data);
-      if (data.sheets.length > 0) {
-        setSelectedSheet(data.sheets[0]);
-      }
-      setBdpStep(1);
-    } catch {
-      setError("Ошибка загрузки файла");
-    }
-  }
-
-  async function handleSelectSheet() {
-    if (!market) return;
-    setError("");
-    try {
-      const data = await getColumns(market.id, selectedSheet, headerRow);
-      setColumns(data.columns);
-      setBdpStep(2);
-    } catch {
-      setError("Ошибка чтения колонок");
-    }
-  }
-
-  async function handleApplyMapping() {
-    if (!market) return;
-    const required = SYSTEM_FIELDS.filter((f) => f.required);
-    const missing = required.filter((f) => !mappings[f.key]);
-    if (missing.length > 0) {
-      setError(
-        `Обязательные поля: ${missing.map((f) => f.label).join(", ")}`,
-      );
+    // Рынок уже создан на этом шаге — повторно не создаём.
+    if (market && market.name === name.trim()) {
+      goTo(1);
       return;
     }
+    await attempt("Не удалось создать рынок", async () => {
+      setMarket(await createMarket({ name: name.trim(), years, language }));
+      setStep(1);
+    });
+  }
 
-    setProcessing(true);
-    setError("");
-    try {
+  async function submitFile() {
+    if (!market || !file) return;
+    await attempt("Ошибка загрузки файла", async () => {
+      const data = await uploadFile(market.id, file);
+      setUpload(data);
+      setSheet(data.sheets[0] ?? "");
+      setHeaderRow(1);
+      setStep(2);
+    });
+  }
+
+  async function submitSheet() {
+    if (!market) return;
+    await attempt("Ошибка чтения колонок", async () => {
+      const data = await getColumns(market.id, sheet, headerRow);
+      const guessed = autoMap(data.columns, market.years);
+      setColumns(data);
+      setMappings(guessed);
+      setAuto(new Set(Object.keys(guessed)));
+      setStep(3);
+    });
+  }
+
+  async function submitMapping() {
+    if (!market || missing.length > 0) return;
+    await attempt("Ошибка маппинга или обработки файла", async () => {
       const res = await applyMapping(market.id, {
-        sheet_name: selectedSheet,
+        sheet_name: sheet,
         header_row: headerRow,
-        mappings: Object.entries(mappings).map(
-          ([system_field, file_column]) => ({
-            system_field,
-            file_column,
-          }),
-        ),
+        mappings: Object.entries(mappings)
+          .filter(([, column]) => column)
+          .map(([system_field, file_column]) => ({ system_field, file_column })),
       });
       setResult(res);
-      setBdpStep(3);
-    } catch {
-      setError("Ошибка маппинга / трансформации");
-    } finally {
-      setProcessing(false);
-    }
+      // Сводка для экрана «Готово»; её отсутствие загрузку не отменяет.
+      const [card, overview] = await Promise.all([
+        getMarket(market.id).catch(() => null),
+        getMarketOverview(market.id).catch(() => null),
+      ]);
+      setStats({
+        mnn: card?.mnn_count ?? null,
+        producers: overview?.header.producer_count ?? null,
+        usd: card?.usd_last ?? null,
+        year: market.years[market.years.length - 1] ?? null,
+        priority: card?.categories?.priority ?? null,
+      });
+      setStep(4);
+    });
   }
 
-  // ── Render: Market picker if no market ─────────
-  if (!market) {
-    return (
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100">
-            Загрузка данных
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Выберите рынок или создайте новый — затем загрузите БДП
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center gap-2">
-            <X size={16} />
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ModeCard
-            active={mode === "new"}
-            icon={Plus}
-            title="Создать новый рынок"
-            description="Определите название и годы, затем загрузите БДП"
-            onClick={() => setMode("new")}
-          />
-          <ModeCard
-            active={mode === "existing"}
-            icon={FlaskConical}
-            title="Использовать существующий"
-            description="Перезагрузить БДП в уже созданный рынок"
-            onClick={() => setMode("existing")}
-          />
-        </div>
-
-        {mode === "new" && (
-          <div className="mt-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
-                Название рынка
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="например: Кардиология 2024"
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
-                Годы (через запятую)
-              </label>
-              <input
-                type="text"
-                value={yearsStr}
-                onChange={(e) => setYearsStr(e.target.value)}
-                placeholder="2022,2023,2024"
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
-                Язык МНН в источниках
-              </label>
-              <div className="flex gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" value="ru"
-                    checked={language === "ru"} onChange={() => setLanguage("ru")} />
-                  <span className="text-sm">Русский</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" value="en"
-                    checked={language === "en"} onChange={() => setLanguage("en")} />
-                  <span className="text-sm">Английский</span>
-                </label>
-              </div>
-            </div>
-            <button
-              onClick={handleCreateMarket}
-              className="w-full py-3 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-            >
-              Создать и перейти к загрузке
-              <ArrowRight size={18} />
-            </button>
-          </div>
-        )}
-
-        {mode === "existing" && (
-          <div className="mt-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-            {loadingMarkets ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 justify-center py-6">
-                <Loader2 size={16} className="animate-spin" />
-                Загрузка списка рынков…
-              </div>
-            ) : existingMarkets.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">
-                Пока нет ни одного рынка. Создайте новый.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {existingMarkets.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setMarket(m)}
-                    className="w-full flex items-center justify-between p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors text-left group"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-800 dark:text-slate-100 group-hover:text-indigo-700">
-                        {m.name}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {m.years.join(", ")}
-                        {m.mnn_count != null && (
-                          <> · {m.mnn_count.toLocaleString("ru-RU")} МНН</>
-                        )}
-                      </p>
-                    </div>
-                    <ArrowRight
-                      size={18}
-                      className="text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 transition-colors"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
+  function setMapping(field: string, column: string) {
+    setMappings((prev) => ({ ...prev, [field]: column }));
+    setAuto((prev) => {
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
   }
 
-  // ── Render: BDP wizard when market chosen ──────
+  const sheetColumns = upload?.columns[sheet]?.length ?? 0;
+  const done: { title: string; summary: string }[] = [
+    {
+      title: "Рынок",
+      summary: market
+        ? `${market.name} · ${yearsRange(market.years)}`
+        : "",
+    },
+    {
+      title: "Файл",
+      summary: file
+        ? `${file.name} · ${fileSize(file.size)}`
+        : "",
+    },
+    { title: "Лист", summary: `${sheet} · строка заголовков ${headerRow}` },
+    {
+      title: "Маппинг",
+      summary: `Сопоставлено ${Object.values(mappings).filter(Boolean).length} из ${fields.length} полей`,
+    },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <MarketContextBar market={market} onSwitch={switchMarket} />
+    <Page maxWidth={940}>
+      <PageHeader title="Загрузка данных" />
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm flex items-center gap-2">
-          <X size={16} />
-          {error}
+      <Stepper step={step} />
+
+      {step < 4 && done.slice(0, step).map((d, i) => (
+        <div
+          key={d.title}
+          className="flex items-center gap-3.5 rounded-inner bg-surface px-[18px] py-3.5"
+        >
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cat-priority text-white">
+            <Check size={13} strokeWidth={3} />
+          </span>
+          <span className="whitespace-nowrap text-sm font-semibold">{d.title}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-muted">
+            {d.summary}
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => goTo(i)}
+            className="border-0 bg-transparent text-[13px] font-medium text-accent hover:text-accent-hover"
+          >
+            Изменить
+          </button>
         </div>
+      ))}
+
+      {step === 0 && (
+        <StepCard n={1} title="Рынок">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-2.5">
+            <Choice
+              active={kind === "new"}
+              title="Создать новый"
+              sub="Название, годы и язык МНН — затем загрузка БДП"
+              onClick={() => { setKind("new"); setError(""); }}
+            />
+            <Choice
+              active={kind === "existing"}
+              title="Использовать существующий"
+              sub="Перезагрузить БДП в уже созданный рынок"
+              onClick={() => { setKind("existing"); setError(""); }}
+            />
+          </div>
+
+          {kind === "new" ? (
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[13px] text-muted">Название рынка</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="например: Кардиология 2024"
+                  className={FIELD}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[13px] text-muted">Годы, минимум 2</span>
+                <input
+                  value={yearsText}
+                  onChange={(e) => setYearsText(e.target.value)}
+                  placeholder="2022, 2023, 2024"
+                  inputMode="numeric"
+                  className={FIELD}
+                />
+              </label>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[13px] text-muted">
+                  Язык МНН в источнике
+                </span>
+                <Segmented
+                  ariaLabel="Язык МНН в источнике"
+                  className="h-10 [&>button]:flex-1"
+                  value={language}
+                  onChange={setLanguage}
+                  options={[
+                    { value: "ru", label: "Русский" },
+                    { value: "en", label: "Английский" },
+                  ]}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {(markets.data ?? []).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={existingId === m.id}
+                  onClick={() => setExistingId(m.id)}
+                  className={clsx(
+                    "tr-soft flex items-center justify-between gap-3 rounded-ctl border-[1.5px] px-3.5 py-3 text-left",
+                    existingId === m.id
+                      ? "border-accent bg-accent-tint"
+                      : "border-seg bg-white hover:bg-[#fafaf8]",
+                  )}
+                >
+                  <span className="truncate text-sm font-semibold text-fg">
+                    {m.name}
+                  </span>
+                  <span className="whitespace-nowrap text-[13px] text-muted-2">
+                    {yearsRange(m.years)}
+                    {!!m.mnn_count && ` · ${fmtInt(m.mnn_count)} МНН`}
+                  </span>
+                </button>
+              ))}
+              {markets.data?.length === 0 && (
+                <span className="text-sm text-muted-2">
+                  Пока нет ни одного рынка — создайте новый
+                </span>
+              )}
+              {!markets.data && (
+                <span className="text-sm text-faint">
+                  {markets.error || "Загрузка списка рынков…"}
+                </span>
+              )}
+              <span className="pt-1 text-xs text-[oklch(0.5_0.15_25)]">
+                Новый файл перезапишет текущий БДП рынка
+              </span>
+            </div>
+          )}
+          <Actions error={error}>
+            <button type="button" disabled={busy} onClick={submitMarket} className={PRIMARY}>
+              Продолжить →
+            </button>
+          </Actions>
+        </StepCard>
       )}
 
-      <div>
-        <BdpStepper step={bdpStep} />
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8">
-          {bdpStep === 0 && (
-            <BdpUploadStep
-              file={file}
-              onFile={setFile}
-              onNext={handleUpload}
-            />
-          )}
-          {bdpStep === 1 && uploadData && (
-            <BdpSheetStep
-              sheets={uploadData.sheets}
-              selectedSheet={selectedSheet}
+      {step === 1 && (
+        <StepCard n={2} title="Файл БДП" note="Excel .xlsx">
+          <Dropzone
+            file={file}
+            onFile={(f) => { setFile(f); setError(""); }}
+            onReject={() => setError("Допустим только формат .xlsx")}
+          />
+          <Actions error={error} onBack={() => goTo(0)} busy={busy}>
+            {file && (
+              <button type="button" disabled={busy} onClick={submitFile} className={PRIMARY}>
+                {busy ? "Загрузка…" : "Загрузить →"}
+              </button>
+            )}
+          </Actions>
+        </StepCard>
+      )}
+
+      {step === 2 && upload && (
+        <StepCard n={3} title="Лист и строка заголовков">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
+            {upload.sheets.map((s) => {
+              const count = upload.columns[s]?.length ?? 0;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={s === sheet}
+                  onClick={() => { setSheet(s); setHeaderRow(1); }}
+                  className={clsx(
+                    "tr-soft flex flex-col gap-[3px] rounded-ctl border-[1.5px] px-3.5 py-3 text-left",
+                    s === sheet
+                      ? "border-accent bg-accent-tint"
+                      : "border-seg bg-white hover:bg-[#fafaf8]",
+                  )}
+                >
+                  <span className="truncate text-sm font-semibold text-fg">{s}</span>
+                  <span className="text-xs text-muted-2">
+                    {count} {plural(count, "колонка", "колонки", "колонок")}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] text-muted">
+              Нажмите на строку с заголовками колонок · сейчас строка {headerRow}
+            </span>
+            <SheetPreview
+              rows={preview.data?.rows ?? null}
+              error={preview.error}
               headerRow={headerRow}
-              onSheetChange={setSelectedSheet}
-              onRowChange={setHeaderRow}
-              onBack={() => setBdpStep(0)}
-              onNext={handleSelectSheet}
+              onPick={setHeaderRow}
             />
-          )}
-          {bdpStep === 2 && (
-            <BdpMappingStep
-              columns={columns}
-              mappings={mappings}
-              onChange={setMappings}
-              onBack={() => setBdpStep(1)}
-              onApply={handleApplyMapping}
-              processing={processing}
+            {sheetColumns > PREVIEW_COLUMNS && (
+              <span className="text-xs text-faint">
+                Показаны первые {PREVIEW_COLUMNS} колонок из {sheetColumns}
+              </span>
+            )}
+          </div>
+          <Actions error={error} onBack={() => goTo(1)} busy={busy}>
+            <button type="button" disabled={busy || !sheet} onClick={submitSheet} className={PRIMARY}>
+              Далее →
+            </button>
+          </Actions>
+        </StepCard>
+      )}
+
+      {step === 3 && columns && (
+        <StepCard
+          n={4}
+          title="Маппинг полей"
+          sub={`Автоматически сопоставлено ${auto.size} из ${fields.length} полей. Проверьте по примерам значений.`}
+        >
+          <div className="flex flex-col">
+            {fields.map((f) => {
+              const column = mappings[f.key] ?? "";
+              const lacking = f.required && !column;
+              const samples = column ? columns.samples[column] ?? [] : [];
+              return (
+                <div
+                  key={f.key}
+                  className="grid grid-cols-[minmax(150px,200px)_minmax(150px,200px)_minmax(0,1fr)] items-center gap-4 border-t border-[#f3f3f0] py-[9px]"
+                >
+                  <span className="text-sm">
+                    {f.label}
+                    {f.required && <span className="text-neg"> *</span>}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <select
+                      value={column}
+                      aria-label={`Колонка для поля «${f.label}»`}
+                      onChange={(e) => setMapping(f.key, e.target.value)}
+                      className="h-[34px] min-w-0 flex-1 rounded-lg border bg-white px-2 text-[13px] text-fg outline-none focus:border-accent"
+                      style={{
+                        borderColor: lacking ? "oklch(0.6 0.19 25)" : "#e3e3df",
+                      }}
+                    >
+                      <option value="">— не выбрано —</option>
+                      {columns.columns.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <span className="w-[26px] text-[10px] font-semibold text-accent">
+                      {auto.has(f.key) && column ? "авто" : ""}
+                    </span>
+                  </span>
+                  <span
+                    className={clsx(
+                      "truncate text-xs",
+                      lacking ? "text-neg" : "text-faint",
+                    )}
+                    title={samples.join(" · ")}
+                  >
+                    {lacking
+                      ? "обязательное поле — выберите колонку"
+                      : samples.join(" · ") || (column ? "нет значений" : "")}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <Actions
+            error={
+              error || (missing.length > 0
+                ? `Не сопоставлено обязательных полей: ${missing.length}`
+                : "")
+            }
+            onBack={() => goTo(2)}
+            busy={busy}
+          >
+            <button
+              type="button"
+              disabled={busy || missing.length > 0}
+              onClick={submitMapping}
+              className={PRIMARY}
+            >
+              {busy ? "Обработка файла…" : "Применить и обработать →"}
+            </button>
+          </Actions>
+        </StepCard>
+      )}
+
+      {step === 4 && market && result && (
+        <section className="anim-tab flex flex-col gap-6 rounded-hero bg-ink px-8 py-[30px] text-white">
+          <div className="flex flex-col gap-2.5">
+            <span
+              className="flex items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-xs font-semibold"
+              style={{
+                background: "oklch(0.78 0.16 155 / 0.18)",
+                color: "oklch(0.86 0.14 155)",
+              }}
+            >
+              <Check size={13} strokeWidth={3} /> БДП загружен
+            </span>
+            <span className="text-pretty text-[30px] font-semibold leading-[1.15] tracking-[-0.025em]">
+              Рынок «{market.name}» готов к анализу
+            </span>
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
+            <Tile label="Строк БДП">{fmtInt(result.bdp_count)}</Tile>
+            <Tile label="МНН">{fmtInt(stats?.mnn)}</Tile>
+            <Tile label="Производителей">{fmtInt(stats?.producers)}</Tile>
+            <Tile label={`Рынок ${stats?.year ?? ""}`}>{fmtUsd(stats?.usd)}</Tile>
+            <Tile label="Приоритет" accent>
+              {stats?.priority == null ? "—" : `${fmtInt(stats.priority)} МНН`}
+            </Tile>
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            <Link
+              to={`/market/${market.id}/overview`}
+              className="tr-soft rounded-ctl bg-white px-[18px] py-[11px] text-sm font-semibold text-fg hover:bg-seg hover:text-fg"
+            >
+              Открыть обзор рынка →
+            </Link>
+            <button
+              type="button"
+              onClick={restart}
+              className="tr-soft rounded-ctl border-0 bg-[oklch(1_0_0/0.1)] px-4 py-[11px] text-sm font-medium text-white hover:bg-[oklch(1_0_0/0.18)]"
+            >
+              Загрузить ещё
+            </button>
+          </div>
+        </section>
+      )}
+    </Page>
+  );
+}
+
+function Stepper({ step }: { step: number }) {
+  return (
+    <div className="anim-head grid grid-cols-5 gap-2">
+      {STEPS.map((label, i) => {
+        const isDone = i < step || step === STEPS.length - 1;
+        const isCurrent = i === step && !isDone;
+        return (
+          <div key={label} className="flex min-w-0 flex-col gap-2">
+            <span
+              className="h-1.5 rounded-[3px]"
+              style={{
+                background: isDone
+                  ? "oklch(0.58 0.15 155)"
+                  : isCurrent ? "oklch(0.47 0.14 262)" : "#e2e3e7",
+                transition: "background .3s",
+              }}
             />
-          )}
-          {bdpStep === 3 && result && (
-            <BdpDoneStep
-              market={market}
-              result={result}
-              onOpenDashboard={() =>
-                navigate(`/market/${market.id}/dashboard`)
-              }
-              onLoadAnother={resetBdpWizard}
-            />
-          )}
-        </div>
-      </div>
+            <span
+              className={clsx(
+                "flex items-center gap-1.5 truncate text-xs",
+                isCurrent ? "font-semibold text-fg" : "text-muted-2",
+              )}
+            >
+              <span
+                className="flex size-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                style={
+                  isDone
+                    ? { background: "oklch(0.58 0.15 155)", color: "#fff" }
+                    : isCurrent
+                      ? { background: "oklch(0.47 0.14 262)", color: "#fff" }
+                      : { background: "#e2e3e7", color: "#6b6f78" }
+                }
+              >
+                {isDone ? <Check size={10} strokeWidth={3.5} /> : i + 1}
+              </span>
+              {label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ═══════════════════════ Sub-components ═══════════════════════
+function StepCard({
+  n, title, note, sub, children,
+}: {
+  n: number;
+  title: string;
+  note?: string;
+  sub?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card anim="tab" className="flex flex-col gap-5 px-6!">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-3">
+          <span className="flex size-[26px] items-center justify-center rounded-full bg-ink text-[13px] font-semibold text-white">
+            {n}
+          </span>
+          <span className="whitespace-nowrap text-[17px] font-semibold">
+            {title}
+          </span>
+          {note && <span className="text-[13px] text-faint">{note}</span>}
+        </div>
+        {sub && (
+          <span className="pl-[38px] text-[13px] leading-normal text-muted-2">
+            {sub}
+          </span>
+        )}
+      </div>
+      {children}
+    </Card>
+  );
+}
 
-function ModeCard({
-  active, icon: Icon, title, description, onClick,
+function Actions({
+  error, onBack, busy, children,
+}: {
+  error: string;
+  onBack?: () => void;
+  busy?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      {onBack && (
+        <button type="button" disabled={busy} onClick={onBack} className={SECONDARY}>
+          Назад
+        </button>
+      )}
+      <span role="alert" className="min-w-0 flex-1 text-[13px] text-neg">
+        {error}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function Choice({
+  active, title, sub, onClick,
 }: {
   active: boolean;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
   title: string;
-  description: string;
+  sub: string;
   onClick: () => void;
 }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={clsx(
-        "text-left p-5 rounded-xl border-2 transition-all",
+        "tr-soft flex flex-col gap-1 rounded-xl border-[1.5px] p-4 text-left",
         active
-          ? "border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 shadow-sm"
-          : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 hover:bg-indigo-50/30",
+          ? "border-accent bg-accent-tint"
+          : "border-seg bg-white hover:bg-[#fafaf8]",
       )}
     >
-      <Icon
-        size={22}
-        className={clsx(
-          "mb-3",
-          active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500",
-        )}
-      />
-      <p className={clsx(
-        "font-semibold mb-1",
-        active ? "text-indigo-700 dark:text-indigo-300" : "text-slate-800 dark:text-slate-100",
-      )}>
-        {title}
-      </p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-        {description}
-      </p>
+      <span className="text-[15px] font-semibold text-fg">{title}</span>
+      <span className="text-[13px] text-muted-2">{sub}</span>
     </button>
   );
 }
 
-function MarketContextBar({
-  market, onSwitch,
-}: {
-  market: Market;
-  onSwitch: () => void;
-}) {
-  return (
-    <div className="mb-6 flex items-center justify-between bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center">
-          <FlaskConical size={18} className="text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
-            Активный рынок
-          </p>
-          <p className="font-semibold text-slate-800 dark:text-slate-100">
-            {market.name}
-            <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2">
-              {market.years.join(", ")}
-            </span>
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={onSwitch}
-        className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors flex items-center gap-1"
-      >
-        Сменить рынок
-        <ChevronDown size={12} />
-      </button>
-    </div>
-  );
-}
-
-function BdpStepper({ step }: { step: number }) {
-  return (
-    <div className="flex items-center justify-between mb-6">
-      {bdpSteps.map((s, i) => (
-        <div key={i} className="flex items-center flex-1 last:flex-none">
-          <div className="flex items-center gap-2">
-            <div
-              className={clsx(
-                "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300",
-                i < step
-                  ? "bg-emerald-500 text-white"
-                  : i === step
-                    ? "bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-200"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
-              )}
-            >
-              {i < step ? <CheckCircle2 size={18} /> : <s.icon size={16} />}
-            </div>
-            <span
-              className={clsx(
-                "text-sm font-medium hidden sm:block",
-                i <= step ? "text-slate-700 dark:text-slate-200" : "text-slate-400 dark:text-slate-500",
-              )}
-            >
-              {s.label}
-            </span>
-          </div>
-          {i < bdpSteps.length - 1 && (
-            <div
-              className={clsx(
-                "flex-1 h-px mx-4",
-                i < step ? "bg-emerald-300" : "bg-slate-200 dark:bg-slate-700",
-              )}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function BdpUploadStep({
-  file, onFile, onNext,
+function Dropzone({
+  file, onFile, onReject,
 }: {
   file: File | null;
-  onFile: (f: File | null) => void;
-  onNext: () => void;
+  onFile: (file: File | null) => void;
+  onReject: () => void;
 }) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">
-          Загрузка файла БДП
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Excel (.xlsx). Перезаписывает существующий БДП рынка.
-        </p>
-      </div>
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const f = e.dataTransfer.files[0];
-          if (f) onFile(f);
-        }}
-        className={clsx(
-          "border-2 border-dashed rounded-xl p-12 text-center transition-colors cursor-pointer",
-          file
-            ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30"
-            : "border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50/30",
-        )}
-        onClick={() =>
-          document.getElementById("bdp-file-input")?.click()
-        }
-      >
-        <input
-          id="bdp-file-input"
-          type="file"
-          accept=".xlsx"
-          className="hidden"
-          onChange={(e) => onFile(e.target.files?.[0] ?? null)}
-        />
-        {file ? (
-          <div className="flex flex-col items-center gap-2">
-            <FileSpreadsheet size={40} className="text-emerald-500 dark:text-emerald-400" />
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{file.name}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              {(file.size / 1024 / 1024).toFixed(1)} МБ
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <Upload size={40} className="text-slate-400 dark:text-slate-500" />
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Перетащите файл или нажмите для выбора
-            </p>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Только .xlsx файлы</p>
-          </div>
-        )}
-      </div>
-      <button
-        onClick={onNext}
-        disabled={!file}
-        className="w-full py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        Загрузить
-        <ArrowRight size={18} />
-      </button>
-    </div>
-  );
-}
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
 
-function BdpSheetStep({
-  sheets, selectedSheet, headerRow, onSheetChange, onRowChange, onBack, onNext,
-}: {
-  sheets: string[];
-  selectedSheet: string;
-  headerRow: number;
-  onSheetChange: (s: string) => void;
-  onRowChange: (n: number) => void;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">
-          Выбор листа
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Укажите лист и строку заголовков
-        </p>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
-          Лист
-        </label>
-        <select
-          value={selectedSheet}
-          onChange={(e) => onSheetChange(e.target.value)}
-          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm bg-white dark:bg-slate-900"
-        >
-          {sheets.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
-          Строка заголовков
-        </label>
-        <input
-          type="number"
-          min={1}
-          value={headerRow}
-          onChange={(e) => onRowChange(parseInt(e.target.value, 10) || 1)}
-          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-sm"
-        />
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={onBack}
-          className="px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors flex items-center gap-2"
-        >
-          <ArrowLeft size={16} />
-          Назад
-        </button>
-        <button
-          onClick={onNext}
-          className="flex-1 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-        >
-          Далее
-          <ArrowRight size={18} />
-        </button>
-      </div>
-    </div>
-  );
-}
+  function accept(candidate: File | undefined) {
+    if (!candidate) return;
+    if (!candidate.name.toLowerCase().endsWith(".xlsx")) {
+      onReject();
+      return;
+    }
+    onFile(candidate);
+  }
 
-function BdpMappingStep({
-  columns, mappings, onChange, onBack, onApply, processing,
-}: {
-  columns: string[];
-  mappings: Record<string, string>;
-  onChange: (m: Record<string, string>) => void;
-  onBack: () => void;
-  onApply: () => void;
-  processing: boolean;
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-1">
-          Маппинг полей
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Сопоставьте поля системы с колонками файла
-        </p>
-      </div>
-      <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
-        {SYSTEM_FIELDS.map((f) => (
-          <div key={f.key} className="flex items-center gap-4">
-            <label className="w-52 text-sm text-slate-700 dark:text-slate-200 flex-shrink-0">
-              {f.label}
-              {f.required && <span className="text-red-400 dark:text-red-500 ml-0.5">*</span>}
-            </label>
-            <select
-              value={mappings[f.key] ?? ""}
-              onChange={(e) =>
-                onChange({ ...mappings, [f.key]: e.target.value })
-              }
-              className={clsx(
-                "flex-1 px-3 py-2 rounded-lg border text-sm bg-white dark:bg-slate-900 outline-none transition-all",
-                mappings[f.key]
-                  ? "border-emerald-300 dark:border-emerald-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                  : "border-slate-300 dark:border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100",
-              )}
-            >
-              <option value="">— не выбрано —</option>
-              {columns.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={onBack}
-          className="px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors flex items-center gap-2"
-        >
-          <ArrowLeft size={16} />
-          Назад
-        </button>
-        <button
-          onClick={onApply}
-          disabled={processing}
-          className="flex-1 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-        >
-          {processing ? (
-            <>
-              <Loader2 size={18} className="animate-spin" />
-              Обработка...
-            </>
-          ) : (
-            <>
-              Применить
-              <ArrowRight size={18} />
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-}
+  // Сброс значения — чтобы тот же файл можно было выбрать повторно.
+  useEffect(() => {
+    if (!file && inputRef.current) inputRef.current.value = "";
+  }, [file]);
 
-function BdpDoneStep({
-  market, result, onOpenDashboard, onLoadAnother,
-}: {
-  market: Market;
-  result: MappingResult;
-  onOpenDashboard: () => void;
-  onLoadAnother: () => void;
-}) {
   return (
-    <div className="text-center space-y-6 py-4">
-      <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center mx-auto">
-        <CheckCircle2 size={40} className="text-emerald-500 dark:text-emerald-400" />
-      </div>
-      <div>
-        <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">
-          БДП загружен!
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Рынок «{market.name}» готов к анализу
-        </p>
-      </div>
-      <div className="max-w-xs mx-auto">
-        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-4 text-center">
-          <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-            {result.bdp_count}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">БДП строк</p>
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx"
+        className="hidden"
+        onChange={(e) => accept(e.target.files?.[0])}
+      />
+      {file ? (
+        <div className="flex items-center gap-3.5 rounded-xl border border-[#ecece8] bg-[#fafaf8] px-4 py-3.5">
+          <span
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold"
+            style={{
+              background: "oklch(0.94 0.05 155)", color: "oklch(0.38 0.11 155)",
+            }}
+          >
+            XLSX
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate text-sm font-semibold">{file.name}</span>
+            <span className="text-xs text-faint">{fileSize(file.size)}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => onFile(null)}
+            className="border-0 bg-transparent text-[13px] text-muted-2 hover:text-fg"
+          >
+            Убрать
+          </button>
         </div>
-      </div>
-      <div className="flex gap-3 justify-center">
+      ) : (
         <button
-          onClick={onLoadAnother}
-          className="px-6 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors"
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            accept(e.dataTransfer.files[0]);
+          }}
+          className="tr-soft flex flex-col items-center gap-2 rounded-inner border-[1.5px] border-dashed px-6 py-11 hover:border-accent hover:bg-[oklch(0.98_0.01_262)]"
+          style={{
+            borderColor: over ? "oklch(0.47 0.14 262)" : "oklch(0.82 0.05 268)",
+            background: over ? "oklch(0.97 0.015 262)" : "oklch(0.985 0.008 268)",
+          }}
         >
-          Загрузить ещё
+          <span
+            className="flex size-[52px] items-center justify-center rounded-[14px] text-accent"
+            style={{ background: "oklch(0.95 0.035 268)" }}
+          >
+            <Upload size={24} />
+          </span>
+          <span className="text-[15px] font-semibold text-fg">
+            Перетащите файл или нажмите для выбора
+          </span>
+          <span className="text-[13px] text-faint">Только .xlsx</span>
         </button>
-        <button
-          onClick={onOpenDashboard}
-          className="px-6 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
-        >
-          Открыть дашборд
-          <ArrowRight size={16} />
-        </button>
-      </div>
+      )}
+    </>
+  );
+}
+
+function SheetPreview({
+  rows, error, headerRow, onPick,
+}: {
+  rows: string[][] | null;
+  error: string;
+  headerRow: number;
+  onPick: (row: number) => void;
+}) {
+  if (error) return <span className="text-[13px] text-neg">{error}</span>;
+  if (!rows) return <span className="text-[13px] text-faint">Чтение листа…</span>;
+  if (rows.length === 0) {
+    return <span className="text-[13px] text-muted-2">Лист пуст</span>;
+  }
+  const width = Math.min(
+    Math.max(...rows.map((r) => r.length), 1), PREVIEW_COLUMNS,
+  );
+  return (
+    <div className="overflow-auto rounded-ctl border border-[#ecece8]">
+      {rows.map((cells, i) => {
+        const active = i + 1 === headerRow;
+        return (
+          <button
+            key={i}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onPick(i + 1)}
+            className={clsx(
+              "tr-soft grid w-full border-0 border-t border-[#f3f3f0] text-left first:border-t-0 hover:bg-[#f7f7f4]",
+              active ? "bg-accent-tint font-semibold" : "bg-white font-normal",
+            )}
+            style={{
+              gridTemplateColumns: `36px repeat(${width}, minmax(130px, 1fr))`,
+              minWidth: 36 + width * 130,
+            }}
+          >
+            <span className="bg-[#fafaf8] px-2.5 py-2 text-xs font-normal text-[#9a9ea6]">
+              {i + 1}
+            </span>
+            {Array.from({ length: width }, (_, c) => (
+              <span key={c} className="truncate px-2.5 py-2 text-[13px] text-fg">
+                {cells[c] ?? ""}
+              </span>
+            ))}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Tile({
+  label, accent = false, children,
+}: {
+  label: string;
+  accent?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="flex flex-col gap-1 rounded-inner px-4 py-3.5"
+      style={{
+        background: accent ? "oklch(0.58 0.15 155)" : "oklch(1 0 0 / 0.07)",
+      }}
+    >
+      <span
+        className="text-xs"
+        style={{
+          color: accent ? "oklch(0.97 0.03 155)" : "oklch(0.84 0.04 268)",
+        }}
+      >
+        {label}
+      </span>
+      <span className="whitespace-nowrap text-2xl font-semibold">{children}</span>
     </div>
   );
 }

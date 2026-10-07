@@ -39,3 +39,8 @@ samples/
 
 # Build
 *.log
+
+# Playwright MCP
+.playwright-mcp/
+*.db-wal
+*.db-shm

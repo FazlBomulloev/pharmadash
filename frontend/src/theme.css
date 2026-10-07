@@ -1,0 +1,70 @@
+
+
+@theme {
+  --font-sans: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Поверхности */
+  --color-canvas: #f4f4f1;          /* фон страницы */
+  --color-surface: #ffffff;          /* карточки */
+  --color-sidebar: #fbfbfa;
+  --color-subtle: #f6f6f3;           /* мини-карточки внутри карточек, hover строк */
+  --color-track: #f0f0ec;            /* фон полосок-индикаторов */
+  --color-seg: #ebebe7;              /* фон сегмент-контролов, активный пункт сайдбара */
+  --color-line: #f1f1ee;             /* разделители внутри карточек */
+  --color-line-strong: #e3e3df;      /* рамки инпутов/кнопок */
+
+  /* Текст */
+  --color-fg: #16181d;
+  --color-fg-2: #3d4048;
+  --color-muted: #5d616a;
+  --color-muted-2: #6b6f78;
+  --color-faint: #8b8f97;
+  --color-faintest: #a3a6ad;
+
+  /* Акцент и тёмный hero */
+  --color-accent: oklch(0.47 0.14 262);       /* ссылки, фокус, кнопки «Продолжить» */
+  --color-accent-hover: oklch(0.38 0.14 262);
+  --color-accent-bar: oklch(0.52 0.16 268);   /* насыщенные полоски/столбики */
+  --color-accent-soft: oklch(0.86 0.05 268);  /* неактивные столбики */
+  --color-accent-tint: oklch(0.97 0.015 262); /* выделенная строка */
+  --color-ink: oklch(0.26 0.075 268);          /* фон тёмных hero-блоков */
+  --color-ink-hover: oklch(0.29 0.08 268);
+  --color-ink-fg-2: oklch(0.84 0.04 268);      /* вторичный текст на ink */
+  --color-ink-glass: oklch(1 0 0 / 0.07);      /* карточки внутри ink */
+  --color-ink-line: oklch(1 0 0 / 0.12);
+
+  /* Семантика */
+  --color-pos: oklch(0.52 0.13 155);          /* текст роста */
+  --color-pos-on-ink: oklch(0.84 0.14 155);   /* рост на тёмном фоне */
+  --color-pos-tint: oklch(0.95 0.045 155);    /* фон пилюли роста */
+  --color-neg: oklch(0.55 0.18 25);
+  --color-neg-on-ink: oklch(0.78 0.14 25);
+  --color-neg-tint: oklch(0.95 0.035 25);
+
+  /* Категории скоринга */
+  --color-cat-priority: oklch(0.58 0.15 155);   /* текст #fff */
+  --color-cat-watch: oklch(0.78 0.15 78);       /* текст oklch(0.3 0.07 70) */
+  --color-cat-miss: #e2e3e7;                     /* текст #3d4048 */
+  --color-cat-stop: oklch(0.6 0.19 25);         /* текст #fff */
+
+  /* Радиусы */
+  --radius-card: 20px;
+  --radius-hero: 22px;
+  --radius-inner: 14px;   /* карточки внутри карточек, stepper, источники БДЦ */
+  --radius-ctl: 10px;     /* кнопки, инпуты */
+  --radius-row: 8px;      /* hover-строки списков */
+
+  /* Тени — только у всплывающих слоёв */
+  --shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.12);
+  --shadow-panel: -16px 0 48px rgba(16, 24, 40, 0.12);
+  --shadow-seg-active: 0 1px 2px rgba(16, 24, 40, 0.08);
+
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+}

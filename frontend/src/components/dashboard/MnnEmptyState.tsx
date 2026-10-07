@@ -1,224 +1,99 @@
-import { useEffect, useMemo, useState } from "react";
-import { Target, TrendingUp, Clock, Search } from "lucide-react";
-import clsx from "clsx";
-import { getMarketOverview } from "../../api/client";
-import type { ScoringCategory } from "../../types/api";
+import { getMarketScoring, suggestMnn } from "../../api/client";
+import { useFetch } from "../../hooks/useFetch";
+import { fmtScore, fmtUsd } from "../../lib/format";
+import { stagger } from "../../lib/anim";
+import { RECENT_LIMIT, readRecentMnn } from "../../lib/recentMnn";
 
-const RECENT_KEY = "pharmdash.recent-mnn";
-const RECENT_MAX = 6;
-
-interface RecentEntry {
-  mnn: string;
-  ts: number; // ms
+interface Column {
+  title: string;
+  sub: string;
+  items: { name: string; value: string }[];
+  empty: string;
 }
 
-interface Suggestion {
-  mnn: string;
-  usd: number;
-  score?: number;
-  color?: string;
-}
-
-interface Props {
+/** МНН не выбран: три списка для быстрого старта. */
+export function MnnEmptyState({
+  marketId, onPick,
+}: {
   marketId: number;
   onPick: (mnn: string) => void;
-}
-
-const COLOR_DOT: Record<string, string> = {
-  green: "bg-emerald-500",
-  yellow: "bg-amber-500",
-  orange: "bg-orange-500",
-  red: "bg-red-500",
-};
-
-function readRecent(marketId: number): RecentEntry[] {
-  try {
-    const raw = localStorage.getItem(`${RECENT_KEY}:${marketId}`);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (x): x is RecentEntry =>
-          x && typeof x.mnn === "string" && typeof x.ts === "number",
-      )
-      .slice(0, RECENT_MAX);
-  } catch {
-    return [];
-  }
-}
-
-export function pushRecentMnn(marketId: number, mnn: string) {
-  try {
-    const now = Date.now();
-    const key = `${RECENT_KEY}:${marketId}`;
-    const list = readRecent(marketId).filter((r) => r.mnn !== mnn);
-    list.unshift({ mnn, ts: now });
-    localStorage.setItem(key, JSON.stringify(list.slice(0, RECENT_MAX)));
-  } catch {
-    /* localStorage disabled — ignore */
-  }
-}
-
-// категория скоринга → ключ цвета точки (COLOR_DOT)
-const CATEGORY_DOT_COLOR: Record<ScoringCategory, string> = {
-  priority: "green",
-  watch: "yellow",
-  miss: "slate",
-  stop: "red",
-};
-
-function fmtUsd(v: number): string {
-  if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`;
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
-  return `$${v.toFixed(0)}`;
-}
-
-export default function MnnEmptyState({ marketId, onPick }: Props) {
-  const [topOpp, setTopOpp] = useState<Suggestion[]>([]);
-  const [topUsd, setTopUsd] = useState<Suggestion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const recent = useMemo(() => readRecent(marketId), [marketId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getMarketOverview(marketId)
-      .then((res) => {
-        if (cancelled) return;
-        setTopOpp(
-          res.decision.top.slice(0, 5).map((o) => ({
-            mnn: o.mnn,
-            usd: o.usd,
-            score: o.total,
-            color: CATEGORY_DOT_COLOR[o.category],
-          })),
-        );
-        setTopUsd(
-          res.portfolio.top_mnn.slice(0, 5).map((m) => ({
-            mnn: m.mnn,
-            usd: m.usd,
-          })),
-        );
-      })
-      .catch(() => { /* silent — page stays usable via search */ })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [marketId]);
-
-  const empty = !loading && topOpp.length === 0 && topUsd.length === 0 && recent.length === 0;
-
-  if (empty) {
-    return (
-      <div className="text-center py-12">
-        <Search size={40} className="text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-        <p className="text-sm text-slate-600 dark:text-slate-300 font-medium mb-1">Выберите МНН</p>
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          Начните вводить название МНН для получения аналитики
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <SuggestionColumn
-        icon={Target}
-        iconColor="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
-        title="Топ возможности"
-        subtitle="лучший скоринг среди прошедших фильтр"
-        items={topOpp}
-        loading={loading}
-        onPick={onPick}
-        showScore
-      />
-      <SuggestionColumn
-        icon={Clock}
-        iconColor="text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800"
-        title="Недавно смотренные"
-        subtitle="на этом устройстве"
-        items={recent.map((r) => ({ mnn: r.mnn, usd: 0 }))}
-        loading={false}
-        onPick={onPick}
-        hideUsd
-      />
-      <SuggestionColumn
-        icon={TrendingUp}
-        iconColor="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
-        title="Топ по продажам"
-        subtitle="крупнейшие МНН рынка"
-        items={topUsd}
-        loading={loading}
-        onPick={onPick}
-      />
-    </div>
-  );
-}
-
-function SuggestionColumn({
-  icon: Icon, iconColor, title, subtitle, items, loading, onPick, showScore, hideUsd,
-}: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  iconColor: string;
-  title: string;
-  subtitle: string;
-  items: Suggestion[];
-  loading: boolean;
-  onPick: (mnn: string) => void;
-  showScore?: boolean;
-  hideUsd?: boolean;
 }) {
+  const best = useFetch((signal) => suggestMnn(marketId, "", signal), [marketId]);
+  const bySales = useFetch(
+    (signal) => getMarketScoring(
+      marketId, { sort: "usd", order: "desc", page_size: RECENT_LIMIT }, signal,
+    ),
+    [marketId],
+  );
+  const recent = readRecentMnn(marketId);
+
+  const columns: Column[] = [
+    {
+      title: "Топ возможности",
+      sub: "лучшие по баллу скоринга",
+      items: (best.data ?? []).map((s) => ({
+        name: s.mnn, value: fmtScore(s.total, 0),
+      })),
+      empty: best.loading ? "Загрузка…" : "Нет МНН, прошедших стоп-фильтр",
+    },
+    {
+      title: "Недавно смотренные",
+      sub: "на этом устройстве",
+      items: recent.map((name) => ({ name, value: "" })),
+      empty: "Вы ещё не открывали МНН этого рынка",
+    },
+    {
+      title: "Топ по продажам",
+      sub: "USD за последний год",
+      items: (bySales.data?.items ?? []).map((i) => ({
+        name: i.mnn, value: fmtUsd(i.sales[2]),
+      })),
+      empty: bySales.loading ? "Загрузка…" : "Нет данных",
+    },
+  ];
+
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className={clsx("w-7 h-7 rounded-lg flex items-center justify-center", iconColor)}>
-          <Icon size={14} />
+    <div className="flex flex-col gap-7 pt-6">
+      <div className="anim-head flex flex-col gap-1.5">
+        <h1 className="m-0 text-[28px] font-semibold tracking-[-0.02em]">
+          Выберите МНН
+        </h1>
+        <span className="text-[15px] text-muted-2">
+          Начните вводить название в поиске или откройте один из списков
         </span>
-        <div>
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">{subtitle}</p>
-        </div>
       </div>
-      {loading && items.length === 0 && (
-        <p className="text-xs text-slate-400 dark:text-slate-500 py-4 text-center">Загрузка…</p>
-      )}
-      {!loading && items.length === 0 && (
-        <p className="text-xs text-slate-400 dark:text-slate-500 py-4 text-center">Пока пусто</p>
-      )}
-      <ul className="space-y-1">
-        {items.map((item) => (
-          <li key={item.mnn}>
-            <button
-              onClick={() => onPick(item.mnn)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left group"
-            >
-              {showScore && item.color && (
-                <span
-                  className={clsx(
-                    "inline-block w-1.5 h-1.5 rounded-full flex-shrink-0",
-                    COLOR_DOT[item.color] ?? "bg-slate-400",
-                  )}
-                  aria-hidden
-                />
-              )}
-              <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-200 group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
-                {item.mnn}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6">
+        {columns.map((col, i) => (
+          <div
+            key={col.title}
+            className="anim-rise flex flex-col rounded-card bg-surface px-[22px] py-5"
+            style={stagger(i)}
+          >
+            <span className="text-[17px] font-semibold tracking-[-0.01em]">
+              {col.title}
+            </span>
+            <span className="pb-2.5 pt-0.5 text-xs text-faint">{col.sub}</span>
+            {col.items.map((item) => (
+              <button
+                key={item.name}
+                type="button"
+                onClick={() => onPick(item.name)}
+                className="tr-soft -mx-2 flex justify-between gap-3 rounded-row border-0 border-t border-[#f3f3f0] bg-transparent px-2 py-2.5 text-left text-sm text-fg hover:bg-[#f7f7f4]"
+              >
+                <span className="min-w-0 truncate">{item.name}</span>
+                <span className="shrink-0 font-medium text-muted-2">
+                  {item.value}
+                </span>
+              </button>
+            ))}
+            {col.items.length === 0 && (
+              <span className="border-t border-[#f3f3f0] py-2.5 text-sm text-faint">
+                {col.empty}
               </span>
-              {showScore && item.score != null && (
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
-                  {item.score.toFixed(0)}
-                </span>
-              )}
-              {!hideUsd && item.usd > 0 && (
-                <span className="text-[11px] text-slate-400 dark:text-slate-500 w-14 text-right tabular-nums">
-                  {fmtUsd(item.usd)}
-                </span>
-              )}
-            </button>
-          </li>
+            )}
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

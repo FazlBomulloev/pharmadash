@@ -90,8 +90,10 @@ async def list_prices(
     db: AsyncSession = Depends(get_db),
 ):
     conds = []
-    if source:
-        conds.append(PharmacyPrice.source == source)
+    # source — один слаг или несколько через запятую
+    slugs = [x for x in (source or "").split(",") if x]
+    if slugs:
+        conds.append(PharmacyPrice.source.in_(slugs))
     if mnn:
         conds.append(PharmacyPrice.mnn == mnn)
     if manufacturer:
@@ -148,6 +150,61 @@ async def list_prices(
         "limit": limit,
         "items": [_serialize_price(r) for r in rows],
     }
+
+
+@router.get("/prices/{price_id}/compare")
+async def compare_prices(
+    price_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Цена той же ТМ и дозировки в каждой аптеке (минимальная по
+    источнику). Позиция без ТМ сравнивается только сама с собой."""
+    current = await db.get(PharmacyPrice, price_id)
+    if not current:
+        raise HTTPException(404, "Позиция не найдена")
+
+    rows = [current]
+    if current.trade_name:
+        conds = [
+            func.lower(PharmacyPrice.trade_name)
+            == current.trade_name.lower(),
+            PharmacyPrice.price.isnot(None),
+        ]
+        if current.dosage:
+            conds.append(PharmacyPrice.dosage == current.dosage)
+        rows = (await db.execute(
+            select(PharmacyPrice).where(and_(*conds))
+        )).scalars().all()
+
+    return {"items": cheapest_per_source(rows, current)}
+
+
+def cheapest_per_source(rows, current) -> list[dict]:
+    """По одной позиции на аптеку — самая дешёвая; для аптеки текущей
+    позиции показывается именно она."""
+    best: dict[str, PharmacyPrice] = {}
+    for r in rows:
+        if r.price is None:
+            continue
+        kept = best.get(r.source)
+        if kept is None or r.price < kept.price:
+            best[r.source] = r
+    if current.price is not None:
+        best[current.source] = current
+    return [
+        {
+            "id": r.id,
+            "source": r.source,
+            "display_name": (
+                ADAPTERS[r.source].display_name
+                if r.source in ADAPTERS else r.source
+            ),
+            "price": r.price,
+            "url": r.url,
+            "is_current": r.id == current.id,
+        }
+        for r in sorted(best.values(), key=lambda r: r.price)
+    ]
 
 
 @router.get("/filters")

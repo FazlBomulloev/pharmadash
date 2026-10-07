@@ -19,7 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session, get_db
 from backend.models import Market, BdpRaw
-from backend.services.market_scoring import get_market_scoring
+from backend.services.market_scoring import (
+    get_market_scoring,
+    market_settings,
+)
 from backend.services.scoring import CATEGORIES
 from backend.services.year_shift import (
     parse_years,
@@ -69,6 +72,24 @@ def _cagr(start: float, end: float, periods: int) -> float | None:
     if start <= 0 or end <= 0 or periods <= 0:
         return None
     return (end / start) ** (1 / periods) - 1
+
+
+def _top_country(country_usd: dict[str, float]) -> str | None:
+    if not country_usd:
+        return None
+    return max(country_usd.items(), key=lambda x: x[1])[0]
+
+
+def _apply_filters(items, sector: str | None, atc3: str | None) -> list:
+    result = list(items)
+    if sector == "ret":
+        result = [i for i in result if "RET" in (i.sector or "")]
+    elif sector == "hos":
+        result = [i for i in result if "HOS" in (i.sector or "")]
+    if atc3:
+        atc3_up = atc3.strip().upper()
+        result = [i for i in result if _atc3(i.atc) == atc3_up]
+    return result
 
 
 def _atc3(code: str | None) -> str | None:
@@ -136,7 +157,45 @@ def _build_volume(items: list[BdpRaw], years: list[int]) -> dict:
     }
 
 
-def _build_portfolio(items: list[BdpRaw]) -> dict:
+MOVERS_UP = 5
+MOVERS_DOWN = 3
+
+
+def build_movers(
+    deltas: dict[str, dict], up: int = MOVERS_UP, down: int = MOVERS_DOWN,
+) -> list[dict]:
+    """«Кто двигает рынок»: лидеры роста и падения по абсолютному Δ USD
+    к прошлому году. deltas: имя → {"usd_y2", "usd_y3"}.
+    Результат отсортирован от наибольшего роста к наибольшему падению."""
+    rows = [
+        {"name": k, "usd": d["usd_y3"], "delta": d["usd_y3"] - d["usd_y2"]}
+        for k, d in deltas.items()
+    ]
+    rows.sort(key=lambda r: (-r["delta"], r["name"]))
+    growing = [r for r in rows if r["delta"] > 0][:up]
+    falling = [r for r in rows if r["delta"] < 0]
+    falling = falling[-down:] if down > 0 else []
+    return growing + falling
+
+
+def _build_series(items, years: list[int]) -> dict:
+    """Продажи по годам без сдвига окна — для графика в hero."""
+    return {
+        "years": years[:3],
+        "usd": [
+            sum(i.usd_y1 for i in items),
+            sum(i.usd_y2 for i in items),
+            sum(i.usd_y3 for i in items),
+        ],
+        "un": [
+            sum(i.un_y1 for i in items),
+            sum(i.un_y2 for i in items),
+            sum(i.un_y3 for i in items),
+        ],
+    }
+
+
+def _build_portfolio(items: list[BdpRaw], home: set[str]) -> dict:
     total = sum(i.usd_y3 for i in items)
 
     mnn_data: dict[str, dict] = defaultdict(
@@ -189,9 +248,9 @@ def _build_portfolio(items: list[BdpRaw]) -> dict:
             "usd": d["usd_y3"],
             "share": _safe_div(d["usd_y3"], total) or 0,
             "growth": _safe_growth(d["usd_y3"], d["usd_y2"]),
-            "country": (
-                max(d["country_usd"].items(), key=lambda x: x[1])[0]
-                if d["country_usd"] else None
+            "country": _top_country(d["country_usd"]),
+            "is_home": (
+                (_top_country(d["country_usd"]) or "").upper() in home
             ),
         }
         for k, d in sorted_producers[:10]
@@ -222,13 +281,19 @@ def _build_portfolio(items: list[BdpRaw]) -> dict:
     ]
 
     country_data: dict[str, dict] = defaultdict(
-        lambda: {"usd": 0.0, "un": 0.0}
+        lambda: {"usd": 0.0, "un": 0.0, "usd_y1": 0.0, "usd_y2": 0.0}
     )
     total_un = sum(i.un_y3 for i in items)
+    totals_by_year = [
+        sum(i.usd_y1 for i in items), sum(i.usd_y2 for i in items), total,
+    ]
     for i in items:
         if i.country_mfr:
-            country_data[i.country_mfr]["usd"] += i.usd_y3
-            country_data[i.country_mfr]["un"] += i.un_y3
+            cd = country_data[i.country_mfr]
+            cd["usd"] += i.usd_y3
+            cd["un"] += i.un_y3
+            cd["usd_y1"] += i.usd_y1
+            cd["usd_y2"] += i.usd_y2
     countries = [
         {
             "name": k,
@@ -236,6 +301,13 @@ def _build_portfolio(items: list[BdpRaw]) -> dict:
             "un": v["un"],
             "share": _safe_div(v["usd"], total) or 0,
             "un_share": _safe_div(v["un"], total_un) or 0,
+            "shares_by_year": [
+                _safe_div(v["usd_y1"], totals_by_year[0]),
+                _safe_div(v["usd_y2"], totals_by_year[1]),
+                _safe_div(v["usd"], totals_by_year[2]),
+            ],
+            "growth": _safe_growth(v["usd"], v["usd_y2"]),
+            "is_home": k.strip().upper() in home,
         }
         for k, v in sorted(
             country_data.items(),
@@ -246,6 +318,7 @@ def _build_portfolio(items: list[BdpRaw]) -> dict:
 
     return {
         "top_mnn": top_mnn,
+        "movers": build_movers(mnn_data),
         "top_producers": top_producers,
         "hhi": hhi,
         "top3_share": top3_share,
@@ -312,7 +385,7 @@ def _collect_atc3_options(items) -> list[dict]:
             atc_usd[code] += i.usd_y3
     total = sum(atc_usd.values()) or 1
     return [
-        {"atc": k, "share": v / total}
+        {"atc": k, "share": v / total, "usd": v}
         for k, v in sorted(atc_usd.items(), key=lambda x: -x[1])
     ]
 
@@ -408,12 +481,12 @@ async def _compute_overview(
         if not market:
             raise HTTPException(404, "Рынок не найден")
 
-    all_bdp_items = await _load_market_rows(db, market_id)
-    if not all_bdp_items:
+    raw_rows = await _load_market_rows(db, market_id)
+    if not raw_rows:
         raise HTTPException(400, "Для рынка не загружены данные БДП")
 
     # Сдвигаем окно годов если выбран не последний.
-    all_bdp_items = shift_items(all_bdp_items, year_idx)
+    all_bdp_items = shift_items(raw_rows, year_idx)
 
     years = parse_years(market)
     shifted_year_list = shifted_years(market, year_idx)
@@ -422,27 +495,14 @@ async def _compute_overview(
         json.loads(market.regions_json) if market.regions_json else []
     )
 
-    # ── ATC options строим до фильтра, чтобы селектор был стабильным ──
-    atc_options = _collect_atc3_options(all_bdp_items)
+    # ── ATC options строим до фильтра по классу, чтобы селектор и карточка
+    # «Классы ATC» оставались полными; сектор при этом учитывается ──
+    atc_options = _collect_atc3_options(
+        _apply_filters(all_bdp_items, sector, None),
+    )
 
     # ── применяем фильтры к BDP ──
-    bdp_items = list(all_bdp_items)
-    if sector == "ret":
-        bdp_items = [
-            i for i in bdp_items
-            if "RET" in (i.sector or "")
-        ]
-    elif sector == "hos":
-        bdp_items = [
-            i for i in bdp_items
-            if "HOS" in (i.sector or "")
-        ]
-
-    if atc3:
-        atc3_up = atc3.strip().upper()
-        bdp_items = [
-            i for i in bdp_items if _atc3(i.atc) == atc3_up
-        ]
+    bdp_items = _apply_filters(all_bdp_items, sector, atc3)
 
     if not bdp_items:
         raise HTTPException(
@@ -459,8 +519,12 @@ async def _compute_overview(
     }
     tm_set = {i.tm for i in bdp_items if i.tm}
 
-    portfolio = _build_portfolio(bdp_items)
+    home = {c.strip().upper() for c in market_settings(market).home_countries}
+    portfolio = _build_portfolio(bdp_items, home)
     volume = _build_volume(bdp_items, shifted_year_list)
+    volume["series"] = _build_series(
+        _apply_filters(raw_rows, sector, atc3), years,
+    )
     scoring = await get_market_scoring(db, market)
     decision = _build_decision(scoring, scope_mnns)
 

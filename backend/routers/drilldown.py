@@ -35,6 +35,7 @@ BDP_COLS = (
     BdpRaw.producer,
     BdpRaw.sector,
     BdpRaw.region,
+    BdpRaw.atc,
     BdpRaw.lf, BdpRaw.lf_avp,
     BdpRaw.strength,
     BdpRaw.country_mfr,
@@ -379,6 +380,38 @@ def _producer_top_regions(items: Sequence[Any]) -> list[dict]:
     ]
 
 
+def _producer_atc_breakdown(items: Sequence[Any]) -> list[dict]:
+    """Классы ATC в портфеле производителя по USD последнего года."""
+    total = sum(i.usd_y3 for i in items)
+    atc_usd: dict[str, float] = defaultdict(float)
+    for i in items:
+        code = (i.atc or "").strip().upper()
+        if code:
+            atc_usd[code] += i.usd_y3
+    return [
+        {"atc": k, "usd": v, "share": _safe_div(v, total) or 0.0}
+        for k, v in sorted(atc_usd.items(), key=lambda x: (-x[1], x[0]))
+        if v > 0
+    ]
+
+
+async def _producer_rank(
+    db: AsyncSession, market_id: int, producer_usd_y3: float,
+) -> int:
+    """Место производителя на рынке по USD последнего года."""
+    totals = (
+        select(func.sum(BdpRaw.usd_y3).label("usd"))
+        .where(BdpRaw.market_id == market_id)
+        .group_by(BdpRaw.producer)
+        .subquery()
+    )
+    ahead = (await db.execute(
+        select(func.count()).select_from(totals)
+        .where(totals.c.usd > producer_usd_y3)
+    )).scalar() or 0
+    return int(ahead) + 1
+
+
 # ────────────────────── country builders ──────────────────────
 
 def _country_kpi(
@@ -546,15 +579,23 @@ async def producer_market_scope(
         raise HTTPException(404, "Производитель не найден в рынке")
 
     real_name = _producer_key(items[0])
-    market_total_usd_y3 = await _market_total_usd_y3(db, market_id)
+    market_totals = await _market_totals_3y(db, market_id)
+    market_total_usd_y3 = market_totals[2]
     mnn_competitors = await _mnn_competitors_map(db, market_id)
     years_labels = _years_labels(market)
 
+    kpi = _producer_kpi(items, market_total_usd_y3, years_labels)
+    kpi["shares_by_year"] = [
+        _safe_div(kpi[f"usd_y{k + 1}"], market_totals[k]) for k in range(3)
+    ]
+    kpi["mnn_count"] = len({i.mnn for i in items if i.mnn})
+    kpi["tm_count"] = len({i.tm for i in items if i.tm})
+    kpi["rank"] = await _producer_rank(db, market_id, kpi["usd_y3"])
+
     return {
         "name": real_name or producer_name,
-        "kpi": _producer_kpi(
-            items, market_total_usd_y3, years_labels,
-        ),
+        "kpi": kpi,
+        "atc_breakdown": _producer_atc_breakdown(items),
         "mnn_portfolio": _producer_mnn_portfolio(
             items, mnn_competitors, market_total_usd_y3,
         ),

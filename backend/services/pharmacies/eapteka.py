@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import html as html_lib
+import json
 import logging
 import os
 import random
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncIterator
 
-import aiohttp
-from bs4 import BeautifulSoup
+import httpx
 
 from .base import PharmacyAdapter, PharmacyProduct
+from .name_parse import (
+    parse_dosage, parse_form, parse_pack_qty, parse_trade_name,
+)
 
 log = logging.getLogger(__name__)
 
@@ -21,17 +24,13 @@ CATEGORY_URLS = (
     f"/{REGION}/goods/drugs/",
     f"/{REGION}/goods/vitaminy_i_bad/",
 )
-SITEMAP_URL = (
-    BASE_URL + "/upload/eapteka_sitemap/sitemap_ssl.xml"
-)
-CONCURRENCY = 15
-BATCH_SIZE = 60
-BATCH_PAUSE = 0.5
-REQUEST_TIMEOUT = 30
+# Карточка в списке категории уже содержит цену, производителя, МНН и
+# фото, поэтому страницы товаров не открываем: ~700 страниц списка вместо
+# ~13 500 страниц товаров по мегабайту каждая.
+CONCURRENCY = 8
+BATCH_SIZE = 40
+REQUEST_TIMEOUT = 40
 MAX_RETRIES = 4
-PRODUCT_URL_RE = re.compile(
-    rf"https://www\.eapteka\.ru/{re.escape(REGION)}/goods/id\d+/"
-)
 
 HEADERS = {
     "User-Agent": (
@@ -46,40 +45,57 @@ HEADERS = {
     "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
 }
 
+_CARD_SPLIT_RE = re.compile(r'<article class="listing-card')
+_OFFER_RE = re.compile(r"data-oldma-offer='(\{.*?\})'", re.S)
+_XML_ID_RE = re.compile(r'data-xml-id="(\d+)"')
+_HREF_RE = re.compile(rf'href="(/{re.escape(REGION)}/goods/id\d+/)"')
+_IMAGE_RE = re.compile(r'<img\s+src="([^"]+)"')
+_PRICE_RE = re.compile(r'data-price="([\d.,\s]+)"')
+_OLD_PRICE_RE = re.compile(r'data-old-price="([\d.,\s]+)"')
+_MANUFACTURER_RE = re.compile(
+    r'listing-card__manufacturer">.*?</span>\s*<a[^>]*>(.*?)</a>', re.S,
+)
+_INGREDIENT_RE = re.compile(
+    r'listing-card__ingredient">.*?</span>\s*<a[^>]*>(.*?)</a>', re.S,
+)
+_PAGES_RE = re.compile(r"PAGEN_1=(\d+)")
 
-async def _fetch(session, url, retries=MAX_RETRIES):
-    for attempt in range(retries):
+
+async def _fetch(client: httpx.AsyncClient, url: str) -> str | None:
+    """HTML страницы или None. Клиент — httpx: запросы через aiohttp сайт
+    отклоняет антибот-заглушкой (HTTP 503) при тех же заголовках."""
+    for attempt in range(MAX_RETRIES):
         try:
-            timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)
-            async with session.get(
-                url, timeout=timeout, allow_redirects=True,
-            ) as resp:
-                if resp.status == 200:
-                    text = await resp.text()
-                    if (
-                        "проверка вашего браузера" in text.lower()
-                        or "доступ к сайту временно ограничен" in text.lower()
-                    ):
-                        log.warning("eApteka: обнаружена антибот-проверка")
-                        return None
-                    return text
-                log.debug("eApteka HTTP %d: %s", resp.status, url)
-                if resp.status not in (403, 429, 500, 502, 503, 504):
-                    return None
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.text
+            log.debug("eApteka HTTP %d: %s", resp.status_code, url)
+            if resp.status_code == 503 and _is_antibot(resp.text):
+                log.warning("eApteka: антибот-проверка на %s", url)
+            elif resp.status_code not in (403, 429, 500, 502, 503, 504):
+                return None
+        except httpx.HTTPError as e:
             log.debug(
                 "eApteka попытка %d/%d %s: %s",
-                attempt + 1, retries, url, e,
+                attempt + 1, MAX_RETRIES, url, type(e).__name__,
             )
-        if attempt < retries - 1:
+        if attempt < MAX_RETRIES - 1:
             await asyncio.sleep(2 ** attempt + random.uniform(0.2, 0.8))
     return None
+
+
+def _is_antibot(text: str) -> bool:
+    lowered = text.lower()
+    return (
+        "проверка вашего браузера" in lowered
+        or "доступ к сайту временно ограничен" in lowered
+    )
 
 
 def _parse_price(text: str | None) -> float | None:
     if not text:
         return None
-    text = text.replace(",", ".").strip()
+    text = text.replace(",", ".").replace(" ", "").strip()
     m = re.search(r"[\d.]+", text)
     if not m:
         return None
@@ -89,10 +105,84 @@ def _parse_price(text: str | None) -> float | None:
         return None
 
 
-# один поток: больше потоков только сильнее отбирают GIL у event loop
-_PARSE_POOL = ThreadPoolExecutor(
-    max_workers=1, thread_name_prefix="eapteka-parse",
-)
+def _clean(fragment: str | None) -> str:
+    """Текст из HTML-фрагмента: без тегов, сущностей и лишних пробелов."""
+    if not fragment:
+        return ""
+    text = html_lib.unescape(re.sub(r"<[^>]+>", " ", fragment))
+    return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+
+
+def parse_listing(page_html: str) -> list[PharmacyProduct]:
+    """Товары со страницы списка категории."""
+    products: list[PharmacyProduct] = []
+    for card in _CARD_SPLIT_RE.split(page_html)[1:]:
+        product = _parse_card(card)
+        if product is not None:
+            products.append(product)
+    return products
+
+
+def _parse_card(card: str) -> PharmacyProduct | None:
+    href = _HREF_RE.search(card)
+    xml_id = _XML_ID_RE.search(card)
+    if not href or not xml_id:
+        return None
+
+    offer: dict = {}
+    offer_match = _OFFER_RE.search(card)
+    if offer_match:
+        try:
+            offer = json.loads(html_lib.unescape(offer_match.group(1)))
+        except ValueError:
+            offer = {}
+
+    name = _clean(offer.get("itemName"))
+    if not name:
+        return None
+
+    current = _parse_price(
+        (_PRICE_RE.search(card) or [None, None])[1]
+    ) or _parse_price(str(offer.get("itemPrice") or ""))
+    old_match = _OLD_PRICE_RE.search(card)
+    old = _parse_price(old_match.group(1)) if old_match else None
+
+    manufacturer, country = "", ""
+    mfr_match = _MANUFACTURER_RE.search(card)
+    if mfr_match:
+        parts = _clean(mfr_match.group(1)).rsplit(",", 1)
+        manufacturer = parts[0].strip()
+        if len(parts) > 1:
+            country = parts[1].strip()
+
+    ingredient = _INGREDIENT_RE.search(card)
+    image = _IMAGE_RE.search(card)
+    brand = _clean(offer.get("itemBrand"))
+
+    return PharmacyProduct(
+        source=EaptekaAdapter.slug,
+        sku=xml_id.group(1),
+        name=name,
+        mnn=_clean(ingredient.group(1)) if ingredient else "",
+        trade_name=parse_trade_name(name),
+        manufacturer=manufacturer,
+        country=country,
+        form=parse_form(name),
+        dosage=parse_dosage(name),
+        pack_qty=parse_pack_qty(name),
+        # цена без скидки — основная; со скидкой — отдельным полем
+        price=old if old is not None else current,
+        price_discount=current if old is not None else None,
+        url=BASE_URL + href.group(1),
+        image_url=html_lib.unescape(image.group(1)) if image else "",
+        extra={
+            "Оригинал/Дженерик": (
+                "Оригинал" if "listing-card__original" in card else "Дженерик"
+            ),
+            "category": _clean(offer.get("itemCategory")),
+            "brand": brand,
+        },
+    )
 
 
 class EaptekaAdapter(PharmacyAdapter):
@@ -100,294 +190,69 @@ class EaptekaAdapter(PharmacyAdapter):
     display_name = "eApteka"
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
-        async with aiohttp.ClientSession(headers=HEADERS) as session:
-            links = await self._collect_links(session)
-            if not links:
-                return
-            log.info("eApteka: собрано ссылок %d", len(links))
-
-            sem = asyncio.Semaphore(CONCURRENCY)
-            loop = asyncio.get_running_loop()
-            total = len(links)
-            for i in range(0, total, BATCH_SIZE):
-                batch = links[i:i + BATCH_SIZE]
-
-                async def _one(url):
-                    async with sem:
-                        html = await _fetch(
-                            session,
-                            url if url.startswith("http") else BASE_URL + url,
-                        )
-                        if not html:
-                            return None
-                        try:
-                            # разбор HTML — чистый CPU; в event loop он
-                            # подвешивает весь API, поэтому уводим в поток
-                            product = await loop.run_in_executor(
-                                _PARSE_POOL, self._parse_card, html, url,
-                            )
-                            if product is None:
-                                return None
-                            return product
-                        except Exception as e:  # noqa: BLE001
-                            log.warning("eApteka парсинг %s: %s", url, e)
-                            return None
-
-                results = await asyncio.gather(
-                    *[_one(u) for u in batch], return_exceptions=True,
-                )
-                for r in results:
-                    if isinstance(r, PharmacyProduct):
-                        yield r
-                done = min(i + BATCH_SIZE, total)
-                log.info(
-                    "eApteka: %d/%d карточек", done, total,
-                )
-                if i + BATCH_SIZE < total:
-                    await asyncio.sleep(BATCH_PAUSE)
-
-    async def _collect_links(self, session) -> list[str]:
-        links = await self._collect_category_links(session)
-        if links:
-            return links[: self.limit] if self.limit else links
-
-        log.warning(
-            "eApteka: категории недоступны, используем sitemap как fallback",
-        )
-        index = await _fetch(session, SITEMAP_URL)
-        if not index:
-            raise RuntimeError("eApteka: не удалось получить sitemap")
-        sitemap_urls = re.findall(r"<loc>(.*?)</loc>", index)
-        offer_sitemaps = [
-            url for url in sitemap_urls if "_offers_" in url
-        ]
-        links: list[str] = []
-        seen: set[str] = set()
-        log.info(
-            "eApteka: сканируем %d sitemap-файлов для региона %s",
-            len(offer_sitemaps), REGION,
-        )
-        for sitemap_url in offer_sitemaps:
-            content = await _fetch(session, sitemap_url)
-            if not content:
-                continue
-            for url in re.findall(r"<loc>(.*?)</loc>", content):
-                url = url.strip()
-                if PRODUCT_URL_RE.fullmatch(url) and url not in seen:
-                    seen.add(url)
-                    links.append(url)
-                    if self.limit and len(links) >= self.limit:
-                        return links
-        return links
-
-    async def _collect_category_links(self, session) -> list[str]:
-        first_pages: list[tuple[str, str, int]] = []
-        for category_url in CATEGORY_URLS:
-            html = await _fetch(session, BASE_URL + category_url)
-            if not html:
-                continue
-            links, total_pages = self._extract_category_page(html)
-            first_pages.append((category_url, html, total_pages))
-            if self.limit and len(links) >= self.limit:
-                return list(dict.fromkeys(links))[:self.limit]
-
-        if not first_pages:
-            return []
-
-        links: list[str] = []
-        for category_url, html, total_pages in first_pages:
-            links.extend(self._extract_category_page(html)[0])
-            page_numbers = range(2, total_pages + 1)
-            if self.limit:
-                page_numbers = range(2, (self.limit // 33) + 3)
-
+        async with httpx.AsyncClient(
+            headers=HEADERS,
+            timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=15.0),
+            follow_redirects=True,
+        ) as session:
+            seen: set[str] = set()
+            yielded = 0
             sem = asyncio.Semaphore(CONCURRENCY)
 
-            async def fetch_page(page: int) -> list[str]:
+            async def page(category_url: str, number: int) -> str | None:
                 async with sem:
-                    page_url = (
-                        f"{BASE_URL}{category_url}?PAGEN_1={page}"
-                    )
-                    page_html = await _fetch(session, page_url)
-                    if not page_html:
-                        return []
-                    return self._extract_category_page(page_html)[0]
-
-            results = await asyncio.gather(
-                *(fetch_page(page) for page in page_numbers),
-            )
-            for page_links in results:
-                links.extend(page_links)
-
-        links = list(dict.fromkeys(links))
-        log.info("eApteka: категории содержат %d ссылок", len(links))
-        return links
-
-    def _extract_category_page(self, html: str) -> tuple[list[str], int]:
-        links = re.findall(
-            rf'href="(/{re.escape(REGION)}/goods/id\d+/)"',
-            html,
-        )
-        links = list(dict.fromkeys(links))
-        pages = re.findall(r"PAGEN_1=(\d+)", html)
-        return links, max((int(page) for page in pages), default=1)
-
-    def _parse_card(
-        self, html: str, url: str,
-    ) -> PharmacyProduct | None:
-        soup = BeautifulSoup(html, "html.parser")
-        breadcrumb_names = [
-            node.get_text(" ", strip=True)
-            for node in soup.select(
-                '.breadcrumbs span[itemprop="name"]',
-            )
-        ]
-        if not any(
-            name in {"Лекарственные средства", "Витамины и БАД"}
-            for name in breadcrumb_names
-        ):
-            return None
-        p = PharmacyProduct(
-            source=self.slug,
-            url=url if url.startswith("http") else BASE_URL + url,
-        )
-
-        h1 = soup.find("h1")
-        if h1:
-            p.name = h1.get_text(strip=True)
-
-        # Картинка: сначала og:image (самое надёжное), потом карточка
-        og = soup.find("meta", attrs={"property": "og:image"})
-        if og and og.get("content"):
-            img = og["content"].strip()
-            p.image_url = (
-                img if img.startswith("http") else BASE_URL + img
-            )
-        if not p.image_url:
-            img_tag = soup.find(
-                "img", class_=re.compile(r"offer-image|product__image", re.I),
-            )
-            if img_tag:
-                src = (
-                    img_tag.get("data-src")
-                    or img_tag.get("src")
-                    or ""
-                ).strip()
-                if src:
-                    p.image_url = (
-                        src if src.startswith("http") else BASE_URL + src
+                    return await _fetch(
+                        session,
+                        f"{BASE_URL}{category_url}?PAGEN_1={number}",
                     )
 
-        price = None
-        old_tag = soup.find(attrs={"data-old-price": True})
-        if old_tag:
-            price = _parse_price(old_tag.get("data-old-price"))
-        if price is None:
-            price_tag = soup.find(attrs={"data-price": True})
-            if price_tag:
-                price = _parse_price(price_tag.get("data-price"))
-        if price is None:
-            itemprop = soup.find(attrs={"itemprop": "price"})
-            if itemprop:
-                price = _parse_price(
-                    itemprop.get("content")
-                    or itemprop.get_text(strip=True)
+            def fresh(page_html: str | None) -> list[PharmacyProduct]:
+                """Товары страницы, которых ещё не было."""
+                result = []
+                for product in parse_listing(page_html or ""):
+                    if product.sku not in seen:
+                        seen.add(product.sku)
+                        result.append(product)
+                return result
+
+            for category_url in CATEGORY_URLS:
+                first = await _fetch(session, BASE_URL + category_url)
+                if not first:
+                    log.warning(
+                        "eApteka: категория %s недоступна", category_url,
+                    )
+                    continue
+                total_pages = max(
+                    (int(n) for n in _PAGES_RE.findall(first)), default=1,
                 )
-        p.price = price
-
-        art_tag = soup.find(attrs={"data-action": "article"})
-        if art_tag:
-            p.sku = art_tag.get_text(strip=True)
-
-        desc = soup.find(
-            class_=re.compile(r"offer-card__desc", re.I),
-        )
-        original = ""
-        if desc:
-            for ptag in desc.find_all("p"):
-                text = ptag.get_text()
-                if "Производитель:" in text:
-                    a = ptag.find("a")
-                    if a:
-                        raw = a.get_text(strip=True)
-                        parts = raw.rsplit(",", 1)
-                        p.manufacturer = parts[0].strip()
-                        if len(parts) > 1:
-                            p.country = parts[1].strip()
-                elif "Действующее вещество:" in text:
-                    a = ptag.find("a")
-                    if a:
-                        p.mnn = a.get_text(strip=True)
-            orig_block = desc.find(
-                class_=re.compile(r"\boriginal\b", re.I),
-            )
-            original = "Оригинал" if orig_block else "Дженерик"
-
-        brand_m = re.search(r'"brand"\s*:\s*"([^"]+)"', html)
-        if brand_m:
-            p.trade_name = brand_m.group(1)
-
-        def _instr(block_id):
-            block = soup.find(id=block_id)
-            if not block:
-                return ""
-            text_div = block.find(
-                class_="offer-instruction__item-text",
-            )
-            if not text_div:
-                return ""
-            a = text_div.find("a")
-            return (a or text_div).get_text(strip=True)
-
-        if not p.mnn:
-            p.mnn = _instr("instruction_ACTIVE_INGREDIENT")
-
-        form_raw = _instr("instruction_FORM")
-        if form_raw:
-            first = form_raw.split("\n")[0].strip()
-            p.form = re.split(r"[.;]", first)[0].strip()
-
-        dose_m = re.search(
-            r"(\d+[.,]?\d*\s*(?:мг|мкг|г|мл|МЕ|ЕД|%|"
-            r"мг/мл|мг/доза|мкг/доза))",
-            p.name,
-        )
-        if dose_m:
-            p.dosage = dose_m.group(1)
-
-        if not p.trade_name and p.name:
-            p.trade_name = p.name.split(" ")[0]
-
-        atx = ""
-        pharm = soup.find(id="instruction_PHARM_EFFECT")
-        if pharm:
-            text_div = pharm.find(
-                class_="offer-instruction__item-text",
-            )
-            if text_div:
-                m = re.search(
-                    r"(?:Код АТХ|АТХ)[:\s]*([A-Z]\d{2}[A-Z]{2}\d{2})",
-                    text_div.get_text(),
+                log.info(
+                    "eApteka: %s — %d страниц", category_url, total_pages,
                 )
-                if m:
-                    atx = m.group(1)
+                for product in fresh(first):
+                    yield product
+                    yielded += 1
+                    if self.limit and yielded >= self.limit:
+                        return
 
-        prescription = ""
-        recipe_block = soup.find(id="instruction_IS_RECIPE")
-        if recipe_block:
-            text_div = recipe_block.find(
-                class_="offer-instruction__item-text",
-            )
-            if text_div:
-                raw = text_div.get_text(strip=True)
-                if "По рецепту" in raw:
-                    prescription = "Да"
-                elif "Без рецепта" in raw:
-                    prescription = "Нет"
+                numbers = list(range(2, total_pages + 1))
+                for start in range(0, len(numbers), BATCH_SIZE):
+                    batch = numbers[start:start + BATCH_SIZE]
+                    for page_html in await asyncio.gather(
+                        *(page(category_url, n) for n in batch),
+                    ):
+                        for product in fresh(page_html):
+                            yield product
+                            yielded += 1
+                            if self.limit and yielded >= self.limit:
+                                return
+                    log.info(
+                        "eApteka: %s — %d/%d страниц (товаров: %d)",
+                        category_url, start + len(batch) + 1,
+                        total_pages, yielded,
+                    )
 
-        p.extra = {
-            "original": original,
-            "atx": atx,
-            "prescription": prescription,
-        }
-        return p
+            if yielded == 0:
+                raise RuntimeError(
+                    "eApteka: не удалось получить ни одного товара "
+                    "(категории недоступны или изменилась вёрстка)"
+                )

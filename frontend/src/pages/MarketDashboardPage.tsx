@@ -1,185 +1,258 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { getDashboard } from "../api/client";
 import type { DashboardResponse } from "../types/api";
-import MnnSearch from "../components/dashboard/MnnSearch";
-import MnnScoreHeader from "../components/dashboard/MnnScoreHeader";
-import MnnEmptyState, {
-  pushRecentMnn,
-} from "../components/dashboard/MnnEmptyState";
-import DashboardFilters from "../components/dashboard/DashboardFilters";
-import Zone1 from "../components/dashboard/Zone1";
-import Zone2 from "../components/dashboard/Zone2";
-import Zone3 from "../components/dashboard/Zone3";
-import LoadingSpinner from "../components/common/LoadingSpinner";
+import { useFetch } from "../hooks/useFetch";
+import { useProgress } from "../hooks/useProgress";
+import { CompetitorsTab } from "../components/dashboard/CompetitorsTab";
+import { MnnEmptyState } from "../components/dashboard/MnnEmptyState";
+import { pushRecentMnn } from "../lib/recentMnn";
+import { MnnHero } from "../components/dashboard/MnnHero";
+import { MnnSearch } from "../components/dashboard/MnnSearch";
+import {
+  GeographyTab, StructureTab,
+} from "../components/dashboard/StructureGeoTabs";
+import { ScoringTab, SummaryTab } from "../components/dashboard/SummaryTab";
+import { CountryPanel } from "../components/panels/CountryPanel";
+import { Segmented } from "../components/ui/Segmented";
+import { Select } from "../components/ui/Select";
+import { UnderlineTabs } from "../components/ui/SidePanel";
+import { ErrorNote, Loading } from "../components/ui/states";
+
+type Tab = "summary" | "competitors" | "structure" | "geo" | "scoring";
+
+const TABS: { value: Tab; label: string }[] = [
+  { value: "summary", label: "Сводка" },
+  { value: "competitors", label: "Конкуренты" },
+  { value: "structure", label: "Структура" },
+  { value: "geo", label: "География" },
+  { value: "scoring", label: "Скоринг" },
+];
 
 interface UrlState {
   mnn: string;
+  tab: Tab;
   lf: string | null;
   dose: string | null;
   year: number | null;
 }
 
 function readUrl(params: URLSearchParams): UrlState {
-  const yearRaw = params.get("year");
-  const yearNum = yearRaw ? parseInt(yearRaw, 10) : NaN;
+  const year = parseInt(params.get("year") ?? "", 10);
+  const tab = params.get("tab") as Tab;
   return {
     mnn: params.get("mnn") ?? "",
+    tab: TABS.some((x) => x.value === tab) ? tab : "summary",
     lf: params.get("lf") || null,
     dose: params.get("dose") || null,
-    year: Number.isFinite(yearNum) ? yearNum : null,
+    year: Number.isFinite(year) ? year : null,
   };
 }
 
 function writeUrl(s: UrlState): Record<string, string> {
   const out: Record<string, string> = {};
   if (s.mnn) out.mnn = s.mnn;
+  if (s.tab !== "summary") out.tab = s.tab;
   if (s.lf) out.lf = s.lf;
   if (s.dose) out.dose = s.dose;
   if (s.year != null) out.year = String(s.year);
   return out;
 }
 
+const GUTTER = "px-[clamp(20px,3vw,40px)]";
+
 export default function MarketDashboardPage() {
   const { marketId } = useParams<{ marketId: string }>();
+  const id = parseInt(marketId ?? "0", 10);
   const [searchParams, setSearchParams] = useSearchParams();
   const state = useMemo(() => readUrl(searchParams), [searchParams]);
-  const { mnn, lf: selectedLf, dose: selectedDose, year: selectedYear } = state;
-
-  const [data, setData] = useState<DashboardResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [country, setCountry] = useState<string | null>(null);
 
   const patch = useCallback(
-    (patch: Partial<UrlState>) => {
-      setSearchParams(writeUrl({ ...state, ...patch }), { replace: true });
-    },
+    (next: Partial<UrlState>) =>
+      setSearchParams(writeUrl({ ...state, ...next }), { replace: true }),
     [state, setSearchParams],
   );
 
-  const fetchDashboard = useCallback(
-    async (
-      selectedMnn: string,
-      lf: string | null,
-      dose: string | null,
-      year: number | null,
-    ) => {
-      if (!marketId || !selectedMnn.trim()) return;
-      setLoading(true);
-      setError("");
-      try {
-        const res = await getDashboard(
-          parseInt(marketId),
-          selectedMnn,
-          { lf, dose, year },
-        );
-        setData(res);
-        pushRecentMnn(parseInt(marketId), res.mnn);
-      } catch {
-        setError("МНН не найден или ошибка загрузки");
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [marketId],
+  const { data, error, loading } = useFetch<DashboardResponse | null>(
+    () => state.mnn
+      ? getDashboard(id, state.mnn, {
+          lf: state.lf, dose: state.dose, year: state.year,
+        })
+      : Promise.resolve(null),
+    [id, state.mnn, state.lf, state.dose, state.year],
+    "МНН не найден или ошибка загрузки",
   );
+  // Ответ относится к выбранному МНН (а не к предыдущему, пока идёт запрос).
+  const current = state.mnn ? data : null;
+  const loadedMnn = current?.mnn;
 
-  const handleMnnChange = useCallback(
-    (newMnn: string) => {
-      // Changing MNN drops filters since they depend on the MNN's own forms/doses.
-      setSearchParams(writeUrl({ mnn: newMnn, lf: null, dose: null, year: null }), {
-        replace: true,
-      });
+  useEffect(() => {
+    if (loadedMnn) pushRecentMnn(id, loadedMnn);
+  }, [id, loadedMnn]);
+
+  // Прогресс появления перезапускается при новых данных и смене вкладки.
+  const animKey = useMemo(() => ({ current, tab: state.tab }), [current, state.tab]);
+  const t = useProgress(animKey);
+
+  // Смена МНН сбрасывает фильтры: формы и дозировки у каждого МНН свои.
+  const pickMnn = useCallback(
+    (mnn: string) => {
+      setCountry(null);
+      setSearchParams(
+        writeUrl({ mnn, tab: "summary", lf: null, dose: null, year: null }),
+        { replace: true },
+      );
     },
     [setSearchParams],
   );
 
-  const handleFiltersChange = useCallback(
-    (
-      lf: string | null,
-      dose: string | null,
-      year: number | null,
-    ) => {
-      patch({ lf, dose, year });
-    },
-    [patch],
-  );
+  const goScoring = () => patch({ tab: "scoring" });
+  const years = current?.available_years ?? [];
+  const lastYear = years[years.length - 1] ?? null;
+  const selectedYear = current?.selected_year ?? lastYear;
+  const pickYear = (year: number) =>
+    patch({ year: year === lastYear ? null : year });
+  const dirty =
+    !!state.lf || !!state.dose
+    || (state.year != null && state.year !== lastYear);
 
-  useEffect(() => {
-    if (!mnn) {
-      setData(null);
-      return;
-    }
-    fetchDashboard(mnn, selectedLf, selectedDose, selectedYear);
-  }, [mnn, selectedLf, selectedDose, selectedYear, fetchDashboard]);
+  // Каждый фильтр сужается вторым, чтобы не получить пустую выборку.
+  const forms = current
+    ? state.dose
+      ? current.doses_forms_map[state.dose] ?? []
+      : current.available_forms
+    : [];
+  const doses = current
+    ? state.lf
+      ? current.forms_doses_map[state.lf] ?? []
+      : current.available_doses
+    : [];
 
   return (
-    <div className="space-y-6">
-      <div className="sticky top-0 z-30 -mx-6 px-6 pt-6 pb-4 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 space-y-3">
-        <MnnSearch
-          marketId={parseInt(marketId ?? "0")}
-          value={mnn}
-          onChange={handleMnnChange}
-        />
-        {data && (
-          <MnnScoreHeader
-            mnn={data.mnn}
-            zone1={data.zone1}
-            zone3={data.zone3}
+    <main className="flex min-w-0 flex-col">
+      <div className={`flex flex-col gap-[18px] pb-1.5 pt-5 ${GUTTER}`}>
+        <MnnSearch marketId={id} value={state.mnn} onChange={pickMnn} />
+        {current && (
+          <MnnHero data={current} onYear={pickYear} onScore={goScoring} t={t} />
+        )}
+      </div>
+
+      {current && (
+        <div
+          className={`sticky top-0 z-30 border-b border-[#e9e9e5] bg-[rgba(244,244,241,.94)] pt-1.5 backdrop-blur-[8px] ${GUTTER}`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <UnderlineTabs
+              className="gap-6! [&>button]:pb-3 [&>button]:pt-2.5"
+              tabs={TABS}
+              value={state.tab}
+              onChange={(tab) => patch({ tab })}
+            />
+            <div className="flex flex-wrap items-center gap-2 pb-2">
+              <Select
+                label="Форма"
+                value={state.lf ?? ""}
+                allLabel="Все"
+                align="right"
+                onChange={(lf) => patch({ lf: lf || null })}
+                options={forms.map((f) => ({ value: f, label: f }))}
+              />
+              <Select
+                label="Доза"
+                value={state.dose ?? ""}
+                allLabel="Все"
+                align="right"
+                onChange={(dose) => patch({ dose: dose || null })}
+                options={doses.map((d) => ({ value: d, label: d }))}
+              />
+              {years.length > 1 && selectedYear != null && (
+                <Segmented
+                  ariaLabel="Год"
+                  size="sm"
+                  options={years.map((y) => ({ value: y, label: String(y) }))}
+                  value={selectedYear}
+                  onChange={pickYear}
+                />
+              )}
+              {dirty && (
+                <button
+                  type="button"
+                  onClick={() => patch({ lf: null, dose: null, year: null })}
+                  className="border-0 bg-transparent text-[13px] font-medium text-accent hover:text-accent-hover"
+                >
+                  Сбросить
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div
+        className={`flex flex-col gap-7 pb-[72px] pt-7 transition-opacity duration-200 ${GUTTER}`}
+        style={
+          loading && current ? { opacity: 0.55, pointerEvents: "none" } : undefined
+        }
+      >
+        {error && state.mnn && <ErrorNote>{error}</ErrorNote>}
+        {state.mnn && !current && loading && <Loading className="h-48" />}
+        {!state.mnn && <MnnEmptyState marketId={id} onPick={pickMnn} />}
+
+        {current && (
+          // key — вкладка: при переключении карточки появляются заново
+          <TabContent
+            key={state.tab}
+            tab={state.tab}
+            data={current}
+            t={t}
+            onScore={goScoring}
+            country={country}
+            onCountry={setCountry}
           />
         )}
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-red-700 dark:text-red-300 text-sm">
-          {error}
-        </div>
-      )}
-
-      {!loading && data && data.available_forms && (
-        <DashboardFilters
-          availableForms={data.available_forms ?? []}
-          availableDoses={data.available_doses ?? []}
-          formsDosesMap={data.forms_doses_map ?? {}}
-          dosesFormsMap={data.doses_forms_map ?? {}}
-          selectedLf={selectedLf}
-          selectedDose={selectedDose}
-          availableYears={data.available_years ?? data.years ?? []}
-          selectedYear={selectedYear ?? data.selected_year}
-          onChange={handleFiltersChange}
+      {current && country && (
+        <CountryPanel
+          key={country}
+          marketId={id}
+          country={country}
+          mnn={current.mnn}
+          onClose={() => setCountry(null)}
         />
       )}
-
-      {loading && !data && <LoadingSpinner className="h-48" size="lg" />}
-
-      {!loading && !data && !error && !mnn && marketId && (
-        <MnnEmptyState
-          marketId={parseInt(marketId)}
-          onPick={handleMnnChange}
-        />
-      )}
-
-      {data && (
-        <div
-          className={`space-y-8 transition-opacity ${
-            loading ? "opacity-50 pointer-events-none" : ""
-          }`}
-        >
-          <Zone1 data={data.zone1} />
-          <div className="border-t border-slate-200 dark:border-slate-800" />
-          <Zone2
-            data={data.zone2}
-            marketId={parseInt(marketId ?? "0")}
-            mnn={data.mnn}
-            years={data.years}
-          />
-          <div className="border-t border-slate-200 dark:border-slate-800" />
-          <div id="mnn-zone3-details">
-            <Zone3 data={data.zone3} />
-          </div>
-        </div>
-      )}
-    </div>
+    </main>
   );
+}
+
+function TabContent({
+  tab, data, t, onScore, country, onCountry,
+}: {
+  tab: Tab;
+  data: DashboardResponse;
+  t: number;
+  onScore: () => void;
+  country: string | null;
+  onCountry: (country: string) => void;
+}) {
+  switch (tab) {
+    case "summary":
+      return <SummaryTab data={data} onScore={onScore} t={t} />;
+    case "competitors":
+      return <CompetitorsTab data={data} t={t} />;
+    case "structure":
+      return <StructureTab data={data} t={t} />;
+    case "geo":
+      return (
+        <GeographyTab
+          data={data}
+          selectedCountry={country}
+          onCountry={onCountry}
+          t={t}
+        />
+      );
+    case "scoring":
+      return <ScoringTab data={data} t={t} />;
+  }
 }

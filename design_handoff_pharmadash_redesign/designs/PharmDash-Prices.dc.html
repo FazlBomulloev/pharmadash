@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f4f4f1;color:#16181d;font-family:Onest,system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}a{color:oklch(0.47 0.14 262);text-decoration:none}a:hover{color:oklch(0.38 0.14 262)}*{box-sizing:border-box}button,input{font:inherit}@keyframes spin{to{transform:rotate(360deg)}}</style>
+</helmet>
+<div style="display:flex;min-height:100vh">
+  <aside style="width:224px;flex-shrink:0;position:sticky;top:0;height:100vh;padding:20px 12px;display:flex;flex-direction:column;gap:24px;background:#fbfbfa;border-right:1px solid #ebebe7">
+    <div style="display:flex;align-items:center;gap:10px;padding:4px 10px">
+      <div style="width:24px;height:24px;border-radius:7px;background:oklch(0.47 0.14 262);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700">P</div>
+      <span style="font-weight:700;font-size:15px;letter-spacing:-0.01em">PharmDash</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 10px;margin-bottom:8px;border-radius:9px;background:#fff;border:1px solid #ebebe7;cursor:pointer">
+        <div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:13px;font-weight:600">Казахстан</span><span style="font-size:11px;color:#8b8f97;white-space:nowrap">2023–2025 · 17 рег.</span></div>
+        <span style="color:#9a9ea6;font-size:12px">⌄</span>
+      </div>
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+        <a href="{{ n.href }}" style="display:block;padding:8px 10px;border-radius:8px;font-size:14px;color:{{ n.color }};background:{{ n.bg }};font-weight:{{ n.weight }};transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f0f0ed;color:#16181d">{{ n.label }}</a>
+      </sc-for>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:2px">
+      <a href="PharmDash-Markets.dc.html" style="padding:8px 10px;border-radius:8px;font-size:14px;color:#5d616a;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f0f0ed;color:#16181d">Все рынки</a>
+      <a href="PharmDash-Upload.dc.html" style="padding:8px 10px;border-radius:8px;font-size:14px;color:#5d616a;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f0f0ed;color:#16181d">Загрузка данных</a>
+    </div>
+  </aside>
+
+  <main style="flex:1;min-width:0;padding:28px clamp(20px,3vw,40px) 40px;display:flex;flex-direction:column;gap:20px;max-width:1440px">
+    <header style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <h1 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-0.02em">Цены аптек</h1>
+        <span style="font-size:14px;color:#6b6f78">БДЦ · {{ totalLabel }} позиций из {{ srcCount }} источников</span>
+      </div>
+    </header>
+
+    <section style="background:oklch(0.26 0.075 268);color:#fff;border-radius:22px;padding:24px 28px;display:flex;flex-wrap:wrap;gap:20px 40px;align-items:stretch">
+      <div style="flex:0 1 220px;display:flex;flex-direction:column;justify-content:center;gap:8px">
+        <span style="font-size:13px;color:oklch(0.84 0.04 268)">Позиций в базе</span>
+        <span style="font-size:52px;font-weight:600;letter-spacing:-0.045em;line-height:0.95">{{ totalLabel }}</span>
+        <span style="font-size:13px;color:oklch(0.84 0.04 268)">из {{ srcCount }} аптечных сетей</span>
+      </div>
+      <div style="flex:1 1 520px;min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+        <sc-for list="{{ sources }}" as="s" hint-placeholder-count="4">
+          <div title="{{ s.title }}" style="display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:14px;background:oklch(1 0 0 / 0.07);box-shadow:{{ s.ring }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span style="display:flex;align-items:center;gap:8px;min-width:0"><span style="width:9px;height:9px;border-radius:3px;flex-shrink:0;background:{{ s.hue }}"></span><span style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.name }}</span></span>
+              <button onClick="{{ s.run }}" disabled="{{ s.running }}" title="Обновить" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0;border:0;border-radius:8px;background:oklch(1 0 0 / 0.1);color:#fff;cursor:pointer;font-size:14px;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:oklch(1 0 0 / 0.18)"><span style="display:inline-block;animation:{{ s.anim }}">↻</span></button>
+            </div>
+            <span style="font-size:22px;font-weight:600;letter-spacing:-0.02em">{{ s.count }}</span>
+            <span style="height:5px;border-radius:3px;background:oklch(1 0 0 / 0.12);overflow:hidden"><span style="display:block;height:100%;width:{{ s.w }};background:{{ s.hue }};border-radius:3px"></span></span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:{{ s.darkStatus }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ s.darkStatus }}"></span>{{ s.status }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e3e3df;border-radius:9px;padding:0 11px;height:36px;flex:1 1 260px;max-width:340px"><span style="color:#9a9ea6">⌕</span><input value="{{ q }}" onChange="{{ onQ }}" placeholder="Название, МНН или ТМ" style="flex:1;min-width:0;border:0;outline:none;background:none;font-size:13px"></div>
+      <sc-for list="{{ pharmChips }}" as="c" hint-placeholder-count="4">
+        <button onClick="{{ c.on }}" style="white-space:nowrap;height:36px;padding:0 12px;border-radius:9px;font-size:13px;font-weight:500;cursor:pointer;background:{{ c.bg }};color:{{ c.color }};border:1px solid {{ c.border }}">{{ c.label }}</button>
+      </sc-for>
+      <sc-for list="{{ selects }}" as="s" hint-placeholder-count="4">
+        <div style="position:relative">
+          <button onClick="{{ s.toggle }}" style="white-space:nowrap;display:flex;align-items:center;gap:8px;height:36px;border:1px solid {{ s.border }};background:#fff;cursor:pointer;padding:0 11px;border-radius:9px;font-size:13px;color:#16181d;font-weight:500"><span style="color:#8b8f97;font-weight:400">{{ s.name }}</span>{{ s.value }}<span style="color:#9a9ea6">⌄</span></button>
+          <sc-if value="{{ s.open }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:0;top:calc(100% + 6px);z-index:40;min-width:220px;max-height:300px;overflow:auto;background:#fff;border:1px solid #ebebe7;border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.12);padding:6px;display:flex;flex-direction:column">
+              <sc-for list="{{ s.opts }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.on }}" style="white-space:nowrap;border:0;background:{{ o.bg }};cursor:pointer;padding:8px 10px;border-radius:8px;font-size:13px;color:#16181d;text-align:left;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f4f4f1">{{ o.label }}</button></sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+      <div style="display:flex;align-items:center;gap:6px;height:36px;padding:0 10px;border-radius:9px;background:#fff;border:1px solid #e3e3df;font-size:13px;color:#8b8f97">Цена, ₽<input value="{{ pmin }}" onChange="{{ onMin }}" placeholder="от" style="width:56px;border:0;outline:none;background:#f4f4f1;border-radius:6px;padding:4px 6px;font-size:13px"><span>–</span><input value="{{ pmax }}" onChange="{{ onMax }}" placeholder="до" style="width:56px;border:0;outline:none;background:#f4f4f1;border-radius:6px;padding:4px 6px;font-size:13px"></div>
+      <sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}"><button onClick="{{ reset }}" style="border:0;background:none;cursor:pointer;font-size:13px;color:oklch(0.47 0.14 262);font-weight:500">Сбросить</button></sc-if>
+    </div>
+
+    <div style="background:#fff;border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="overflow:auto;max-height:calc(100vh - 300px);min-height:360px">
+        <div style="min-width:880px">
+          <div style="display:grid;grid-template-columns:64px minmax(240px,2fr) minmax(170px,1.2fr) 130px 110px 110px 40px;position:sticky;top:0;z-index:2;background:#fafaf8;border-bottom:1px solid #eeeeea;font-size:11px;color:#6b6f78">
+            <span style="padding:10px 16px"></span>
+            <sc-for list="{{ cols }}" as="c" hint-placeholder-count="5">
+              <button onClick="{{ c.on }}" style="border:0;background:none;cursor:pointer;padding:10px 10px;font-size:11px;font-weight:500;color:{{ c.color }};text-align:{{ c.align }};white-space:nowrap">{{ c.label }}{{ c.arrow }}</button>
+            </sc-for>
+            <span></span>
+          </div>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="12">
+            <div onClick="{{ r.on }}" style="display:grid;grid-template-columns:64px minmax(240px,2fr) minmax(170px,1.2fr) 130px 110px 110px 40px;align-items:center;border-bottom:1px solid #f3f3f0;cursor:pointer;background:{{ r.bg }};transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:#f7f7f4">
+              <div style="padding:8px 0 8px 16px"><div style="width:40px;height:40px;border-radius:8px;background:repeating-linear-gradient(135deg,#f2f2ef 0 6px,#ebebe7 6px 12px);display:flex;align-items:center;justify-content:center;font-size:9px;color:#9a9ea6">фото</div></div>
+              <div style="display:flex;flex-direction:column;gap:2px;padding:8px 10px;min-width:0"><span style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span><span style="font-size:12px;color:#8b8f97;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.meta }}</span></div>
+              <div style="display:flex;flex-direction:column;gap:2px;padding:8px 10px;min-width:0"><span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.mfr }}</span><span style="font-size:12px;color:#8b8f97">{{ r.country }}</span></div>
+              <div style="padding:8px 10px"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:6px;background:{{ r.srcBg }};color:{{ r.srcFg }};white-space:nowrap"><span style="width:6px;height:6px;border-radius:2px;background:{{ r.srcDot }}"></span>{{ r.src }}</span></div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding:8px 10px"><span style="font-size:15px;font-weight:700;letter-spacing:-0.01em">{{ r.price }}</span><span style="font-size:11px;color:{{ r.discColor }};font-weight:500">{{ r.disc }}</span></div>
+              <div style="padding:8px 10px;text-align:right;font-size:12px;color:#8b8f97">{{ r.date }}</div>
+              <span style="color:#b5b8be;font-size:14px">→</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}"><div style="padding:48px;text-align:center;font-size:14px;color:#6b6f78">Ничего не найдено. Обновите источник или измените фильтры.</div></sc-if>
+        </div>
+      </div>
+      <div style="padding:10px 16px;border-top:1px solid #f1f1ee;font-size:13px;color:#6b6f78">{{ countLabel }}</div>
+    </div>
+  </main>
+<sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closePanel }}" style="position:fixed;inset:0;background:rgba(22,24,29,.18);z-index:40"></div>
+    <aside style="position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:#fff;z-index:41;box-shadow:-16px 0 48px rgba(16,24,40,.12);overflow:auto;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:flex-end;padding:16px 20px 0"><button onClick="{{ closePanel }}" style="border:0;background:#f2f2ef;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:16px;color:#5d616a">✕</button></div>
+      <div style="padding:8px 28px 40px;display:flex;flex-direction:column;gap:24px">
+        <div style="aspect-ratio:4/3;border-radius:14px;background:repeating-linear-gradient(135deg,#f4f4f1 0 10px,#ececE8 10px 20px);display:flex;align-items:center;justify-content:center;font-size:13px;color:#8b8f97">фото товара</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:22px;font-weight:600;letter-spacing:-0.02em;line-height:1.25;text-wrap:pretty">{{ panel.name }}</span>
+          <span style="display:flex;align-items:baseline;gap:10px"><span style="font-size:28px;font-weight:600">{{ panel.price }}</span><span style="font-size:13px;color:oklch(0.52 0.13 155);font-weight:500">{{ panel.disc }}</span></span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:14px;background:#f6f6f3">
+          <span style="display:flex;justify-content:space-between;gap:12px;font-size:13px"><b style="font-weight:600">Цена в других аптеках</b><span style="color:#6b6f78">{{ panel.spread }}</span></span>
+          <sc-for list="{{ panel.compare }}" as="c" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:110px minmax(0,1fr) 84px;gap:10px;align-items:center;font-size:13px">
+              <span style="display:flex;align-items:center;gap:6px;font-weight:{{ c.weight }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="width:7px;height:7px;border-radius:2px;flex-shrink:0;background:{{ c.dot }}"></span>{{ c.src }}</span>
+              <span style="height:8px;border-radius:4px;background:#e9e9e5"><span style="display:block;height:100%;width:{{ c.w }};background:{{ c.bar }};border-radius:4px"></span></span>
+              <span style="text-align:right;font-weight:600;color:{{ c.color }}">{{ c.price }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ panel.fields }}" as="f" hint-placeholder-count="7">
+            <div style="display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-top:1px solid #f3f3f0;font-size:14px"><span style="color:#6b6f78">{{ f.k }}</span><span style="text-align:right">{{ f.v }}</span></div>
+          </sc-for>
+        </div>
+        <a href="#" style="align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;background:oklch(0.47 0.14 262);color:#fff;font-size:14px;font-weight:500;transition:background-color .2s ease,color .2s ease,filter .2s ease,box-shadow .2s ease" style-hover="background:oklch(0.4 0.14 262);color:#fff">Открыть на сайте аптеки ↗</a>
+      </div>
+    </aside>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  __fx() {
+    const root = document.getElementById('dc-root') || document.body, ease = 'cubic-bezier(.22,.61,.36,1)';
+    if (!root.animate || document.visibilityState !== 'visible') return;
+    const safe = (a, ms) => { setTimeout(() => { try { if (a.playState !== 'finished') a.finish(); } catch (e) {} }, ms + 300); return a; };
+    const anim = (el, kf, o) => safe(el.animate(kf, o), (o.duration || 0) + (o.delay || 0));
+    const rad = el => ['20px', '22px'].includes(el.style && el.style.borderTopLeftRadius);
+    const isCard = el => el.nodeType === 1 && rad(el) && !!(el.style.background || el.style.backgroundColor);
+    const rise = (els, base, step, dur) => els.forEach((el, i) => anim(el, [{ opacity: 0, translate: '0 16px' }, { opacity: 1, translate: '0 0' }], { duration: dur, delay: base + i * step, easing: ease, fill: 'backwards' }));
+    const top = list => list.filter(el => !list.some(o => o !== el && o.contains(el)));
+    const main = root.querySelector('main');
+    if (main) {
+      const head = main.querySelector('header');
+      if (head) anim(head, [{ opacity: 0, translate: '0 -8px' }, { opacity: 1, translate: '0 0' }], { duration: 700, easing: ease, fill: 'backwards' });
+      rise(top([...main.querySelectorAll('*')].filter(isCard)), 120, 90, 900);
+    }
+    this.__mo = new MutationObserver(ms => document.visibilityState === 'visible' && ms.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1 || !n.style) return;
+      const st = n.style;
+      if (st.position === 'fixed' && n.tagName === 'ASIDE') anim(n, [{ opacity: 0, translate: '48px 0' }, { opacity: 1, translate: '0 0' }], { duration: 480, easing: ease });
+      else if (st.position === 'fixed' && (st.inset === '0px' || (st.top === '0px' && st.left === '0px'))) anim(n, [{ opacity: 0 }, { opacity: 1 }], { duration: 320, easing: 'ease-out' });
+      else if (st.position === 'fixed') anim(n, [{ opacity: 0, translate: '0 18px' }, { opacity: 1, translate: '0 0' }], { duration: 420, easing: ease });
+      else if (st.position === 'absolute' && st.boxShadow) anim(n, [{ opacity: 0, translate: '0 -6px', scale: '0.98' }, { opacity: 1, translate: '0 0', scale: '1' }], { duration: 220, easing: ease });
+      else { const els = isCard(n) ? [n] : top([...n.querySelectorAll('*')].filter(isCard)); rise(els, 0, 70, 650); }
+    })));
+    this.__mo.observe(root, { childList: true, subtree: true });
+  }
+  componentWillUnmount() { this.__mo && this.__mo.disconnect(); }
+  componentDidMount() { this.__fx(); }
+  
+  state = { q: '', pharm: [], mnn: null, mfr: null, country: null, form: null, pmin: '', pmax: '', open: null, sort: { key: 'date', asc: false }, sel: null, running: {} };
+  run(slug) {
+    this.setState(s => ({ running: { ...s.running, [slug]: true } }));
+    setTimeout(() => this.setState(s => ({ running: { ...s.running, [slug]: false }, done: { ...(s.done || {}), [slug]: true } })), 2500);
+  }
+  renderVals() {
+    const S = this.state, set = o => this.setState(o);
+    const ac = 'oklch(0.47 0.14 262)', up = 'oklch(0.52 0.13 155)', dn = 'oklch(0.55 0.18 25)';
+    const pages = [['Обзор', 'Overview'], ['Дашборд МНН', 'Dashboard'], ['Скоринг', 'Scoring'], ['Цены аптек (БДЦ)', 'Prices'], ['Настройки', 'Settings']];
+    const nav = pages.map(([l, f], i) => ({ label: l, href: `PharmDash-${f}.dc.html`, color: i === 3 ? '#16181d' : '#5d616a', bg: i === 3 ? '#ededea' : 'transparent', weight: i === 3 ? 600 : 400 }));
+    const done = S.done || {};
+    const SH = { euro: 262, bio: 155, sad: 45, plus: 320 };
+    const srcRaw = [['euro', 'Европа-Фарм', 18420, 'ok', '2 ч назад'], ['bio', 'Биосфера', 12960, 'ok', 'вчера, 22:10'], ['sad', 'Садыхан', 9870, 'err', 'Timeout на странице 41'], ['plus', 'Аптека Плюс', 6960, 'never', '']];
+    const sources = srcRaw.map(([slug, name, n, st, t]) => { const running = !!S.running[slug]; const s = done[slug] ? 'ok' : st;
+      return { name, count: n.toLocaleString('ru-RU'), running, anim: running ? 'spin 1s linear infinite' : 'none', run: () => this.run(slug),
+        status: running ? 'идёт обновление…' : s === 'ok' ? (done[slug] ? 'только что' : t) : s === 'err' ? 'ошибка' : 'ещё не запускалось',
+        statusColor: running ? ac : s === 'err' ? dn : '#8b8f97', dot: running ? ac : s === 'ok' ? up : s === 'err' ? dn : '#c4c7cc', border: s === 'err' && !running ? 'oklch(0.88 0.06 25)' : '#ecece8',
+        title: s === 'err' ? 'Последний запуск: ' + t : name, hue: `oklch(0.66 0.15 ${SH[slug]})`, w: (n / 18420 * 100) + '%',
+        darkStatus: running ? 'oklch(0.85 0.1 268)' : s === 'err' ? 'oklch(0.78 0.15 25)' : s === 'ok' ? 'oklch(0.84 0.14 155)' : 'oklch(0.8 0.03 268)', ring: s === 'err' && !running ? 'inset 0 0 0 1px oklch(0.7 0.17 25 / 0.6)' : 'none' }; });
+    const srcName = { euro: 'Европа-Фарм', bio: 'Биосфера', sad: 'Садыхан', plus: 'Аптека Плюс' };
+    const prods = [['Ксарелто', 'Ривароксабан', 'Таблетки п/о', '20 мг №28', 'Bayer', 'Германия', 21450], ['Ксарелто', 'Ривароксабан', 'Таблетки п/о', '15 мг №28', 'Bayer', 'Германия', 20980], ['Ривароксабан-КРКА', 'Ривароксабан', 'Таблетки п/о', '20 мг №30', 'KRKA', 'Словения', 9870],
+      ['Эликвис', 'Апиксабан', 'Таблетки п/о', '5 мг №60', 'Pfizer', 'США', 18760], ['Джардинс', 'Эмпаглифлозин', 'Таблетки п/о', '10 мг №30', 'Boehringer Ingelheim', 'Германия', 14320], ['Форсига', 'Дапаглифлозин', 'Таблетки п/о', '10 мг №30', 'AstraZeneca', 'Великобритания', 13650],
+      ['Брилинта', 'Тикагрелор', 'Таблетки п/о', '90 мг №56', 'AstraZeneca', 'Великобритания', 24100], ['Аторис', 'Аторвастатин', 'Таблетки п/о', '20 мг №30', 'KRKA', 'Словения', 3420], ['Метформин-Нобел', 'Метформин', 'Таблетки', '850 мг №60', 'Нобел АФФ', 'Казахстан', 1180],
+      ['Омез', 'Омепразол', 'Капсулы', '20 мг №30', "Dr. Reddy's", 'Индия', 2260], ['Цефтриаксон-КФК', 'Цефтриаксон', 'Порошок д/ин.', '1 г №1', 'Карагандинский ФК', 'Казахстан', 410], ['Лантус СолоСтар', 'Инсулин гларгин', 'Раствор д/ин.', '100 ЕД/мл 3 мл №5', 'Sanofi', 'Франция', 23980]];
+    const slugs = ['euro', 'bio', 'sad', 'plus'];
+    const all = [];
+    prods.forEach((p, i) => slugs.forEach((s, j) => { if ((i + j) % 4 === 3) return; const k = 1 + ((i * 7 + j * 13) % 17 - 8) / 100;
+      all.push({ id: i * 10 + j, tm: p[0], mnn: p[1], form: p[2], dose: p[3], mfr: p[4], country: p[5], src: s, price: Math.round(p[6] * k / 10) * 10, disc: (i + j) % 5 === 0 ? Math.round(p[6] * 0.07 / 10) * 10 : null, date: ['06.10', '06.10', '05.10', '04.10'][j] }); }));
+
+    const uniq = k => [...new Set(all.map(x => x[k]))].sort();
+    const mk = (name, key, field) => { const vals = uniq(field);
+      return { name, value: S[key] || 'все', open: S.open === key, border: S[key] ? ac : '#e3e3df', toggle: () => set({ open: S.open === key ? null : key }),
+        opts: [null].concat(vals).map(v => ({ label: v || 'Все', on: () => set({ [key]: v, open: null }), bg: v === S[key] ? '#f4f4f1' : 'transparent' })) }; };
+    const selects = [mk('МНН', 'mnn', 'mnn'), mk('Производитель', 'mfr', 'mfr'), mk('Страна', 'country', 'country'), mk('Форма', 'form', 'form')];
+    const pharmChips = slugs.map(s => { const on = S.pharm.includes(s);
+      return { label: srcName[s], on: () => set({ pharm: on ? S.pharm.filter(x => x !== s) : [...S.pharm, s] }), bg: on ? '#16181d' : '#fff', color: on ? '#fff' : '#16181d', border: on ? '#16181d' : '#e3e3df' }; });
+
+    const q = S.q.trim().toLowerCase(), mn = parseFloat(S.pmin), mx = parseFloat(S.pmax);
+    let list = all.filter(x => (!S.pharm.length || S.pharm.includes(x.src)) && (!S.mnn || x.mnn === S.mnn) && (!S.mfr || x.mfr === S.mfr) && (!S.country || x.country === S.country) && (!S.form || x.form === S.form)
+      && (!q || (x.tm + ' ' + x.mnn).toLowerCase().includes(q)) && (isNaN(mn) || x.price >= mn) && (isNaN(mx) || x.price <= mx));
+    const { key, asc } = S.sort;
+    const sv = x => key === 'name' ? x.tm : key === 'mfr' ? x.mfr : key === 'src' ? srcName[x.src] : key === 'price' ? x.price : x.date + String(1000 - x.id).padStart(4, '0');
+    list = [...list].sort((a, b) => { const va = sv(a), vb = sv(b); return (va < vb ? -1 : va > vb ? 1 : 0) * (asc ? 1 : -1); });
+    const cols = [['name', 'Название', 'left'], ['mfr', 'Производитель', 'left'], ['src', 'Аптека', 'left'], ['price', 'Цена, ₽', 'right'], ['date', 'Обновлено', 'right']]
+      .map(([k, l, a]) => ({ label: l, align: a, arrow: S.sort.key === k ? (S.sort.asc ? ' ↑' : ' ↓') : '', color: S.sort.key === k ? '#16181d' : '#6b6f78',
+        on: () => set({ sort: S.sort.key === k ? { key: k, asc: !S.sort.asc } : { key: k, asc: !(k === 'price' || k === 'date') } }) }));
+    const rub = v => v.toLocaleString('ru-RU') + ' ₽';
+    const rows = list.map(x => ({ name: x.tm + ' ' + x.dose, meta: x.mnn + ' · ' + x.form, mfr: x.mfr, country: x.country, src: srcName[x.src], srcBg: `oklch(0.95 0.035 ${SH[x.src]})`, srcFg: `oklch(0.38 0.1 ${SH[x.src]})`, srcDot: `oklch(0.6 0.15 ${SH[x.src]})`, price: rub(x.price),
+      disc: x.disc ? 'скидка −' + rub(x.disc) : '', discColor: up, date: x.date, on: () => set({ sel: x.id, open: null }), bg: S.sel === x.id ? 'oklch(0.97 0.015 262)' : 'transparent' }));
+    const it = all.find(x => x.id === S.sel) || all[0];
+    const panel = { name: it.tm + ' ' + it.dose, price: rub(it.price), disc: it.disc ? 'скидка −' + rub(it.disc) : 'без скидки', src: srcName[it.src],
+      fields: [['МНН', it.mnn], ['Форма выпуска', it.form], ['Дозировка и фасовка', it.dose], ['Производитель', it.mfr], ['Страна', it.country], ['Аптека', srcName[it.src]], ['Обновлено', it.date + '.2026']].map(f => ({ k: f[0], v: f[1] })) };
+    const sameP = all.filter(x => x.tm === it.tm && x.dose === it.dose).sort((a, b) => a.price - b.price);
+    const pMax = Math.max(...sameP.map(x => x.price)), pMin = Math.min(...sameP.map(x => x.price));
+    panel.compare = sameP.map(x => ({ src: srcName[x.src], price: rub(x.price), w: x.price / pMax * 100 + '%', dot: `oklch(0.6 0.15 ${SH[x.src]})`,
+      bar: x.price === pMin ? 'oklch(0.58 0.15 155)' : x.id === it.id ? 'oklch(0.52 0.16 268)' : '#c4c7cc', color: x.price === pMin ? 'oklch(0.42 0.12 155)' : '#16181d', weight: x.id === it.id ? 700 : 500 }));
+    panel.spread = sameP.length > 1 ? 'разброс ' + Math.round((pMax / pMin - 1) * 100) + '% · дешевле всего — ' + srcName[sameP[0].src] : 'только в одной аптеке';
+    const dirty = !!(S.q || S.pharm.length || S.mnn || S.mfr || S.country || S.form || S.pmin || S.pmax);
+    return { nav, sources, srcCount: 4, totalLabel: '48 210', q: S.q, onQ: e => set({ q: e.target.value }), pharmChips, selects,
+      pmin: S.pmin, pmax: S.pmax, onMin: e => set({ pmin: e.target.value }), onMax: e => set({ pmax: e.target.value }),
+      dirty, reset: () => set({ q: '', pharm: [], mnn: null, mfr: null, country: null, form: null, pmin: '', pmax: '', open: null }),
+      cols, rows, noRows: rows.length === 0, countLabel: `Показано ${rows.length} позиций в демо · прокрутка подгружает остальные`,
+      panelOpen: S.sel != null, closePanel: () => set({ sel: null }), panel };
+  }
+}
+</script>
+</body>
+</html>

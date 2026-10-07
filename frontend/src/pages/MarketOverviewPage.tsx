@@ -1,134 +1,249 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Compass } from "lucide-react";
 import { getMarketOverview } from "../api/client";
-import type { OverviewResponse, OverviewQuery } from "../types/api";
-import LoadingSpinner from "../components/common/LoadingSpinner";
-import EmptyState from "../components/common/EmptyState";
-import OverviewHeader from "../components/overview/OverviewHeader";
-import OverviewFilters from "../components/overview/OverviewFilters";
-import OverviewDecisionStrip from "../components/overview/OverviewDecisionStrip";
-import OverviewVolume from "../components/overview/OverviewVolume";
-import OverviewPortfolio from "../components/overview/OverviewPortfolio";
-import OverviewDecision from "../components/overview/OverviewDecision";
+import type { OverviewProducer, OverviewQuery } from "../types/api";
+import { useFetch } from "../hooks/useFetch";
+import { useProgress } from "../hooks/useProgress";
+import { fmtInt, fmtShare } from "../lib/format";
+import { Page } from "../components/layout/Layout";
+import {
+  AtcCard, CountriesCard, MoversCard, ProducersCard, ScoringCard, TopMnnCard,
+} from "../components/overview/OverviewCards";
+import { OverviewHero, type HeroMode } from "../components/overview/OverviewHero";
+import { CountryPanel } from "../components/panels/CountryPanel";
+import { ProducerPanel } from "../components/panels/ProducerPanel";
+import { PageHeader } from "../components/ui/Card";
+import { Segmented } from "../components/ui/Segmented";
+import { Select } from "../components/ui/Select";
+import { EmptyCard, ErrorNote, Loading } from "../components/ui/states";
 
-function readFilters(params: URLSearchParams): OverviewQuery {
-  const sectorRaw = params.get("sector");
-  const sector: OverviewQuery["sector"] =
-    sectorRaw === "ret" || sectorRaw === "hos" ? sectorRaw : "all";
-  const atc3 = params.get("atc3") || null;
-  const yearRaw = params.get("year");
-  const yearNum = yearRaw ? parseInt(yearRaw, 10) : NaN;
-  const year = Number.isFinite(yearNum) ? yearNum : null;
-  return { sector, atc3, year };
+type Sector = NonNullable<OverviewQuery["sector"]>;
+
+const SECTORS: { value: Sector; label: string; note: string }[] = [
+  { value: "all", label: "Все секторы", note: "все секторы" },
+  { value: "ret", label: "Розница", note: "розница" },
+  { value: "hos", label: "Госпиталь", note: "госпиталь" },
+];
+
+interface UrlState {
+  sector: Sector;
+  atc3: string | null;
+  year: number | null;
+  mode: HeroMode;
 }
 
-function writeFilters(f: OverviewQuery): Record<string, string> {
+function readUrl(params: URLSearchParams): UrlState {
+  const sectorRaw = params.get("sector");
+  const year = parseInt(params.get("year") ?? "", 10);
+  return {
+    sector: sectorRaw === "ret" || sectorRaw === "hos" ? sectorRaw : "all",
+    atc3: params.get("atc3") || null,
+    year: Number.isFinite(year) ? year : null,
+    mode: params.get("mode") === "un" ? "un" : "usd",
+  };
+}
+
+function writeUrl(s: UrlState): Record<string, string> {
   const out: Record<string, string> = {};
-  if (f.sector && f.sector !== "all") out.sector = f.sector;
-  if (f.atc3) out.atc3 = f.atc3;
-  if (f.year != null) out.year = String(f.year);
+  if (s.sector !== "all") out.sector = s.sector;
+  if (s.atc3) out.atc3 = s.atc3;
+  if (s.year != null) out.year = String(s.year);
+  if (s.mode !== "usd") out.mode = s.mode;
   return out;
 }
 
+/** Открыта одна панель: страны или производителя. */
+type Panel =
+  | { kind: "country"; name: string }
+  | { kind: "producer"; name: string; isHome: boolean }
+  | null;
+
 export default function MarketOverviewPage() {
   const { marketId } = useParams<{ marketId: string }>();
+  const id = parseInt(marketId ?? "0", 10);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [data, setData] = useState<OverviewResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const state = useMemo(() => readUrl(searchParams), [searchParams]);
+  const [panel, setPanel] = useState<Panel>(null);
 
-  const filters = useMemo(
-    () => readFilters(searchParams),
-    [searchParams],
+  const patch = useCallback(
+    (next: Partial<UrlState>) =>
+      setSearchParams(writeUrl({ ...state, ...next }), { replace: true }),
+    [state, setSearchParams],
   );
 
-  const setFilters = useCallback(
-    (next: OverviewQuery) => {
-      setSearchParams(writeFilters(next), { replace: true });
-    },
-    [setSearchParams],
+  const { data, error, loading } = useFetch(
+    () => getMarketOverview(id, {
+      sector: state.sector, atc3: state.atc3, year: state.year,
+    }),
+    [id, state.sector, state.atc3, state.year],
+    "Не удалось загрузить обзор",
   );
+  const t = useProgress(data);
 
-  const load = useCallback(
-    async (query: OverviewQuery) => {
-      if (!marketId) return;
-      setLoading(true);
-      setError("");
-      try {
-        const res = await getMarketOverview(parseInt(marketId), query);
-        setData(res);
-      } catch (e) {
-        const msg =
-          (e as { response?: { data?: { detail?: string } } })
-            ?.response?.data?.detail ?? "Не удалось загрузить обзор";
-        setError(msg);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [marketId],
-  );
-
-  useEffect(() => {
-    load(filters);
-  }, [load, filters]);
-
-  if (loading && !data) {
-    return <LoadingSpinner className="h-64" size="lg" />;
-  }
-
-  if (error && !data) {
+  if (!data) {
     return (
-      <EmptyState
-        icon={Compass}
-        title="Нет данных для обзора"
-        description={error || "Загрузите БДП через раздел «Загрузка»"}
-      />
+      <Page>
+        {loading ? (
+          <Loading className="h-64" />
+        ) : (
+          <EmptyCard
+            title="Нет данных для обзора"
+            description={error || "Загрузите БДП в разделе «Загрузка данных»"}
+          />
+        )}
+      </Page>
     );
   }
 
-  if (!data) return null;
+  const { header, volume, portfolio, decision, filters } = data;
+  const years = header.available_years;
+  const lastYear = years[years.length - 1] ?? null;
+  const selectedYear = header.selected_year ?? lastYear;
+  const dirty =
+    state.sector !== "all" || !!state.atc3
+    || (state.year != null && state.year !== lastYear);
+  const sectorNote =
+    SECTORS.find((s) => s.value === state.sector)?.note ?? "";
+  const scopeNote = [sectorNote, state.atc3, selectedYear]
+    .filter(Boolean)
+    .join(" · ");
 
-  const marketId_ = data.header.market_id;
+  const pickYear = (year: number) =>
+    patch({ year: year === lastYear ? null : year });
+
+  function pickProducer(p: OverviewProducer) {
+    setPanel({ kind: "producer", name: p.name, isHome: p.is_home });
+  }
 
   return (
-    <div className="space-y-8">
-      <OverviewHeader
-        header={data.header}
-      />
-
-      <OverviewDecisionStrip
-        data={data.decision}
-        marketId={marketId_}
-      />
-
-      <OverviewFilters
-        filters={data.filters}
-        value={filters}
-        availableYears={
-          data.header.available_years ?? data.header.years ?? []
+    <Page>
+      <PageHeader
+        title={header.name}
+        subtitle={
+          <div className="flex flex-wrap gap-5">
+            <Counter value={header.mnn_count} label="МНН" />
+            <Counter value={header.producer_count} label="производителей" />
+            <Counter value={header.tm_count} label="ТМ" />
+          </div>
         }
-        onChange={setFilters}
-      />
+      >
+        <Segmented
+          ariaLabel="Сектор"
+          options={SECTORS}
+          value={state.sector}
+          onChange={(sector) => patch({ sector })}
+        />
+        <Select
+          value={(state.atc3 ?? "").toUpperCase()}
+          allLabel="Все классы ATC"
+          align="right"
+          width={300}
+          onChange={(atc) => patch({ atc3: atc || null })}
+          options={filters.options.atc3.map((a) => ({
+            value: a.atc,
+            label: a.atc,
+            hint: fmtShare(a.share),
+          }))}
+        />
+        {years.length > 1 && selectedYear != null && (
+          <Segmented
+            ariaLabel="Год"
+            options={years.map((y) => ({ value: y, label: String(y) }))}
+            value={selectedYear}
+            onChange={pickYear}
+          />
+        )}
+        {dirty && (
+          <button
+            type="button"
+            onClick={() =>
+              patch({ sector: "all", atc3: null, year: null })}
+            className="border-0 bg-transparent px-1 py-1.5 text-[13px] font-medium text-accent hover:text-accent-hover"
+          >
+            Сбросить
+          </button>
+        )}
+      </PageHeader>
 
-      {error && (
-        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
-          {error}
-        </div>
-      )}
+      {error && <ErrorNote>{error}</ErrorNote>}
 
       <div
-        className={loading ? "opacity-50 pointer-events-none transition-opacity" : ""}
+        className="flex flex-col gap-6 transition-opacity duration-200"
+        style={loading ? { opacity: 0.55, pointerEvents: "none" } : undefined}
       >
-        <div className="space-y-8">
-          <OverviewVolume data={data.volume} />
-          <OverviewPortfolio data={data.portfolio} marketId={marketId_} />
-          <div id="overview-decision-details">
-            <OverviewDecision data={data.decision} marketId={marketId_} />
-          </div>
-        </div>
+        <OverviewHero
+          volume={volume}
+          scopeNote={scopeNote}
+          mode={state.mode}
+          onMode={(mode) => patch({ mode })}
+          selectedYear={selectedYear}
+          onYear={pickYear}
+          t={t}
+        />
+
+        <section className="flex flex-wrap gap-6">
+          <MoversCard
+            movers={portfolio.movers}
+            marketId={id}
+            t={t}
+            index={1}
+          />
+          <ScoringCard decision={decision} marketId={id} index={2} />
+        </section>
+
+        <section className="flex flex-wrap gap-6">
+          <TopMnnCard items={portfolio.top_mnn} marketId={id} index={3} />
+          <AtcCard
+            options={filters.options.atc3}
+            selected={state.atc3}
+            onPick={(atc3) => patch({ atc3 })}
+            index={4}
+          />
+        </section>
+
+        <section className="flex flex-wrap gap-6">
+          <CountriesCard
+            countries={portfolio.countries}
+            yearLabels={volume.years_labels}
+            selected={panel?.kind === "country" ? panel.name : null}
+            onPick={(name) => setPanel({ kind: "country", name })}
+            index={5}
+          />
+          <ProducersCard
+            producers={portfolio.top_producers}
+            hhi={portfolio.hhi}
+            selected={panel?.kind === "producer" ? panel.name : null}
+            onPick={pickProducer}
+            index={6}
+          />
+        </section>
       </div>
-    </div>
+
+      {panel?.kind === "country" && (
+        <CountryPanel
+          key={panel.name}
+          marketId={id}
+          country={panel.name}
+          onClose={() => setPanel(null)}
+        />
+      )}
+      {panel?.kind === "producer" && (
+        <ProducerPanel
+          key={panel.name}
+          marketId={id}
+          producer={panel.name}
+          isHome={panel.isHome}
+          onClose={() => setPanel(null)}
+        />
+      )}
+    </Page>
+  );
+}
+
+function Counter({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="whitespace-nowrap">
+      <b className="font-semibold text-fg">{fmtInt(value)}</b> {label}
+    </span>
   );
 }

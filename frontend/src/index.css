@@ -1,78 +1,173 @@
-@import "tailwindcss";
+/* Классы ищем только в src: иначе Tailwind сканирует весь репозиторий
+   (прототипы дизайна, служебные файлы) и перезагружает страницу при их
+   изменении. */
+@import "tailwindcss" source("./");
+@import "./theme.css";
 
-/* Tailwind v4: register a custom `dark:` variant that activates when the `dark`
-   class is present anywhere up the tree. `initTheme()` in hooks/useTheme.ts sets
-   the class on <html> based on either the explicit user preference or the
-   system's prefers-color-scheme. */
-@custom-variant dark (&:where(.dark, .dark *));
-
+/* Дизайн сделан только для светлой темы. */
 :root {
-  color-scheme: light dark;
-}
-:root[data-theme="light"] {
   color-scheme: light;
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
 }
 
 body {
   margin: 0;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
-    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f8fafc;
-  color: #0f172a;
 }
-html.dark body {
-  background: #020617;
-  color: #e2e8f0;
+
+/* Общий масштаб интерфейса: один множитель на все размеры и шрифты.
+   Высоты во весь экран делятся на него, чтобы оставаться ровно в экран. */
+:root {
+  --ui-zoom: 0.9;
+  --screen-h: calc(100vh / var(--ui-zoom));
+}
+html {
+  zoom: var(--ui-zoom);
 }
 
 #root {
-  min-height: 100vh;
+  min-height: var(--screen-h);
+}
+
+/* В слое base, чтобы утилиты Tailwind (text-fg, bg-…) их переопределяли. */
+@layer base {
+  a {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--color-accent-hover);
+  }
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
 }
 
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d6d6d1;
   border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #b5b8be;
 }
 
-html.dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+/* Ряд вкладок прокручивается без полосы прокрутки. */
+.scrollbar-none {
+  scrollbar-width: none;
 }
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
-/* Global keyboard focus — visible ring for keyboard users, no ring for mouse.
-   Tailwind's preflight strips default outlines, so we restore them here. */
-:focus {
-  outline: none;
+/* Клавиатурный фокус: кольцо только для клавиатуры. */
+@layer base {
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline-offset: 0;
+  }
 }
-:focus-visible {
-  outline: 2px solid light-dark(#6366f1, #a5b4fc);
-  outline-offset: 2px;
-  border-radius: 4px;
+
+/* Hover интерактивных строк и кнопок. */
+.tr-soft {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    filter 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
 }
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline-offset: 0;
+
+/* ─────────────── Анимации появления ───────────────
+   fill-mode: backwards — начальное состояние держится только на время
+   задержки; если анимация не запустилась, элемент остаётся видимым. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+  }
+}
+@keyframes drop {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    translate: 48px 0;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+@keyframes toast-up {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+  }
+}
+
+/* Шапка страницы. */
+.anim-head {
+  animation: drop 700ms var(--ease-out-soft) backwards;
+}
+/* Карточки и hero верхнего уровня: задержка 120 мс + 90 мс × индекс. */
+.anim-rise {
+  animation: rise 900ms var(--ease-out-soft) backwards;
+  animation-delay: calc(120ms + 90ms * var(--i, 0));
+}
+/* Смена вкладки / новые карточки: 650 мс, шаг 70 мс. */
+.anim-tab {
+  animation: rise 650ms var(--ease-out-soft) backwards;
+  animation-delay: calc(70ms * var(--i, 0));
+}
+.anim-panel {
+  animation: panel-in 480ms var(--ease-out-soft) backwards;
+}
+.anim-overlay {
+  animation: fade-in 320ms ease backwards;
+}
+.anim-pop {
+  animation: pop-in 220ms var(--ease-out-soft) backwards;
+}
+.anim-toast {
+  animation: toast-up 420ms var(--ease-out-soft) backwards;
+}
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -80,6 +175,7 @@ textarea:focus-visible {
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;

@@ -16,8 +16,10 @@ from backend.config import (
 )
 from backend.database import get_db
 from backend.models import Market, BdpRaw
-from backend.services.bdp_keys import dose_key, form_key
+from backend.routers.overview import build_movers
+from backend.services.bdp_keys import EMPTY_KEY, dose_key, form_key
 from backend.services.market_scoring import get_market_scoring
+from backend.services.scoring_query import SUGGEST_LIMIT, suggest_mnn
 from backend.services.year_shift import (
     parse_years,
     resolve_year_idx,
@@ -92,6 +94,22 @@ async def mnn_list(
     return {"mnns": mnns}
 
 
+@router.get("/{market_id}/mnn-suggest")
+async def mnn_suggest(
+    market_id: int,
+    q: str | None = None,
+    limit: int = Query(SUGGEST_LIMIT, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+):
+    """Автокомплит МНН по БДП с баллом скоринга; при пустом q —
+    лучшие по баллу."""
+    market = await db.get(Market, market_id)
+    if not market:
+        raise HTTPException(404, "Рынок не найден")
+    scoring = await get_market_scoring(db, market)
+    return {"items": suggest_mnn(scoring["items"], q, limit)}
+
+
 def _classify_market_status(
     usd_growth: float | None,
     un_growth: float | None,
@@ -156,14 +174,18 @@ async def dashboard(
     available_forms = sorted(forms_doses_map.keys())
     available_doses = sorted(doses_forms_map.keys())
 
+    def _selection(source):
+        return [
+            i for i in source
+            if (not lf or form_key(i) == lf)
+            and (not dose or dose_key(i) == dose)
+        ]
+
+    raw_selection = _selection(all_items)
+
     # Сдвигаем окно годов если выбран не последний год.
     all_items = shift_items(all_items, year_idx)
-
-    items = all_items
-    if lf:
-        items = [i for i in items if form_key(i) == lf]
-    if dose:
-        items = [i for i in items if dose_key(i) == dose]
+    items = _selection(all_items)
 
     years = parse_years(market)
     shifted_year_list = shifted_years(market, year_idx)
@@ -173,6 +195,14 @@ async def dashboard(
     )
 
     zone1 = _build_zone1(items, shifted_year_list)
+    # продажи по годам без сдвига окна — для графика в hero
+    zone1["series"] = {
+        "years": years[:3],
+        "usd": [sum(getattr(i, f"usd_y{k}") for i in raw_selection)
+                for k in (1, 2, 3)],
+        "un": [sum(getattr(i, f"un_y{k}") for i in raw_selection)
+               for k in (1, 2, 3)],
+    }
     zone2 = _build_zone2(items, all_items)
     # Скоринг считается по всей выборке рынка с тем же фильтром
     # ЛФ/дозировки; из неё берём строку текущего МНН.
@@ -270,6 +300,36 @@ def _build_zone1(items, years) -> dict:
     }
 
 
+MOVERS_LIMIT = 8
+TMS_PER_PRODUCER = 6
+
+
+def _top_movers(producer_data: dict[str, dict]) -> list[dict]:
+    """Производители с наибольшим |Δ USD| к прошлому году,
+    от наибольшего роста к наибольшему падению."""
+    everyone = len(producer_data)
+    rows = build_movers(producer_data, up=everyone, down=everyone)
+    rows.sort(key=lambda r: -abs(r["delta"]))
+    top = rows[:MOVERS_LIMIT]
+    top.sort(key=lambda r: (-r["delta"], r["name"]))
+    return top
+
+
+def _producer_tms(tms: dict[str, dict], producer_usd: float) -> list[dict]:
+    """Торговые марки производителя внутри МНН с долей в его продажах."""
+    ranked = sorted(tms.items(), key=lambda x: (-x[1]["usd"], x[0]))
+    return [
+        {
+            "tm": name,
+            "usd": d["usd"],
+            "share": d["usd"] / producer_usd if producer_usd > 0 else 0,
+            "forms": sorted(f for f in d["forms"] if f != EMPTY_KEY),
+            "doses": sorted(x for x in d["doses"] if x != EMPTY_KEY),
+        }
+        for name, d in ranked[:TMS_PER_PRODUCER]
+    ]
+
+
 def _build_zone2(items, all_items=None) -> dict:
     total_usd_y3 = sum(i.usd_y3 for i in items)
     total_un_y3 = sum(i.un_y3 for i in items)
@@ -290,6 +350,9 @@ def _build_zone2(items, all_items=None) -> dict:
             "un_y2": 0, "un_y3": 0,
             "bg_usd_y3": 0.0, "g_usd_y3": 0.0,
             "country_usd": defaultdict(float),
+            "tms": defaultdict(
+                lambda: {"usd": 0.0, "forms": set(), "doses": set()}
+            ),
         }
     )
     for i in items:
@@ -297,6 +360,12 @@ def _build_zone2(items, all_items=None) -> dict:
         if not prod:
             continue
         pd = producer_data[prod]
+        tm = (i.tm or "").strip()
+        if tm:
+            td = pd["tms"][tm]
+            td["usd"] += i.usd_y3
+            td["forms"].add(form_key(i))
+            td["doses"].add(dose_key(i))
         pd["usd_y2"] += i.usd_y2
         pd["usd_y3"] += i.usd_y3
         pd["un_y2"] += i.un_y2
@@ -349,6 +418,7 @@ def _build_zone2(items, all_items=None) -> dict:
             "un_growth": un_gr,
             "bg_g_flag": bg_g_flag,
             "country": top_country,
+            "tms": _producer_tms(d["tms"], d["usd_y3"]),
         })
 
     shares = [c["share"] for c in top_competitors]
@@ -394,12 +464,13 @@ def _build_zone2(items, all_items=None) -> dict:
     ]
 
     country_data: dict[str, dict] = defaultdict(
-        lambda: {"usd": 0.0, "un": 0.0}
+        lambda: {"usd": 0.0, "un": 0.0, "usd_y2": 0.0}
     )
     for i in items:
         if i.country_mfr:
             country_data[i.country_mfr]["usd"] += i.usd_y3
             country_data[i.country_mfr]["un"] += i.un_y3
+            country_data[i.country_mfr]["usd_y2"] += i.usd_y2
     countries = [
         {
             "name": k,
@@ -407,6 +478,7 @@ def _build_zone2(items, all_items=None) -> dict:
             "un": v["un"],
             "share": v["usd"] / total_usd_y3 if total_usd_y3 > 0 else 0,
             "un_share": v["un"] / total_un_y3 if total_un_y3 > 0 else 0,
+            "growth": _safe_growth(v["usd"], v["usd_y2"]),
         }
         for k, v in sorted(
             country_data.items(), key=lambda x: x[1]["usd"], reverse=True
@@ -432,6 +504,7 @@ def _build_zone2(items, all_items=None) -> dict:
         if not prod_sales:
             continue
 
+        leader_name = max(prod_sales.items(), key=lambda x: x[1])[0]
         shares_sorted = sorted(prod_sales.values(), reverse=True)
         shares_pct = [s / form_total for s in shares_sorted]
         top3 = sum(shares_pct[:3])
@@ -451,6 +524,7 @@ def _build_zone2(items, all_items=None) -> dict:
             "hhi": hhi_v,
             "top3_share": top3,
             "leader_share": leader,
+            "leader": leader_name,
             "active_competitors": active,
             "producer_count": len(prod_sales),
         })
@@ -549,6 +623,7 @@ def _build_zone2(items, all_items=None) -> dict:
         "ret_share": ret_share,
         "hos_share": hos_share,
         "top_competitors": top_competitors,
+        "movers": _top_movers(producer_data),
         "total_producers": len(sorted_producers),
         "top3_share": top3_share,
         "hhi": hhi,

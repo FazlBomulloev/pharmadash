@@ -1,91 +1,126 @@
-import { useState, useEffect, useRef } from "react";
-import { Search, Pill } from "lucide-react";
-import clsx from "clsx";
-import { getMnnList } from "../../api/client";
+import { useState } from "react";
+import { Search, X } from "lucide-react";
+import { suggestMnn } from "../../api/client";
+import type { MnnSuggestion } from "../../types/api";
 import { useDebounce } from "../../hooks/useDebounce";
+import { useFetch } from "../../hooks/useFetch";
+import { fmtScore, fmtUsd } from "../../lib/format";
+import { CATEGORY_COLOR } from "../../lib/palette";
+import { Autocomplete } from "../ui/Autocomplete";
 
-interface Props {
+/**
+ * Поиск МНН с автокомплитом из БДП. В пустом поле — лучшие по скорингу,
+ * при вводе — поиск по названию или началу класса ATC.
+ */
+export function MnnSearch({
+  marketId, value, onChange,
+}: {
   marketId: number;
+  /** Выбранный МНН ("" — не выбран). */
   value: string;
   onChange: (mnn: string) => void;
-}
-
-export default function MnnSearch({ marketId, value, onChange }: Props) {
+}) {
   const [query, setQuery] = useState(value);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [open, setOpen] = useState(false);
-  const debouncedQuery = useDebounce(query, 200);
-  const ref = useRef<HTMLDivElement>(null);
+  const [focused, setFocused] = useState(false);
 
-  useEffect(() => {
-    if (!debouncedQuery || debouncedQuery.length < 1) {
-      setSuggestions([]);
-      return;
-    }
-    getMnnList(marketId, debouncedQuery).then((r) =>
-      setSuggestions(r.mnns.slice(0, 15)),
-    );
-  }, [marketId, debouncedQuery]);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  function select(mnn: string) {
-    setQuery(mnn);
-    setOpen(false);
-    onChange(mnn);
+  // Выбранный МНН сменился снаружи (ссылка, история) — поле следует за ним.
+  const [seenValue, setSeenValue] = useState(value);
+  if (seenValue !== value) {
+    setSeenValue(value);
+    setQuery(value);
   }
 
-  return (
-    <div ref={ref} className="relative w-full max-w-lg">
-      <div className="relative">
-        <Search
-          size={18}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-        />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && query.trim()) {
-              onChange(query.trim());
-              setOpen(false);
-            }
-          }}
-          placeholder="Введите МНН для анализа..."
-          className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800 outline-none transition-all shadow-sm"
-        />
-      </div>
+  // Текст равен выбранному МНН — показываем лучших, а не один пункт.
+  const typed = query.trim() === value.trim() ? "" : query.trim();
+  const debounced = useDebounce(typed, 180);
+  const { data } = useFetch<MnnSuggestion[]>(
+    (signal) => suggestMnn(marketId, debounced, signal),
+    [marketId, debounced],
+  );
+  const items = data ?? [];
 
-      {open && suggestions.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg max-h-64 overflow-y-auto">
-          {suggestions.map((mnn) => (
-            <button
-              key={mnn}
-              onClick={() => select(mnn)}
-              className={clsx(
-                "w-full px-4 py-2.5 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-950/40 dark:text-slate-200 flex items-center gap-2 transition-colors",
-                mnn === value && "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300",
-              )}
+  return (
+    <Autocomplete
+      className="z-[35] max-w-[560px]"
+      menuClassName="rounded-[14px]! shadow-[0_16px_40px_rgba(16,24,40,.14)]!"
+      query={query}
+      onQuery={setQuery}
+      items={items}
+      itemKey={(s) => s.mnn}
+      onPick={(s) => {
+        setQuery(s.mnn);
+        onChange(s.mnn);
+      }}
+      header={
+        debounced
+          ? "Найдено в БДП"
+          : "Лучшие по скорингу · начните вводить название или класс ATC"
+      }
+      emptyText="Нет такого МНН в БДП"
+      renderItem={(s) => {
+        const tone = CATEGORY_COLOR[s.category];
+        return (
+          <span className="grid grid-cols-[8px_minmax(0,1fr)_auto_64px_34px] items-center gap-2.5 text-sm text-fg">
+            <span
+              className="size-2 rounded-full"
+              style={{ background: tone.bg }}
+            />
+            <span className="truncate">{s.mnn}</span>
+            <span className="rounded-[5px] bg-[#f2f2ef] px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+              {s.cls ?? "—"}
+            </span>
+            <span className="whitespace-nowrap text-right text-[13px] text-muted-2">
+              {fmtUsd(s.usd)}
+            </span>
+            <span
+              className="rounded-md py-[3px] text-center text-xs font-bold"
+              style={{ background: tone.bg, color: tone.fg }}
             >
-              <Pill size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
-              {mnn}
+              {fmtScore(s.total, 0)}
+            </span>
+          </span>
+        );
+      }}
+    >
+      {(input) => (
+        <div
+          className="tr-soft flex h-11 items-center gap-2.5 rounded-xl border bg-white px-3.5"
+          style={{
+            borderColor: focused ? "oklch(0.5 0.16 268)" : "#e3e3df",
+          }}
+        >
+          <Search size={16} className="shrink-0 text-[#9a9ea6]" />
+          <input
+            {...input}
+            aria-label="Поиск МНН"
+            placeholder="Введите МНН для анализа…"
+            onFocus={(e) => {
+              setFocused(true);
+              e.currentTarget.select();
+              input.onFocus();
+            }}
+            onBlur={() => {
+              setFocused(false);
+              // незавершённый ввод не подменяет выбранный МНН
+              setQuery(value);
+              input.onBlur();
+            }}
+            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-fg outline-none placeholder:text-faintest"
+          />
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                onChange("");
+              }}
+              className="tr-soft flex items-center gap-1 whitespace-nowrap rounded-md border-0 bg-[#f2f2ef] px-2 py-[3px] text-xs text-muted hover:bg-[#e8e8e4]"
+            >
+              Сменить МНН <X size={12} />
             </button>
-          ))}
+          )}
         </div>
       )}
-    </div>
+    </Autocomplete>
   );
 }
