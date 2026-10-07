@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+      EAPTEKA_REGION: ${EAPTEKA_REGION:-spb}
+      OZERKI_REGION: ${OZERKI_REGION:-sankt-peterburg}
+    volumes:
+      # SQLite-база и загруженные xlsx лежат на хосте и переживают пересборку
+      - ./backend/data:/app/backend/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?задайте BASIC_AUTH_USER в .env}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:?задайте BASIC_AUTH_PASSWORD в .env}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      - backend

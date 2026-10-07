@@ -1,0 +1,6 @@
+# В образ backend попадает только каталог backend/ без данных
+*
+!backend/
+backend/data/
+**/__pycache__/
+**/*.py[cod]
