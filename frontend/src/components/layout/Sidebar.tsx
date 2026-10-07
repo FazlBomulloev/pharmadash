@@ -5,6 +5,7 @@ import {
 import { ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import { getMarkets } from "../../api/client";
+import logoEvolet from "../../assets/logo-evolet-white.png";
 import type { Market } from "../../types/api";
 import { useOutsideClose } from "../../hooks/useDismiss";
 import { yearsRange } from "../../lib/format";
@@ -52,13 +53,29 @@ export default function Sidebar() {
 
   return (
     <aside className="sticky top-0 flex h-(--screen-h) w-56 shrink-0 flex-col gap-6 border-r border-seg bg-sidebar px-3 py-5">
-      <div className="flex items-center gap-2.5 px-2.5 py-1">
-        <div className="flex size-6 items-center justify-center rounded-[7px] bg-accent text-[13px] font-bold text-white">
-          P
+      <div className="flex flex-col gap-3">
+        {/* Логотип белый, поэтому стоит на тёмной плашке. */}
+        <NavLink
+          to="/"
+          aria-label="Evolet — на список рынков"
+          className="tr-soft flex items-center justify-center rounded-ctl bg-ink px-4 py-3 hover:bg-ink-hover"
+        >
+          <img
+            src={logoEvolet}
+            alt="Evolet"
+            width={350}
+            height={84}
+            className="h-auto w-full max-w-[160px]"
+          />
+        </NavLink>
+        <div className="flex items-center gap-2.5 px-2.5">
+          <div className="flex size-6 items-center justify-center rounded-[7px] bg-accent text-[13px] font-bold text-white">
+            P
+          </div>
+          <span className="text-[15px] font-bold tracking-[-0.01em]">
+            PharmDash
+          </span>
         </div>
-        <span className="text-[15px] font-bold tracking-[-0.01em]">
-          PharmDash
-        </span>
       </div>
 
       {marketId && (
