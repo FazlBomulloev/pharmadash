@@ -1,6 +1,6 @@
 {
   "project": "PharmDash — редизайн (7 экранов)",
-  "spec": "design_handoff_pharmadash_redesign/README.md",
+  "spec": "design_handoff_pharmadash_redesign/README.md (удалён из репозитория, есть в истории git: bc92015)",
   "decisions": [
     "Тёмная тема отключена (принудительно light); в новых компонентах dark: не используется",
     "В БДП нет помесячных данных (только usd_y1..y3) — AreaChart в hero строится по годам",
