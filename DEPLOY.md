@@ -1,7 +1,8 @@
 # Запуск на сервере через Docker
 
-Два контейнера: `backend` (FastAPI + планировщик парсеров) и `web` (nginx:
-статика фронта, прокси `/api`, basic-auth). Наружу открыт только `web`.
+Три контейнера: `backend` (FastAPI + планировщик парсеров), `web` (nginx:
+статика фронта, прокси `/api`, basic-auth) и `caddy` (HTTPS: сам получает
+и продлевает сертификат Let's Encrypt). Наружу открыт только `caddy`.
 
 ## Первый запуск
 
@@ -12,12 +13,13 @@
 git clone <адрес репозитория> pharmadash
 cd pharmadash
 cp .env.example .env
-nano .env                      # задать BASIC_AUTH_PASSWORD
+nano .env                      # задать DOMAIN и BASIC_AUTH_PASSWORD
 docker compose up -d --build
 ```
 
-Приложение откроется по адресу `http://<IP сервера>/`, браузер спросит
-логин и пароль из `.env`. Порт 80 должен быть открыт в файрволе.
+Приложение откроется по адресу `https://<DOMAIN>/`, браузер спросит
+логин и пароль из `.env`. Домен должен указывать на IP сервера, порты 80
+и 443 должны быть открыты в файрволе: без них сертификат не выпустится.
 
 ## Перенос базы
 
@@ -71,7 +73,7 @@ docker compose exec backend python -c "import sqlite3; s = sqlite3.connect('/app
 | Переменная | Назначение | По умолчанию |
 |---|---|---|
 | `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | вход в приложение | обязательны |
-| `HTTP_PORT` | порт на сервере | `80` |
+| `DOMAIN` | доменное имя приложения | обязательна |
 | `TZ` | часовой пояс; парсеры стартуют в 06:00 | `Europe/Moscow` |
 | `EAPTEKA_REGION`, `OZERKI_REGION` | регионы парсеров | `spb`, `sankt-peterburg` |
 
@@ -79,7 +81,5 @@ docker compose exec backend python -c "import sqlite3; s = sqlite3.connect('/app
 
 ## Ограничения
 
-- Соединение идёт по HTTP, пароль передаётся без шифрования. Для HTTPS
-  нужен домен.
 - Бэкенд должен работать в одном экземпляре: планировщик парсеров живёт
   в памяти процесса API.
