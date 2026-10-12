@@ -320,6 +320,7 @@ def _build_decision(scoring: dict, scope_mnns: set[str]) -> dict:
             {
                 "rank": i["rank"],
                 "mnn": i["mnn"],
+                "lf": i["lf"],
                 "cls": i["cls"],
                 "direction": i["direction"],
                 "usd": i["sales"][2],

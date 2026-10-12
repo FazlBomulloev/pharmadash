@@ -307,7 +307,7 @@ function Editor({
               </span>
               <span className="text-2xl font-semibold tracking-[-0.02em]">
                 {counts ? fmtInt(counts.zones[z.key]) : "—"}{" "}
-                <span className="text-[13px] font-medium text-muted-2">МНН</span>
+                <span className="text-[13px] font-medium text-muted-2">МНН × ЛФ</span>
               </span>
             </div>
           ))}
@@ -320,7 +320,7 @@ function Editor({
       <Card index={2} className="flex flex-col gap-[18px] px-6!">
         <SectionHead
           title="Стоп-фильтры"
-          note="МНН получает «Стоп», если выполнено хотя бы одно условие. На балл и ранг не влияет."
+          note="Пара МНН × форма получает «Стоп», если выполнено хотя бы одно условие. На балл и ранг не влияет."
         />
         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
           {STOPS.map((s) => {
@@ -358,7 +358,7 @@ function Editor({
                   className="self-start rounded-full bg-cat-stop px-[9px] py-[3px] text-xs font-semibold text-white transition-opacity duration-200"
                   style={{ opacity: stale ? 0.5 : 1 }}
                 >
-                  отсекает {counts ? fmtInt(counts.stop[s.reason]) : "—"} МНН
+                  отсекает {counts ? fmtInt(counts.stop[s.reason]) : "—"} МНН × ЛФ
                 </span>
               </label>
             );

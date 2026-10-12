@@ -525,7 +525,7 @@ export default function AdminPage() {
             <Tile label="Производителей">{fmtInt(stats?.producers)}</Tile>
             <Tile label={`Рынок ${stats?.year ?? ""}`}>{fmtUsd(stats?.usd)}</Tile>
             <Tile label="Приоритет" accent>
-              {stats?.priority == null ? "—" : `${fmtInt(stats.priority)} МНН`}
+              {stats?.priority == null ? "—" : fmtInt(stats.priority)}
             </Tile>
           </div>
           <div className="flex flex-wrap gap-2.5">

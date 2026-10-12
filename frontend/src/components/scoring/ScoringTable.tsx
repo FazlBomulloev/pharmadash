@@ -7,7 +7,7 @@ import {
 import { CATEGORY_COLOR } from "../../lib/palette";
 import { ProgressBar, ScoreCell } from "../ui/bars";
 import { AtcChip, CategoryPill, GrowthChip } from "../ui/chips";
-import { CRITERIA, STOP_REASON_LABEL } from "./meta";
+import { CRITERIA, STOP_REASON_LABEL, pairKey } from "./meta";
 
 export type TableMode = "sum" | "metrics" | "scores";
 
@@ -160,7 +160,7 @@ export function ScoringTable({
                 : "text-muted-2",
             )}
           >
-            # &nbsp;МНН{arrow("mnn")}
+            # &nbsp;МНН × ЛФ{arrow("mnn")}
           </button>
           {columns.map((c) =>
             c.key ? (
@@ -193,10 +193,10 @@ export function ScoringTable({
         </div>
 
         {items.map((item) => {
-          const isSelected = item.mnn === selected;
+          const isSelected = pairKey(item) === selected;
           return (
             <div
-              key={item.mnn}
+              key={pairKey(item)}
               role="row"
               tabIndex={0}
               onClick={() => onSelect(item)}
@@ -227,8 +227,13 @@ export function ScoringTable({
                 <span className="w-[26px] shrink-0 text-xs text-faintest">
                   {item.rank}
                 </span>
-                <span className="truncate text-sm font-medium" title={item.mnn}>
-                  {item.mnn}
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium" title={item.mnn}>
+                    {item.mnn}
+                  </span>
+                  <span className="truncate text-[11px] text-faint">
+                    {item.lf}
+                  </span>
                 </span>
               </div>
               {columns.map((c) => (
@@ -248,7 +253,7 @@ export function ScoringTable({
         })}
         {items.length === 0 && (
           <div className="p-12 text-center text-sm text-muted-2">
-            Нет МНН по заданным условиям
+            Нет позиций по заданным условиям
           </div>
         )}
       </div>

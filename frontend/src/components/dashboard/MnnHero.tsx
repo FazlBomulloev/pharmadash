@@ -118,7 +118,7 @@ export function MnnHero({
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-1.5">
               <span className="text-xs text-ink-fg-2">
-                Скоринг · ранг {fmtInt(item.rank)} из{" "}
+                Скоринг · {item.lf} · ранг {fmtInt(item.rank)} из{" "}
                 {fmtInt(zone3.selection_size)}
               </span>
               <span className="h-1.5 overflow-hidden rounded-[3px] bg-[oklch(1_0_0/0.14)]">

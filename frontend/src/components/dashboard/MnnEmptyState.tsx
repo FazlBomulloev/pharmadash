@@ -7,7 +7,7 @@ import { RECENT_LIMIT, readRecentMnn } from "../../lib/recentMnn";
 interface Column {
   title: string;
   sub: string;
-  items: { name: string; value: string }[];
+  items: { name: string; lf?: string; value: string }[];
   empty: string;
 }
 
@@ -15,7 +15,7 @@ export function MnnEmptyState({
   marketId, onPick,
 }: {
   marketId: number;
-  onPick: (mnn: string) => void;
+  onPick: (mnn: string, lf?: string | null) => void;
 }) {
   const best = useFetch((signal) => suggestMnn(marketId, "", signal), [marketId]);
   const bySales = useFetch(
@@ -29,11 +29,11 @@ export function MnnEmptyState({
   const columns: Column[] = [
     {
       title: "Топ возможности",
-      sub: "лучшие по баллу скоринга",
+      sub: "лучшие пары МНН × форма по баллу скоринга",
       items: (best.data ?? []).map((s) => ({
-        name: s.mnn, value: fmtScore(s.total, 0),
+        name: s.mnn, lf: s.lf, value: fmtScore(s.total, 0),
       })),
-      empty: best.loading ? "Загрузка…" : "Нет МНН, прошедших стоп-фильтр",
+      empty: best.loading ? "Загрузка…" : "Нет позиций, прошедших стоп-фильтр",
     },
     {
       title: "Недавно смотренные",
@@ -43,9 +43,9 @@ export function MnnEmptyState({
     },
     {
       title: "Топ по продажам",
-      sub: "USD за последний год",
+      sub: "МНН × форма · USD за последний год",
       items: (bySales.data?.items ?? []).map((i) => ({
-        name: i.mnn, value: fmtUsd(i.sales[2]),
+        name: i.mnn, lf: i.lf, value: fmtUsd(i.sales[2]),
       })),
       empty: bySales.loading ? "Загрузка…" : "Нет данных",
     },
@@ -74,12 +74,17 @@ export function MnnEmptyState({
             <span className="pb-2.5 pt-0.5 text-xs text-faint">{col.sub}</span>
             {col.items.map((item) => (
               <button
-                key={item.name}
+                key={`${item.name}|${item.lf ?? ""}`}
                 type="button"
-                onClick={() => onPick(item.name)}
+                onClick={() => onPick(item.name, item.lf)}
                 className="tr-soft -mx-2 flex justify-between gap-3 rounded-row border-0 border-t border-[#f3f3f0] bg-transparent px-2 py-2.5 text-left text-sm text-fg hover:bg-[#f7f7f4]"
               >
-                <span className="min-w-0 truncate">{item.name}</span>
+                <span className="min-w-0 truncate">
+                  {item.name}
+                  {item.lf && (
+                    <span className="text-xs text-faint"> · {item.lf}</span>
+                  )}
+                </span>
                 <span className="shrink-0 font-medium text-muted-2">
                   {item.value}
                 </span>

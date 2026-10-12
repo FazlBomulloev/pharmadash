@@ -94,10 +94,10 @@ export default function MarketDashboardPage() {
   const t = useProgress(animKey);
 
   const pickMnn = useCallback(
-    (mnn: string) => {
+    (mnn: string, lf: string | null = null) => {
       setCountry(null);
       setSearchParams(
-        writeUrl({ mnn, tab: "summary", lf: null, dose: null, year: null }),
+        writeUrl({ mnn, tab: "summary", lf, dose: null, year: null }),
         { replace: true },
       );
     },

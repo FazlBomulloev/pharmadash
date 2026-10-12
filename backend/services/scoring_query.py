@@ -15,7 +15,8 @@ SUGGEST_LIMIT = 8
 
 _SORT_KEYS: dict[str, Callable[[dict], Any]] = {
     "rank": lambda i: i["rank"],
-    "mnn": lambda i: i["mnn"],
+    "mnn": lambda i: (i["mnn"], i["lf"]),
+    "lf": lambda i: i["lf"],
     "cls": lambda i: i["cls"],
     "direction": lambda i: i["direction"],
     "usd": lambda i: i["sales"][2],
@@ -42,16 +43,20 @@ def filter_items(
     category: str | None = None,
     passed_only: bool = False,
     q: str | None = None,
+    lf: str | None = None,
 ) -> list[dict]:
     needle = (q or "").strip().upper()
     result = []
     for i in items:
+        if lf and i["lf"] != lf:
+            continue
         if category and i["category"] != category:
             continue
         if passed_only and not i["passed"]:
             continue
         if needle and not (
             needle in i["mnn"].upper()
+            or needle in i["lf"].upper()
             or needle in (i["cls"] or "").upper()
             or needle in i["direction"].upper()
         ):
@@ -91,6 +96,7 @@ def suggest_mnn(
     return [
         {
             "mnn": i["mnn"],
+            "lf": i["lf"],
             "cls": i["cls"],
             "usd": i["sales"][2],
             "total": i["total"],

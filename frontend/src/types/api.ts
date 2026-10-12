@@ -166,6 +166,7 @@ export type StopReason = "min_sales" | "max_price" | "max_producers";
 export interface ScoringItem {
   rank: number;
   mnn: string;
+  lf: string;
   cls: string | null;
   direction: string;
   sales: number[];
@@ -197,9 +198,8 @@ export interface ScoringResponse {
   market_id: number;
   years: number[];
   filters: {
-    applied: { lf: string | null; dose: string | null };
+    applied: { lf: string | null };
     forms: string[];
-    doses: string[];
   };
   summary: ScoringSummary;
   thresholds: ScoringThresholds;
@@ -212,7 +212,6 @@ export interface ScoringResponse {
 
 export interface ScoringQuery {
   lf?: string | null;
-  dose?: string | null;
   category?: ScoringCategory | null;
   passed?: boolean;
   q?: string;
@@ -224,6 +223,7 @@ export interface ScoringQuery {
 
 export interface MnnSuggestion {
   mnn: string;
+  lf: string;
   cls: string | null;
   usd: number;
   total: number;
@@ -398,6 +398,7 @@ export interface OverviewPortfolio {
 export interface OverviewDecisionItem {
   rank: number;
   mnn: string;
+  lf: string;
   cls: string | null;
   direction: string;
   usd: number;

@@ -15,7 +15,7 @@ from backend.services.market_scoring import (
     load_scoring_rows,
     market_settings,
 )
-from backend.services.scoring import CATEGORIES, compute_scoring
+from backend.services.scoring import CATEGORIES, compute_scoring, summarize
 from backend.services.scoring_query import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
@@ -41,7 +41,6 @@ async def _get_market(db: AsyncSession, market_id: int) -> Market:
 async def market_scoring(
     market_id: int,
     lf: str | None = Query(None),
-    dose: str | None = Query(None),
     category: str | None = Query(None),
     passed: bool = Query(False),
     q: str | None = Query(None),
@@ -54,15 +53,16 @@ async def market_scoring(
     market = await _get_market(db, market_id)
     if category and category not in CATEGORIES:
         raise HTTPException(400, "Неизвестная категория скоринга")
-    scoring = await get_market_scoring(db, market, lf, dose)
+    scoring = await get_market_scoring(db, market)
+    scope = filter_items(scoring["items"], lf=lf)
     matched = sort_items(
-        filter_items(scoring["items"], category, passed, q), sort, order,
+        filter_items(scope, category, passed, q), sort, order,
     )
     return {
         "market_id": market.id,
         "years": scoring["years"],
-        "filters": scoring["filters"],
-        "summary": scoring["summary"],
+        "filters": {"applied": {"lf": lf or None}, "forms": scoring["forms"]},
+        "summary": summarize(scope) if lf else scoring["summary"],
         "thresholds": scoring["settings"]["thresholds"],
         "weights": scoring["settings"]["weights"],
         "total": len(matched),

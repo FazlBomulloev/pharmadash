@@ -13,7 +13,7 @@ export function MnnSearch({
 }: {
   marketId: number;
   value: string;
-  onChange: (mnn: string) => void;
+  onChange: (mnn: string, lf?: string | null) => void;
 }) {
   const [query, setQuery] = useState(value);
   const [focused, setFocused] = useState(false);
@@ -39,26 +39,27 @@ export function MnnSearch({
       query={query}
       onQuery={setQuery}
       items={items}
-      itemKey={(s) => s.mnn}
+      itemKey={(s) => `${s.mnn}|${s.lf}`}
       onPick={(s) => {
         setQuery(s.mnn);
-        onChange(s.mnn);
+        onChange(s.mnn, s.lf);
       }}
       header={
         debounced
           ? "Найдено в БДП"
-          : "Лучшие по скорингу · начните вводить название или класс ATC"
+          : "Лучшие по скорингу (МНН × форма) · начните вводить название или класс ATC"
       }
       emptyText="Нет такого МНН в БДП"
       renderItem={(s) => {
         const tone = CATEGORY_COLOR[s.category];
         return (
-          <span className="grid grid-cols-[8px_minmax(0,1fr)_auto_64px_34px] items-center gap-2.5 text-sm text-fg">
+          <span className="grid grid-cols-[8px_minmax(0,1fr)_auto_auto_64px_34px] items-center gap-2.5 text-sm text-fg">
             <span
               className="size-2 rounded-full"
               style={{ background: tone.bg }}
             />
             <span className="truncate">{s.mnn}</span>
+            <span className="whitespace-nowrap text-xs text-faint">{s.lf}</span>
             <span className="rounded-[5px] bg-[#f2f2ef] px-1.5 py-0.5 text-[11px] font-semibold text-muted">
               {s.cls ?? "—"}
             </span>

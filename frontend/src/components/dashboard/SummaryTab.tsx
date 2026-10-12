@@ -112,7 +112,7 @@ export function SummaryTab({
           <ScoreBrief data={data} t={t} />
         ) : (
           <span className="text-sm text-faint">
-            Для выбранной формы и дозировки скоринг не рассчитан
+            Для выбранной формы скоринг не рассчитан
           </span>
         )}
       </Card>
@@ -147,8 +147,9 @@ function ScoreBrief({ data, t }: { data: DashboardResponse; t: number }) {
             {fmtInt(zone3.selection_size)}
           </span>
           <span className="text-[13px] text-muted-2">
-            из 100 · стоп-фильтр {item.passed ? "пройден" : "не пройден"}
-            {better != null && ` · лучше ${fmtPct(better, 1)} МНН`}
+            форма {item.lf} · стоп-фильтр{" "}
+            {item.passed ? "пройден" : "не пройден"}
+            {better != null && ` · лучше ${fmtPct(better, 1)} позиций`}
           </span>
         </span>
       </div>
@@ -235,7 +236,7 @@ export function ScoringTab({ data, t }: { data: DashboardResponse; t: number }) 
   if (!item) {
     return (
       <Card anim="tab" className="text-sm text-faint">
-        Для выбранной формы и дозировки скоринг не рассчитан
+        Для выбранной формы скоринг не рассчитан
       </Card>
     );
   }
@@ -260,7 +261,9 @@ export function ScoringTab({ data, t }: { data: DashboardResponse; t: number }) 
           <Mini label="Ранг">
             {fmtInt(item.rank)} из {fmtInt(zone3.selection_size)}
           </Mini>
-          <Mini label="Класс">{item.cls ?? "—"}</Mini>
+          <Mini label="Форма · класс">
+            {item.lf} · {item.cls ?? "—"}
+          </Mini>
         </div>
         <StopNote item={item} />
       </Card>

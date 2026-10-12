@@ -17,8 +17,9 @@ import {
 import { Card, CardTitle } from "../ui/Card";
 import { CountryChip, Pill } from "../ui/chips";
 
-const dashboardLink = (marketId: number, mnn: string) =>
-  `/market/${marketId}/dashboard?mnn=${encodeURIComponent(mnn)}`;
+const dashboardLink = (marketId: number, mnn: string, lf?: string) =>
+  `/market/${marketId}/dashboard?mnn=${encodeURIComponent(mnn)}`
+  + (lf ? `&lf=${encodeURIComponent(lf)}` : "");
 
 export function MoversCard({
   movers, marketId, t, index,
@@ -73,7 +74,7 @@ export function ScoringCard({
           </Link>
         }
       >
-        Скоринг МНН
+        Скоринг МНН × ЛФ
       </CardTitle>
       <StackedBar
         height={48}
@@ -102,8 +103,8 @@ export function ScoringCard({
         </span>
         {top.map((item) => (
           <Link
-            key={item.mnn}
-            to={dashboardLink(marketId, item.mnn)}
+            key={`${item.mnn}|${item.lf}`}
+            to={dashboardLink(marketId, item.mnn, item.lf)}
             className="tr-soft -mx-2 grid grid-cols-[minmax(0,1fr)_auto_40px] items-center gap-2.5 rounded-row border-t border-[#f3f3f0] px-2 py-[9px] text-fg hover:bg-subtle hover:text-fg"
           >
             <span className="flex min-w-0 items-center gap-2">
@@ -116,7 +117,7 @@ export function ScoringCard({
                   {item.mnn}
                 </span>
                 <span className="truncate text-[11px] text-faint">
-                  {item.direction}
+                  {item.lf} · {item.direction}
                 </span>
               </span>
             </span>
@@ -136,7 +137,7 @@ export function ScoringCard({
         ))}
         {top.length === 0 && (
           <span className="border-t border-[#f3f3f0] py-3 text-sm text-faint">
-            Ни один МНН не прошёл стоп-фильтр
+            Ни одна позиция не прошла стоп-фильтр
           </span>
         )}
       </div>

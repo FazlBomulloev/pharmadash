@@ -194,7 +194,7 @@ function MarketCard({
             to={`/market/${m.id}/scoring`}
             className="flex flex-col gap-2 text-fg hover:text-fg"
           >
-            <span className="text-xs text-faint">Скоринг МНН</span>
+            <span className="text-xs text-faint">Скоринг МНН × ЛФ</span>
             <StackedBar
               height={32}
               gap={2}

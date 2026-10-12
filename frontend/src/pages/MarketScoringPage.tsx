@@ -12,7 +12,7 @@ import { fmtGrowth, fmtInt, fmtPct, fmtScore, fmtUsd } from "../lib/format";
 import { CATEGORY_COLOR, growthTone } from "../lib/palette";
 import { Page } from "../components/layout/Layout";
 import {
-  CATEGORY_LABEL, CATEGORY_ORDER,
+  CATEGORY_LABEL, CATEGORY_ORDER, pairKey,
 } from "../components/scoring/meta";
 import {
   CriteriaTable, ScoreScale, StopNote,
@@ -52,7 +52,6 @@ export default function MarketScoringPage() {
   const [mode, setMode] = useState<TableMode>("sum");
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
   const [lf, setLf] = useState("");
-  const [dose, setDose] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [selected, setSelected] = useState<ScoringItem | null>(null);
@@ -65,13 +64,13 @@ export default function MarketScoringPage() {
 
   const { data, error, loading } = useFetch<ScoringResponse>(
     (signal) => getMarketScoring(id, {
-      lf, dose, q: search,
+      lf, q: search,
       category: cat === "all" || cat === "passed" ? null : cat,
       passed: cat === "passed",
       sort: sort.key, order: sort.order,
       page, page_size: pageSize,
     }, signal),
-    [id, lf, dose, search, cat, sort.key, sort.order, page, pageSize],
+    [id, lf, search, cat, sort.key, sort.order, page, pageSize],
     "Не удалось загрузить скоринг",
   );
 
@@ -99,16 +98,13 @@ export default function MarketScoringPage() {
   const { summary, filters } = data;
   const isDim = (c: ScoringCategory) =>
     cat === "passed" ? c === "stop" : cat !== "all" && cat !== c;
-  const selection = [lf && `форма ${lf}`, dose && `дозировка ${dose}`]
-    .filter(Boolean)
-    .join(" · ");
 
   return (
     <Page>
       <header className="anim-head flex flex-col gap-1.5">
         <div className="flex items-center gap-2.5">
           <h1 className="m-0 text-[30px] font-semibold tracking-[-0.02em]">
-            Скоринг МНН
+            Скоринг МНН × ЛФ
           </h1>
           <Link
             to={`/market/${id}/settings`}
@@ -120,9 +116,9 @@ export default function MarketScoringPage() {
           </Link>
         </div>
         <span className="text-sm text-muted-2">
-          {selection
-            ? `Выборка: ${selection} · ${fmtInt(summary.total)} МНН`
-            : "10 критериев, стоп-фильтры и категории по каждому МНН рынка"}
+          {lf
+            ? `Форма ${lf} · ${fmtInt(summary.total)} МНН · баллы относительно всего рынка`
+            : "10 критериев, стоп-фильтры и категории по каждой паре МНН × лекарственная форма"}
         </span>
       </header>
 
@@ -134,7 +130,7 @@ export default function MarketScoringPage() {
               {fmtInt(summary.passed)}
             </span>
             <span className="text-[15px] text-ink-fg-2">
-              из {fmtInt(summary.total)} МНН
+              из {fmtInt(summary.total)} МНН × ЛФ
             </span>
           </span>
         </div>
@@ -180,7 +176,7 @@ export default function MarketScoringPage() {
 
       <div className="anim-rise flex flex-wrap items-center justify-between gap-3" style={{ animationDelay: "210ms" }}>
         <Segmented<CatFilter>
-          ariaLabel="Выборка МНН"
+          ariaLabel="Выборка позиций"
           value={cat === "all" || cat === "passed" ? cat : ("" as CatFilter)}
           onChange={refine(setCat)}
           options={[
@@ -203,21 +199,13 @@ export default function MarketScoringPage() {
             onChange={refine(setLf)}
             options={filters.forms.map((f) => ({ value: f, label: f }))}
           />
-          <Select
-            label="Доза"
-            value={dose}
-            allLabel="Все"
-            align="right"
-            onChange={refine(setDose)}
-            options={filters.doses.map((d) => ({ value: d, label: d }))}
-          />
           <label className="flex h-[34px] w-60 items-center gap-2 rounded-[9px] border border-line-strong bg-white px-[11px] focus-within:border-accent">
             <Search size={14} className="shrink-0 text-[#9a9ea6]" />
             <input
               value={q}
               onChange={(e) => refine(setQ)(e.target.value)}
-              placeholder="МНН или класс"
-              aria-label="Поиск по МНН или классу"
+              placeholder="МНН, форма или класс"
+              aria-label="Поиск по МНН, форме или классу"
               className="min-w-0 flex-1 border-0 bg-transparent text-[13px] outline-none placeholder:text-faintest"
             />
           </label>
@@ -243,7 +231,7 @@ export default function MarketScoringPage() {
             {cat !== "all" && cat !== "passed" && (
               <>{CATEGORY_LABEL[cat]} · </>
             )}
-            {fmtInt(data.total)} МНН
+            {fmtInt(data.total)} МНН × ЛФ
           </span>
         </div>
         <div
@@ -256,7 +244,7 @@ export default function MarketScoringPage() {
             years={data.years}
             sort={sort}
             onSort={toggleSort}
-            selected={selected?.mnn ?? null}
+            selected={selected ? pairKey(selected) : null}
             onSelect={setSelected}
           />
         </div>
@@ -271,7 +259,7 @@ export default function MarketScoringPage() {
 
       {selected && (
         <MnnPanel
-          key={selected.mnn}
+          key={pairKey(selected)}
           item={selected}
           marketId={id}
           year={data.years[2]}
@@ -311,7 +299,7 @@ function MnnPanel({
       eyebrow={
         <>
           {item.direction}
-          {item.cls && ` · ${item.cls}`} · ранг {fmtInt(item.rank)}
+          {item.cls && ` · ${item.cls}`} · {item.lf} · ранг {fmtInt(item.rank)}
         </>
       }
       title={item.mnn}
@@ -346,7 +334,7 @@ function MnnPanel({
       <CriteriaTable item={item} weights={weights} variant="compact" />
 
       <Link
-        to={`/market/${marketId}/dashboard?mnn=${encodeURIComponent(item.mnn)}`}
+        to={`/market/${marketId}/dashboard?mnn=${encodeURIComponent(item.mnn)}&lf=${encodeURIComponent(item.lf)}`}
         className="tr-soft flex items-center gap-2 self-start rounded-ctl bg-fg px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2c2f36] hover:text-white"
       >
         Открыть дашборд МНН →

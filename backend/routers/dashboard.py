@@ -18,7 +18,10 @@ from backend.database import get_db
 from backend.models import Market, BdpRaw
 from backend.routers.overview import build_movers
 from backend.services.bdp_keys import EMPTY_KEY, dose_key, form_key
-from backend.services.market_scoring import get_market_scoring
+from backend.services.market_scoring import (
+    get_market_scoring,
+    mnn_scoring_item,
+)
 from backend.services.scoring_query import SUGGEST_LIMIT, suggest_mnn
 from backend.services.year_shift import (
     parse_years,
@@ -195,9 +198,9 @@ async def dashboard(
                for k in (1, 2, 3)],
     }
     zone2 = _build_zone2(items, all_items)
-    scoring = await get_market_scoring(db, market, lf, dose)
+    scoring = await get_market_scoring(db, market)
     zone3 = {
-        "item": scoring["by_mnn"].get(real_mnn),
+        "item": mnn_scoring_item(scoring, real_mnn, lf),
         "selection_size": scoring["summary"]["total"],
         "weights": scoring["settings"]["weights"],
         "thresholds": scoring["settings"]["thresholds"],

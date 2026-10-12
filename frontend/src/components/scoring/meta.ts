@@ -42,6 +42,9 @@ export const STOP_REASON_LABEL: Record<StopReason, string> = {
   max_producers: "Много производителей",
 };
 
+export const pairKey = (item: { mnn: string; lf: string }) =>
+  `${item.mnn}|${item.lf}`;
+
 export function criterionValue(item: ScoringItem, key: ScoringCriterion): string {
   switch (key) {
     case "volume":
@@ -69,9 +72,7 @@ export function criterionValue(item: ScoringItem, key: ScoringCriterion): string
     case "hhi":
       return item.hhi == null ? "нет данных" : `HHI ${fmtInt(item.hhi)}`;
     case "form":
-      return item.form_score == null
-        ? "нет данных"
-        : "взвешенный балл форм";
+      return item.form_score == null ? "нет данных" : item.lf;
     case "channel":
       return item.hospital_share == null
         ? "нет данных"

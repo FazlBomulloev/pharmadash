@@ -2,6 +2,7 @@ from bisect import bisect_left
 from collections import defaultdict
 from typing import Any, Iterable
 
+from backend.services.bdp_keys import form_key
 from backend.services.scoring_settings import ScoringSettings
 
 CRITERIA = (
@@ -87,12 +88,12 @@ def _cagr(start: float, end: float) -> float | None:
 
 def _collect_metrics(
     rows: Iterable[Any], settings: ScoringSettings,
-) -> dict[str, dict]:
+) -> dict[tuple[str, str], dict]:
     home = {c.strip().upper() for c in settings.home_countries}
     form_map = settings.form_scores.map
     form_default = settings.form_scores.default
 
-    acc: dict[str, dict] = defaultdict(lambda: {
+    acc: dict[tuple[str, str], dict] = defaultdict(lambda: {
         "usd": [0.0, 0.0, 0.0],
         "un": [0.0, 0.0, 0.0],
         "import_usd": 0.0,
@@ -103,7 +104,7 @@ def _collect_metrics(
         "form_weighted": 0.0,
     })
     for r in rows:
-        a = acc[r.mnn]
+        a = acc[(r.mnn, form_key(r))]
         usd_y = r.usd_y3 or 0.0
         a["usd"][0] += r.usd_y1 or 0.0
         a["usd"][1] += r.usd_y2 or 0.0
@@ -126,8 +127,8 @@ def _collect_metrics(
             a["form_usd"] += usd_y
             a["form_weighted"] += usd_y * form_map.get(form, form_default)
 
-    metrics: dict[str, dict] = {}
-    for mnn, a in acc.items():
+    metrics: dict[tuple[str, str], dict] = {}
+    for (mnn, lf), a in acc.items():
         sales = a["usd"][2]
         units = a["un"][2]
         positive = [v for v in a["producer_usd"].values() if v > 0]
@@ -136,8 +137,9 @@ def _collect_metrics(
             min(a["class_usd"].items(), key=lambda kv: (-kv[1], kv[0]))[0]
             if a["class_usd"] else None
         )
-        metrics[mnn] = {
+        metrics[(mnn, lf)] = {
             "mnn": mnn,
+            "lf": lf,
             "cls": cls,
             "direction": (
                 settings.directions.map.get(cls, settings.directions.default)
@@ -197,10 +199,10 @@ def compute_scoring(
     weights = settings.weights.model_dump()
     weight_sum = sum(weights.values())
 
-    by_class: dict[str | None, dict[str, float | None]] = defaultdict(dict)
-    for mnn, m in metrics.items():
-        by_class[m["cls"]][mnn] = m["sales"][2]
-    volume_pct: dict[str, float | None] = {}
+    by_class: dict[str | None, dict[tuple, float | None]] = defaultdict(dict)
+    for key, m in metrics.items():
+        by_class[m["cls"]][key] = m["sales"][2]
+    volume_pct: dict[tuple, float | None] = {}
     for class_values in by_class.values():
         volume_pct.update(percentile_scores(class_values))
 
@@ -219,14 +221,14 @@ def compute_scoring(
 
     barriers = settings.class_barriers
     items: list[dict] = []
-    for mnn, m in metrics.items():
+    for key, m in metrics.items():
         scores = {
-            "volume": _or_neutral(volume_pct[mnn]),
+            "volume": _or_neutral(volume_pct[key]),
             "import_share": _or_neutral(m["import_share"]),
-            "cagr_usd": _or_neutral(cagr_pct[mnn]),
+            "cagr_usd": _or_neutral(cagr_pct[key]),
             "competition": competition_score(m["producers"], settings),
-            "price": _or_neutral(price_pct[mnn]),
-            "demand": _or_neutral(demand_pct[mnn]),
+            "price": _or_neutral(price_pct[key]),
+            "demand": _or_neutral(demand_pct[key]),
             "hhi": hhi_score(m["hhi"], settings),
             "form": _or_neutral(m["form_score"]),
             "channel": channel_score(m["hospital_share"], settings),
@@ -250,7 +252,9 @@ def compute_scoring(
                 (i["raw"] - raw_min) / spread * 100 if spread > 0 else 100.0
             )
 
-    items.sort(key=lambda i: (-i["total"], -i["sales"][2], i["mnn"]))
+    items.sort(
+        key=lambda i: (-i["total"], -i["sales"][2], i["mnn"], i["lf"])
+    )
     prev_total = None
     prev_rank = 0
     for position, i in enumerate(items, start=1):
@@ -262,13 +266,16 @@ def compute_scoring(
         i["passed"] = not i["stop_reasons"]
         i["category"] = _category(i["total"], not i["passed"], settings)
 
+    return {"items": items, "summary": summarize(items)}
+
+
+def summarize(items: list[dict]) -> dict:
     categories = {c: 0 for c in CATEGORIES}
     for i in items:
         categories[i["category"]] += 1
-    summary = {
+    return {
         "total": len(items),
         "passed": sum(1 for i in items if i["passed"]),
         "categories": categories,
         "sales": [sum(i["sales"][k] for i in items) for k in range(3)],
     }
-    return {"items": items, "summary": summary}
