@@ -2,7 +2,7 @@ import type { DashboardResponse, ScoringCategory } from "../../types/api";
 import {
   fmtGrowth, fmtInt, fmtPrice, fmtScore, fmtUnits, fmtUsd,
 } from "../../lib/format";
-import { CATEGORY_LABEL } from "../scoring/meta";
+import { CATEGORY_LABEL, STOP_REASON_LABEL } from "../scoring/meta";
 import { DarkHero } from "../ui/Card";
 import { HeroTrend } from "../ui/HeroTrend";
 
@@ -82,6 +82,13 @@ export function MnnHero({
             {fmtInt(zone1.active_competitors)} активных конкурентов из{" "}
             {fmtInt(zone1.total_producers)}
           </span>
+          {item && !item.passed && (
+            <span className="text-[13px]" style={{ color: INK_CATEGORY.stop.color }}>
+              Стоп: {item.stop_reasons
+                .map((r) => STOP_REASON_LABEL[r].toLowerCase())
+                .join(", ")}
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-x-5 gap-y-4">

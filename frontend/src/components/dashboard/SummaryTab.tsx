@@ -153,6 +153,7 @@ function ScoreBrief({ data, t }: { data: DashboardResponse; t: number }) {
           </span>
         </span>
       </div>
+      {!item.passed && <StopNote item={item} stop={zone3.stop} />}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
         <SideList
           title="Сильные стороны"
@@ -265,7 +266,7 @@ export function ScoringTab({ data, t }: { data: DashboardResponse; t: number }) 
             {item.lf} · {item.cls ?? "—"}
           </Mini>
         </div>
-        <StopNote item={item} />
+        <StopNote item={item} stop={zone3.stop} />
       </Card>
       <Card
         anim="tab"

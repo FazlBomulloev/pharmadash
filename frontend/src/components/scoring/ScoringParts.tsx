@@ -1,8 +1,9 @@
 import { Check, X } from "lucide-react";
 import type {
-  ScoringCriterion, ScoringItem, ScoringThresholds,
+  ScoringCriterion, ScoringItem, ScoringStopFilters, ScoringThresholds,
+  StopReason,
 } from "../../types/api";
-import { fmtScore } from "../../lib/format";
+import { fmtInt, fmtPrice, fmtScore, fmtUsd } from "../../lib/format";
 import { scoreTone } from "../../lib/palette";
 import { ProgressBar, ZoneScale } from "../ui/bars";
 import { STOP_REASON_LABEL, contributions, criterionValue } from "./meta";
@@ -39,7 +40,27 @@ export function ScoreScale({
   );
 }
 
-export function StopNote({ item }: { item: ScoringItem }) {
+function stopReasonText(
+  item: ScoringItem, reason: StopReason, stop?: ScoringStopFilters,
+): string {
+  const label = STOP_REASON_LABEL[reason];
+  if (!stop) return label;
+  switch (reason) {
+    case "min_sales":
+      return `${label}: ${fmtUsd(item.sales[2])} при минимуме ${fmtUsd(stop.min_sales_usd)}`;
+    case "max_price":
+      return `${label}: ${fmtPrice(item.price)} при максимуме ${fmtPrice(stop.max_price_usd)}`;
+    case "max_producers":
+      return `${label}: ${fmtInt(item.producers)} при максимуме ${fmtInt(stop.max_producers)}`;
+  }
+}
+
+export function StopNote({
+  item, stop,
+}: {
+  item: ScoringItem;
+  stop?: ScoringStopFilters;
+}) {
   if (item.passed) {
     return (
       <div
@@ -77,7 +98,7 @@ export function StopNote({ item }: { item: ScoringItem }) {
       <span className="flex flex-col gap-0.5">
         <b className="font-semibold">Стоп-фильтр не пройден</b>
         {item.stop_reasons.map((r) => (
-          <span key={r}>{STOP_REASON_LABEL[r]}</span>
+          <span key={r}>{stopReasonText(item, r, stop)}</span>
         ))}
       </span>
     </div>
