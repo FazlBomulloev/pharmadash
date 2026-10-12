@@ -1,8 +1,10 @@
-import type { DashboardResponse } from "../../types/api";
+import type {
+  DashboardResponse, ScoringCriterion, ScoringItem,
+} from "../../types/api";
 import { fmtInt, fmtPct, fmtScore, fmtUsd } from "../../lib/format";
-import { CATEGORY_COLOR, scoreTone } from "../../lib/palette";
+import { CATEGORY_COLOR } from "../../lib/palette";
 import {
-  CATEGORY_LABEL, contributions, criterionValue,
+  CATEGORY_LABEL, driversAndRisks, type Factor,
 } from "../scoring/meta";
 import { CriteriaTable, ScoreScale, StopNote } from "../scoring/ScoringParts";
 import { DivergingBars, ProgressBar } from "../ui/bars";
@@ -124,10 +126,6 @@ function ScoreBrief({ data, t }: { data: DashboardResponse; t: number }) {
   const { zone3 } = data;
   const item = zone3.item!;
   const tone = CATEGORY_COLOR[item.category];
-  const { rows } = contributions(item, zone3.weights);
-  const sorted = [...rows].sort((a, b) => b.score - a.score);
-  const strong = sorted.slice(0, 3);
-  const weak = sorted.slice(-3).reverse();
   const better = zone3.selection_size > 1
     ? (zone3.selection_size - item.rank) / (zone3.selection_size - 1)
     : null;
@@ -154,79 +152,104 @@ function ScoreBrief({ data, t }: { data: DashboardResponse; t: number }) {
         </span>
       </div>
       {!item.passed && <StopNote item={item} stop={zone3.stop} />}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
-        <SideList
-          title="Сильные стороны"
-          background="oklch(0.97 0.025 155)"
-          color="oklch(0.4 0.11 155)"
-          dot="oklch(0.58 0.15 155)"
-          rows={strong.map((r) => ({
-            key: r.key, label: r.label, score: r.score,
-            value: criterionValue(item, r.key),
-          }))}
-          t={t}
-        />
-        <SideList
-          title="Слабые стороны"
-          background="oklch(0.97 0.02 25)"
-          color="oklch(0.46 0.15 25)"
-          dot="oklch(0.6 0.19 25)"
-          rows={weak.map((r) => ({
-            key: r.key, label: r.label, score: r.score,
-            value: criterionValue(item, r.key),
-          }))}
-          t={t}
-        />
-      </div>
+      <Factors item={item} weights={zone3.weights} t={t} />
     </>
   );
 }
 
-function SideList({
-  title, background, color, dot, rows, t,
+function Factors({
+  item, weights, t,
+}: {
+  item: ScoringItem;
+  weights: Record<ScoringCriterion, number>;
+  t: number;
+}) {
+  const { drivers, risks } = driversAndRisks(item, weights);
+  const maxImpact = Math.max(
+    ...drivers.map((f) => f.impact), ...risks.map((f) => -f.impact), 1e-9,
+  );
+  return (
+    <>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
+        <FactorList
+          title="Драйверы"
+          empty="Нет критериев, заметно поднимающих балл"
+          background="oklch(0.97 0.025 155)"
+          color="oklch(0.4 0.11 155)"
+          bar="oklch(0.62 0.15 155)"
+          rows={drivers}
+          maxImpact={maxImpact}
+          t={t}
+        />
+        <FactorList
+          title="Риски"
+          empty="Нет критериев, заметно снижающих балл"
+          background="oklch(0.97 0.02 25)"
+          color="oklch(0.46 0.15 25)"
+          bar="oklch(0.62 0.19 25)"
+          rows={risks}
+          maxImpact={maxImpact}
+          t={t}
+        />
+      </div>
+      <span className="text-xs text-faint">
+        Пункты — на сколько критерий сдвигает балл от нейтрального уровня с
+        учётом веса, до нормировки итога
+      </span>
+    </>
+  );
+}
+
+function FactorList({
+  title, empty, background, color, bar, rows, maxImpact, t,
 }: {
   title: string;
+  empty: string;
   background: string;
   color: string;
-  dot: string;
-  rows: { key: string; label: string; score: number; value: string }[];
+  bar: string;
+  rows: Factor[];
+  maxImpact: number;
   t: number;
 }) {
   return (
     <div
-      className="flex flex-col gap-3 rounded-inner p-4"
+      className="flex flex-col gap-3.5 rounded-inner p-4"
       style={{ background }}
     >
       <span
         className="flex items-center gap-1.5 text-xs font-bold"
         style={{ color }}
       >
-        <span className="size-2 rounded-full" style={{ background: dot }} />
+        <span className="size-2 rounded-full" style={{ background: bar }} />
         {title}
       </span>
-      {rows.map((r) => {
-        const tone = scoreTone(r.score);
-        return (
-          <div key={r.key} className="flex flex-col gap-1.5">
-            <span className="flex justify-between gap-2 text-sm">
-              <span>{r.label}</span>
-              <span
-                className="rounded-md px-[7px] py-0.5 text-xs font-bold"
-                style={{ background: tone.background, color: tone.color }}
-              >
-                {r.score.toFixed(2).replace(".", ",")}
-              </span>
+      {rows.map((r) => (
+        <div key={r.key} className="flex flex-col gap-1.5">
+          <span className="flex items-start justify-between gap-2.5">
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-sm font-medium leading-snug">{r.text}</span>
+              <span className="text-xs text-muted-2">{r.value}</span>
             </span>
-            <ProgressBar
-              value={r.score * t}
-              color={tone.bar}
-              height={8}
-              track="#fff"
-            />
-            <span className="text-xs text-muted-2">{r.value}</span>
-          </div>
-        );
-      })}
+            <span
+              className="shrink-0 whitespace-nowrap rounded-md bg-white px-[7px] py-0.5 text-xs font-bold"
+              style={{ color }}
+            >
+              {r.impact < 0 ? "−" : "+"}
+              {fmtScore(Math.abs(r.impact))}
+            </span>
+          </span>
+          <ProgressBar
+            value={(Math.abs(r.impact) / maxImpact) * t}
+            color={bar}
+            height={6}
+            track="#fff"
+          />
+        </div>
+      ))}
+      {rows.length === 0 && (
+        <span className="text-[13px] text-muted-2">{empty}</span>
+      )}
     </div>
   );
 }
@@ -267,6 +290,7 @@ export function ScoringTab({ data, t }: { data: DashboardResponse; t: number }) 
           </Mini>
         </div>
         <StopNote item={item} stop={zone3.stop} />
+        <Factors item={item} weights={zone3.weights} t={t} />
       </Card>
       <Card
         anim="tab"

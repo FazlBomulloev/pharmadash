@@ -82,6 +82,87 @@ export function criterionValue(item: ScoringItem, key: ScoringCriterion): string
   }
 }
 
+const FACTOR_TEXT: Record<ScoringCriterion, { driver: string; risk: string }> = {
+  volume: {
+    driver: "Крупный объём продаж в своём классе",
+    risk: "Небольшой объём продаж в своём классе",
+  },
+  import_share: {
+    driver: "Высокая доля импорта — есть что замещать",
+    risk: "Рынок уже занят локальными производителями",
+  },
+  cagr_usd: {
+    driver: "Продажи в USD растут быстрее рынка",
+    risk: "Продажи в USD растут слабее рынка",
+  },
+  competition: {
+    driver: "Умеренное число производителей",
+    risk: "Много производителей",
+  },
+  price: {
+    driver: "Высокая цена упаковки",
+    risk: "Низкая цена упаковки",
+  },
+  demand: {
+    driver: "Спрос в упаковках растёт быстрее рынка",
+    risk: "Спрос в упаковках слабее рынка",
+  },
+  hhi: {
+    driver: "Рынок не поделён между лидерами",
+    risk: "Рынок сконцентрирован у лидеров",
+  },
+  form: {
+    driver: "Простая в производстве форма",
+    risk: "Сложная в производстве форма",
+  },
+  channel: {
+    driver: "Продажи в основном через розницу",
+    risk: "Высокая доля госпитального канала",
+  },
+  class_barrier: {
+    driver: "Низкий барьер входа в класс",
+    risk: "Высокий барьер входа в класс",
+  },
+};
+
+const FACTOR_MIN_IMPACT = 0.5;
+
+export interface Factor {
+  key: ScoringCriterion;
+  text: string;
+  value: string;
+  impact: number;
+}
+
+export function driversAndRisks(
+  item: ScoringItem,
+  weights: Record<ScoringCriterion, number>,
+  neutral = 0.5,
+  limit = 3,
+): { drivers: Factor[]; risks: Factor[] } {
+  const weightSum = CRITERIA.reduce((s, c) => s + weights[c.key], 0) || 1;
+  const factors = CRITERIA.map((c) => {
+    const impact =
+      ((item.scores[c.key] - neutral) * weights[c.key]) / weightSum * 100;
+    return {
+      key: c.key,
+      text: impact >= 0 ? FACTOR_TEXT[c.key].driver : FACTOR_TEXT[c.key].risk,
+      value: criterionValue(item, c.key),
+      impact,
+    };
+  });
+  return {
+    drivers: factors
+      .filter((f) => f.impact >= FACTOR_MIN_IMPACT)
+      .sort((a, b) => b.impact - a.impact)
+      .slice(0, limit),
+    risks: factors
+      .filter((f) => f.impact <= -FACTOR_MIN_IMPACT)
+      .sort((a, b) => a.impact - b.impact)
+      .slice(0, limit),
+  };
+}
+
 export function contributions(
   item: ScoringItem, weights: Record<ScoringCriterion, number>,
 ) {
