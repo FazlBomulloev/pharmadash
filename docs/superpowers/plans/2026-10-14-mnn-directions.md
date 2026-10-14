@@ -786,7 +786,7 @@ def build_mnn_directions(items: Iterable[Any], dmap: DirectionMap) -> dict:
             "usd": group_usd,
             "in_reference": bool(group_by_dir),
             "rows": (
-                _share_rows(group_by_dir, [0.0, 0.0, 0.0], group_usd)
+                _share_rows(group_by_dir, group_rest, group_usd)
                 if group_by_dir else []
             ),
         })
