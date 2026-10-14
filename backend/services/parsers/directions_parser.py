@@ -1,4 +1,5 @@
 import logging
+import math
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -7,41 +8,67 @@ log = logging.getLogger(__name__)
 
 SHEET_NAME = "Длинный формат"
 
-_REQUIRED_HEADERS = ("МНН", "ЛФ", "НАПРАВЛЕНИЕ", "ПРОЦЕНТ")
+HEADER_SCAN_ROWS = 10
+
+_FIELD_BY_HEADER = {
+    "МНН": "mnn",
+    "ЛФ": "lf",
+    "НАПРАВЛЕНИЕ": "direction",
+    "ПРОЦЕНТ": "share",
+}
 
 
 class DirectionsParseError(Exception):
     pass
 
 
-def _headers(ws) -> list[str]:
-    for row in ws.iter_rows(min_row=1, max_row=1, values_only=True):
-        return [
-            str(v).strip().upper() if v is not None else "" for v in row
-        ]
-    return []
+def _header_map(head: list[str]) -> dict[str, int] | None:
+    """Карта поле → индекс колонки, или None если шапка не та."""
+    idx: dict[str, int] = {}
+    for i, name in enumerate(head):
+        field = _FIELD_BY_HEADER.get(name)
+        if field is not None and field not in idx:
+            idx[field] = i
+    return idx if len(idx) == len(_FIELD_BY_HEADER) else None
 
 
-def _pick_sheet(wb) -> str:
-    if SHEET_NAME in wb.sheetnames:
-        return SHEET_NAME
-    for name in wb.sheetnames:
-        head = _headers(wb[name])
-        if all(h in head for h in _REQUIRED_HEADERS):
-            return name
+def _pick_sheet(wb) -> tuple[str, dict[str, int], int]:
+    """Лист, карта колонок и номер строки шапки (с единицы)."""
+    # Лист с ожидаемым именем проверяется первым, остальные — по шапке.
+    candidates = [SHEET_NAME] if SHEET_NAME in wb.sheetnames else []
+    candidates += [n for n in wb.sheetnames if n != SHEET_NAME]
+
+    for name in candidates:
+        ws = wb[name]
+        rows = ws.iter_rows(
+            min_row=1, max_row=HEADER_SCAN_ROWS, values_only=True,
+        )
+        for row_no, values in enumerate(rows, start=1):
+            head = [
+                str(v).strip().upper() if v is not None else ""
+                for v in values
+            ]
+            cmap = _header_map(head)
+            if cmap is not None:
+                return name, cmap, row_no
+
     raise DirectionsParseError(
-        f"В файле нет листа «{SHEET_NAME}» и ни один лист не содержит "
-        f"колонки МНН, ЛФ, Направление, Процент. "
+        f"Не найден лист с колонками МНН, ЛФ, Направление, Процент. "
+        f"Ожидался лист «{SHEET_NAME}». "
         f"Найденные листы: {', '.join(wb.sheetnames)}"
     )
 
 
 def _share(value) -> float | None:
-    if value is None:
+    if value is None or isinstance(value, bool):
         return None
+    if isinstance(value, str):
+        value = value.strip().replace(",", ".")
     try:
         share = float(value)
     except (TypeError, ValueError):
+        return None
+    if not math.isfinite(share):
         return None
     if share > 1:
         share /= 100
@@ -53,7 +80,7 @@ def _share(value) -> float | None:
 def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
     wb = load_workbook(file_path, read_only=True, data_only=True)
     try:
-        sheet = _pick_sheet(wb)
+        sheet, cmap, header_row = _pick_sheet(wb)
         ws = wb[sheet]
 
         accepted: dict[tuple[str, str, str], dict] = {}
@@ -61,17 +88,19 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
         rows_skipped = 0
         rows_duplicate = 0
 
-        for idx, values in enumerate(ws.iter_rows(values_only=True)):
-            if idx == 0:
-                continue
+        for values in ws.iter_rows(min_row=header_row + 1, values_only=True):
             if not any(v is not None and str(v).strip() for v in values):
                 continue
             rows_read += 1
 
-            mnn = str(values[0] or "").strip().upper()
-            lf = str(values[1] or "").strip().upper()
-            direction = str(values[2] or "").strip()
-            share = _share(values[3] if len(values) > 3 else None)
+            def cell(field: str):
+                i = cmap[field]
+                return values[i] if i < len(values) else None
+
+            mnn = str(cell("mnn") or "").strip().upper()
+            lf = str(cell("lf") or "").strip().upper()
+            direction = str(cell("direction") or "").strip()
+            share = _share(cell("share"))
 
             if not mnn or not lf or not direction or share is None:
                 rows_skipped += 1
@@ -122,8 +151,9 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
     }
     log.info(
         "Справочник направлений разобран: лист «%s», принято %d строк, "
-        "отброшено %d, пар %d",
-        sheet, report["rows_accepted"], rows_skipped, report["pairs_count"],
+        "отброшено %d, дубликатов %d, пар %d",
+        sheet, report["rows_accepted"], rows_skipped, rows_duplicate,
+        report["pairs_count"],
     )
     if over:
         log.warning(
