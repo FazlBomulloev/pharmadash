@@ -4,6 +4,7 @@ import { getDashboard } from "../api/client";
 import type { DashboardResponse } from "../types/api";
 import { useFetch } from "../hooks/useFetch";
 import { useProgress } from "../hooks/useProgress";
+import { DirectionsTab } from "../components/dashboard/DirectionsTab";
 import { CompetitorsTab } from "../components/dashboard/CompetitorsTab";
 import { MnnEmptyState } from "../components/dashboard/MnnEmptyState";
 import { pushRecentMnn } from "../lib/recentMnn";
@@ -19,13 +20,14 @@ import { Select } from "../components/ui/Select";
 import { UnderlineTabs } from "../components/ui/SidePanel";
 import { ErrorNote, Loading } from "../components/ui/states";
 
-type Tab = "summary" | "competitors" | "structure" | "geo" | "scoring";
+type Tab = "summary" | "competitors" | "structure" | "geo" | "directions" | "scoring";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "summary", label: "Сводка" },
   { value: "competitors", label: "Конкуренты" },
   { value: "structure", label: "Структура" },
   { value: "geo", label: "География" },
+  { value: "directions", label: "Направления" },
   { value: "scoring", label: "Скоринг" },
 ];
 
@@ -247,6 +249,8 @@ function TabContent({
           t={t}
         />
       );
+    case "directions":
+      return <DirectionsTab data={data} t={t} />;
     case "scoring":
       return <ScoringTab data={data} t={t} />;
   }
