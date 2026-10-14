@@ -7,6 +7,7 @@ from sqlalchemy import (
     String,
     Text,
     DateTime,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -116,3 +117,32 @@ class PharmacySourceRun(Base):
     status = Column(String(20), nullable=False, default="running")
     items_count = Column(Integer, nullable=False, default=0)
     error = Column(Text, nullable=True)
+
+
+class MnnDirection(Base):
+    __tablename__ = "mnn_direction"
+    __table_args__ = (
+        UniqueConstraint(
+            "mnn", "lf", "direction", name="uq_mnn_direction_triple",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mnn = Column(String(300), nullable=False, index=True)
+    lf = Column(String(100), nullable=False, index=True)
+    direction = Column(String(100), nullable=False)
+    share = Column(Float, nullable=False)
+
+
+class DirectionImport(Base):
+    __tablename__ = "direction_import"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    filename = Column(String(300), nullable=False)
+    uploaded_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow,
+    )
+    rows_count = Column(Integer, nullable=False, default=0)
+    pairs_count = Column(Integer, nullable=False, default=0)
+    directions_count = Column(Integer, nullable=False, default=0)
+    report_json = Column(Text, nullable=True)
