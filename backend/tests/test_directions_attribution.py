@@ -2,6 +2,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from backend.services import directions
+
 from backend.services.directions import (
     UNALLOCATED,
     attribute_usd,
@@ -85,9 +87,10 @@ def test_zero_usd_pair_produces_no_phantom_money():
     assert rest[2] == pytest.approx(0.0)
 
 
-def test_lf_falls_back_when_lf_avp_empty():
+@pytest.mark.parametrize("empty", [None, "", "  "])
+def test_lf_falls_back_when_lf_avp_empty(empty):
     item = SimpleNamespace(
-        mnn="A", lf_avp=None, lf="TC-TAB",
+        mnn="A", lf_avp=empty, lf="TC-TAB",
         usd_y1=0.0, usd_y2=0.0, usd_y3=100.0,
     )
     dmap = {("A", "TC-TAB"): [("Терапия", 1.0)]}
@@ -102,7 +105,6 @@ def test_unallocated_label_is_russian():
 
 
 async def test_load_direction_map_reads_rows_and_caches(db):
-    invalidate_direction_map()
     db.add_all([
         MnnDirection(mnn="A", lf="TC-TAB", direction="Терапия", share=0.7),
         MnnDirection(mnn="A", lf="TC-TAB", direction="Педиатрия", share=0.3),
@@ -120,3 +122,102 @@ async def test_load_direction_map_reads_rows_and_caches(db):
 
     invalidate_direction_map()
     assert ("B", "D-CRM") in await load_direction_map(db)
+
+
+def test_reconciles_exactly_on_many_awkward_shares():
+    dmap = {
+        ("A", "TC-TAB"): [("Терапия", 0.1), ("Педиатрия", 0.2),
+                          ("ЛОР", 0.7)],
+        ("B", "D-CRM"): [("Дерматология", 0.33), ("Терапия", 0.33),
+                         ("Педиатрия", 0.33)],
+        ("C", "I-VIAL"): [("Онкология", 1.0)],
+    }
+    items = []
+    for i in range(300):
+        items.append(row("A", "TC-TAB", 1234.567 + i, 1000.1 + i, 900.9 + i))
+        items.append(row("B", "D-CRM", 99.99 + i, 88.88 + i, 77.77 + i))
+        items.append(row("C", "I-VIAL", 7.5 + i, 6.5 + i, 5.5 + i))
+        items.append(row("D", "SYR", 3.3 + i, 2.2 + i, 1.1 + i))
+
+    by_dir, rest = attribute_usd(items, dmap)
+
+    for k in range(3):
+        total_in = sum(getattr(i, f"usd_y{k + 1}") for i in items)
+        total_out = sum(v[k] for v in by_dir.values()) + rest[k]
+        assert abs(total_out - total_in) < 1e-6, f"год {k + 1}"
+
+
+def test_shares_over_hundred_are_normalised_not_inflated():
+    dmap = {("A", "TC-TAB"): [("Терапия", 0.7), ("Педиатрия", 0.6)]}
+    by_dir, rest = attribute_usd([row("A", "TC-TAB", 100.0)], dmap)
+
+    assert sum(v[2] for v in by_dir.values()) + rest[2] == pytest.approx(100.0)
+    assert by_dir["Терапия"][2] == pytest.approx(100.0 * 0.7 / 1.3)
+    assert rest[2] == pytest.approx(0.0)
+
+
+def test_none_in_usd_fields_is_treated_as_zero():
+    item = SimpleNamespace(
+        mnn="A", lf_avp="TC-TAB", lf=None,
+        usd_y1=None, usd_y2=None, usd_y3=100.0,
+    )
+    dmap = {("A", "TC-TAB"): [("Терапия", 1.0)]}
+    by_dir, rest = attribute_usd([item], dmap)
+
+    assert by_dir["Терапия"][0] == pytest.approx(0.0)
+    assert by_dir["Терапия"][2] == pytest.approx(100.0)
+
+
+def test_empty_items_returns_empty_result():
+    by_dir, rest = attribute_usd([], {("A", "TC-TAB"): [("Терапия", 1.0)]})
+
+    assert by_dir == {}
+    assert rest == [0.0, 0.0, 0.0]
+
+
+async def test_load_direction_map_normalises_stored_case(db):
+    db.add(MnnDirection(
+        mnn="aspirin", lf="tc-tab", direction="Терапия", share=1.0,
+    ))
+    await db.commit()
+
+    dmap = await load_direction_map(db)
+    assert ("ASPIRIN", "TC-TAB") in dmap
+
+
+def test_invalidate_bumps_generation_and_clears_cache():
+    gen = directions._MAP_GEN
+    directions._MAP_CACHE = {("X", "Y"): [("Терапия", 1.0)]}
+    invalidate_direction_map()
+    assert directions._MAP_CACHE is None
+    assert directions._MAP_GEN == gen + 1
+    invalidate_direction_map()
+    assert directions._MAP_GEN == gen + 2
+
+
+async def test_load_fills_cache(db):
+    db.add(MnnDirection(mnn="A", lf="TC-TAB", direction="Терапия", share=1.0))
+    await db.commit()
+    assert directions._MAP_CACHE is None
+    await load_direction_map(db)
+    assert directions._MAP_CACHE is not None
+
+
+async def test_stale_load_does_not_overwrite_cache_after_invalidation(
+    db, monkeypatch,
+):
+    db.add(MnnDirection(mnn="A", lf="TC-TAB", direction="Терапия", share=1.0))
+    await db.commit()
+
+    real_execute = db.execute
+
+    async def racing_execute(*args, **kwargs):
+        result = await real_execute(*args, **kwargs)
+        invalidate_direction_map()  # заливка справочника посреди чтения
+        return result
+
+    monkeypatch.setattr(db, "execute", racing_execute)
+
+    dmap = await load_direction_map(db)
+    assert ("A", "TC-TAB") in dmap  # запросу отдаётся то, что он прочитал
+    assert directions._MAP_CACHE is None  # но устаревший кеш не записан
