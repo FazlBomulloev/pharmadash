@@ -84,6 +84,9 @@ export default function Sidebar() {
         <NavLink to="/admin" className={navClass}>
           Загрузка данных
         </NavLink>
+        <NavLink to="/directions" className={navClass}>
+          Справочник направлений
+        </NavLink>
       </nav>
     </aside>
   );

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import MarketsPage from "./pages/MarketsPage";
+import DirectionsRefPage from "./pages/DirectionsRefPage";
 import AdminPage from "./pages/AdminPage";
 import MarketDashboardPage from "./pages/MarketDashboardPage";
 import MarketOverviewPage from "./pages/MarketOverviewPage";
@@ -15,6 +16,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<MarketsPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/directions" element={<DirectionsRefPage />} />
           <Route
             path="/market/:marketId/overview"
             element={<MarketOverviewPage />}

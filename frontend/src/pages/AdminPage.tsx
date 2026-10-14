@@ -14,6 +14,7 @@ import { autoMap, bdpFields } from "../lib/bdpFields";
 import { fmtInt, fmtUsd, plural, yearsRange } from "../lib/format";
 import { Page } from "../components/layout/Layout";
 import { Card, PageHeader } from "../components/ui/Card";
+import { DirectionsUploadBlock } from "../components/admin/DirectionsUploadBlock";
 import { Segmented } from "../components/ui/Segmented";
 import { apiErrorText } from "../lib/apiError";
 
@@ -545,6 +546,7 @@ export default function AdminPage() {
           </div>
         </section>
       )}
+      <DirectionsUploadBlock />
     </Page>
   );
 }
