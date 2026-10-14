@@ -156,23 +156,32 @@ def build_overview_directions(
     return out
 
 
+def _cagr(start: float, end: float, periods: int = 2) -> float | None:
+    """Среднегодовой темп за `periods` лет. None, если считать не на чем."""
+    if start <= 0 or end <= 0 or periods <= 0:
+        return None
+    return (end / start) ** (1 / periods) - 1
+
+
+def _share_row(name: str, usd: list[float], total: float) -> dict:
+    return {
+        "name": name,
+        "usd": usd[2],
+        "share": _safe_div(usd[2], total) or 0.0,
+        "growth": _growth(usd[2], usd[1]),
+        "cagr": _cagr(usd[0], usd[2]),
+    }
+
+
 def _share_rows(
     by_dir: dict[str, list[float]], rest: list[float], total: float,
 ) -> list[dict]:
     rows = [
-        {
-            "name": name,
-            "usd": usd[2],
-            "share": _safe_div(usd[2], total) or 0.0,
-        }
+        _share_row(name, usd, total)
         for name, usd in sorted(by_dir.items(), key=lambda x: (-x[1][2], x[0]))
     ]
     if rest[2] > total * NOISE_REL:  # см. build_overview_directions
-        rows.append({
-            "name": UNALLOCATED,
-            "usd": rest[2],
-            "share": _safe_div(rest[2], total) or 0.0,
-        })
+        rows.append(_share_row(UNALLOCATED, rest, total))
     return rows
 
 

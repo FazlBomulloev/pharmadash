@@ -659,6 +659,8 @@ export interface DirectionShareRow {
   name: string;
   share: number;
   usd: number;
+  growth: number | null;
+  cagr: number | null;
 }
 
 export interface MnnDirectionsForm {

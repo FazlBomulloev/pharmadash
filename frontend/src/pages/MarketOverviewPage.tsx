@@ -211,9 +211,6 @@ export default function MarketOverviewPage() {
             onPick={(name) => setPanel({ kind: "direction", name })}
             index={5}
           />
-        </section>
-
-        <section className="flex flex-wrap gap-6">
           <CountriesCard
             countries={portfolio.countries}
             yearLabels={volume.years_labels}
@@ -221,6 +218,9 @@ export default function MarketOverviewPage() {
             onPick={(name) => setPanel({ kind: "country", name })}
             index={6}
           />
+        </section>
+
+        <section className="flex flex-wrap gap-6">
           <ProducersCard
             producers={portfolio.top_producers}
             hhi={portfolio.hhi}

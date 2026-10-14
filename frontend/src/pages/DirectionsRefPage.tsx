@@ -11,10 +11,22 @@ import { Pagination } from "../components/ui/Pagination";
 import { Select } from "../components/ui/Select";
 import { EmptyCard, ErrorNote, Loading } from "../components/ui/states";
 
+const REF_ROW =
+  "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,0.9fr)_64px] gap-3";
+
 export default function DirectionsRefPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [draft, setDraft] = useState(searchParams.get("q") ?? "");
   const q = useDebounce(draft, 300);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
 
   const direction = searchParams.get("direction") ?? "";
   const lf = searchParams.get("lf") ?? "";
@@ -110,30 +122,40 @@ export default function DirectionsRefPage() {
 
       {rows.data && (
         <div
-          className="flex flex-col rounded-card bg-surface transition-opacity duration-200"
+          className="flex w-full max-w-[1080px] flex-col rounded-card bg-surface transition-opacity duration-200"
           style={rows.loading ? { opacity: 0.55 } : undefined}
         >
-          <div className="grid grid-cols-[minmax(0,2fr)_110px_minmax(0,1fr)_80px] gap-3 px-4 pb-2 pt-4 text-[11px] text-faint">
-            <span>МНН</span>
+          <div className={`${REF_ROW} px-4 pb-1.5 pt-3.5 text-[11px] text-faint`}>
+            <span>МНН · двойной клик раскроет полностью</span>
             <span>ЛФ</span>
             <span>Направление</span>
             <span className="text-right">Доля</span>
           </div>
-          {rows.data.items.map((r) => (
-            <div
-              key={`${r.mnn}|${r.lf}|${r.direction}`}
-              className="grid grid-cols-[minmax(0,2fr)_110px_minmax(0,1fr)_80px] items-center gap-3 border-t border-[#f3f3f0] px-4 py-2 text-sm"
-            >
-              <span className="truncate" title={r.mnn}>{r.mnn}</span>
-              <span className="text-[13px] text-muted-2">{r.lf}</span>
-              <span className="truncate" title={r.direction}>
-                {r.direction}
-              </span>
-              <span className="text-right font-medium">
-                {fmtShare(r.share)}
-              </span>
-            </div>
-          ))}
+          {rows.data.items.map((r) => {
+            const id = `${r.mnn}|${r.lf}|${r.direction}`;
+            const open = expanded.has(id);
+            return (
+              <div
+                key={id}
+                onDoubleClick={() => toggle(id)}
+                className={`${REF_ROW} cursor-default select-none items-baseline border-t border-[#f3f3f0] px-4 py-[5px] text-[13px] hover:bg-[#f7f7f4]`}
+              >
+                <span
+                  className={open ? "break-words" : "truncate"}
+                  title={open ? undefined : r.mnn}
+                >
+                  {r.mnn}
+                </span>
+                <span className="text-muted-2">{r.lf}</span>
+                <span className="truncate" title={r.direction}>
+                  {r.direction}
+                </span>
+                <span className="text-right font-medium">
+                  {fmtShare(r.share)}
+                </span>
+              </div>
+            );
+          })}
           {rows.data.items.length === 0 && (
             <span className="px-4 py-6 text-sm text-faint">
               Ничего не найдено

@@ -6,7 +6,7 @@ import { growthTone } from "../../lib/palette";
 import { HeatCell } from "../ui/bars";
 import { Card, CardTitle } from "../ui/Card";
 
-const TOP = 15;
+const TOP = 10;
 const OTHER_NAME = "Прочие направления";
 
 const sumNullable = (values: (number | null)[]): number | null =>
@@ -27,7 +27,8 @@ function mergeTail(tail: DirectionOverviewRow[]): DirectionOverviewRow {
   };
 }
 
-const GRID = "grid grid-cols-[minmax(0,1fr)_92px_repeat(3,56px)_64px] gap-2.5";
+const GRID =
+  "grid grid-cols-[minmax(80px,1fr)_72px_repeat(3,minmax(40px,56px))_52px] gap-1";
 
 export function DirectionsCard({
   rows, yearLabels, selected, onPick, index,
@@ -44,18 +45,11 @@ export function DirectionsCard({
   const tail = directions.slice(TOP);
   const visible = all || tail.length === 0
     ? [...directions, ...unalloc]
-    : [
-        ...directions.slice(0, TOP),
-        mergeTail(tail),
-        ...unalloc,
-      ];
+    : [...directions.slice(0, TOP), mergeTail(tail), ...unalloc];
 
   return (
-    <Card index={index} className="flex flex-1 flex-col gap-1.5">
-      <CardTitle
-        note="оценка по долям назначений · клик — детальный анализ"
-        className="pb-2"
-      >
+    <Card index={index} className="flex flex-[1_1_400px] flex-col gap-1.5">
+      <CardTitle note="доля USD, % · клик — детальный анализ" className="pb-2">
         Направления
       </CardTitle>
 
@@ -79,7 +73,7 @@ export function DirectionsCard({
             const body = (
               <>
                 <span className="truncate" title={r.name}>{r.name}</span>
-                <span className="text-right text-[13px] font-medium">
+                <span className="whitespace-nowrap text-right text-[13px]">
                   {fmtUsd(r.usd)}
                 </span>
                 {r.shares_by_year.map((s, i) => (
@@ -96,7 +90,7 @@ export function DirectionsCard({
             const base = clsx(
               GRID,
               "-mx-1.5 items-center rounded-row px-1.5 py-0.5 text-left text-sm",
-              r.kind === "direction" ? "text-fg" : "text-muted-2 italic",
+              clickable ? "text-fg" : "text-muted-2 italic",
             );
             return clickable ? (
               <button
@@ -119,7 +113,7 @@ export function DirectionsCard({
             <button
               type="button"
               onClick={() => setAll((v) => !v)}
-              className="mt-1.5 w-fit border-0 bg-transparent px-1.5 py-1 text-[13px] font-medium text-accent hover:text-accent-hover"
+              className="mt-1 w-fit border-0 bg-transparent px-1.5 py-1 text-[13px] font-medium text-accent hover:text-accent-hover"
             >
               {all ? "Свернуть" : `Показать все ${directions.length}`}
             </button>
