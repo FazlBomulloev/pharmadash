@@ -107,6 +107,7 @@ def attribute_usd(
 
 OTHER = "Прочие направления"
 OVERVIEW_TOP_N = 15
+NOISE_REL = 1e-9  # относительный порог показа остатка
 
 
 def _safe_div(num: float, den: float) -> float | None:
@@ -153,7 +154,11 @@ def build_overview_directions(
         merged = [sum(usd[k] for _, usd in tail) for k in range(3)]
         out.append(_row(OTHER, merged, totals, "other"))
 
-    if rest[2] > 0:
+    # Порог отсекает шум float: при суммах долей ровно 100% невязка может
+    # дать около 1e-14, и строка «Не распределено $0 · 0%» выглядела бы
+    # как дефект продукта. Инвариант сходимости при этом не меняется —
+    # порог влияет только на отображение.
+    if rest[2] > totals[2] * NOISE_REL:
         out.append(_row(UNALLOCATED, rest, totals, "unallocated"))
 
     return out
@@ -170,7 +175,7 @@ def _share_rows(
         }
         for name, usd in sorted(by_dir.items(), key=lambda x: (-x[1][2], x[0]))
     ]
-    if rest[2] > 0:
+    if rest[2] > total * NOISE_REL:  # см. build_overview_directions
         rows.append({
             "name": UNALLOCATED,
             "usd": rest[2],

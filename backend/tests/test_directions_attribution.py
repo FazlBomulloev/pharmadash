@@ -1,3 +1,4 @@
+import random
 from types import SimpleNamespace
 
 import pytest
@@ -351,3 +352,46 @@ def test_direction_detail_normalises_shares_over_100_percent():
 
     assert out["kpi"]["usd_y3"] == pytest.approx(50.0)
     assert out["pairs"][0]["share_in_pair"] == pytest.approx(0.5)
+
+
+def test_float_noise_does_not_produce_phantom_unallocated_row():
+    # Доли в сумме ровно 1.0, но невязка даёт шум порядка 1e-14
+    dmap = {
+        ("A", "TC-TAB"): [("Терапия", 0.1), ("Педиатрия", 0.2),
+                          ("ЛОР", 0.7)],
+    }
+    rng = random.Random(1)  # фиксированное зерно: шум воспроизводим
+    items = [row("A", "TC-TAB", rng.random() * 1000, rng.random() * 1000,
+                 rng.random() * 1000) for _ in range(200)]
+
+    out = build_overview_directions(items, dmap, top_n=5)
+
+    assert all(o["kind"] != "unallocated" for o in out), (
+        f"фантомная строка остатка: "
+        f"{[(o['name'], o['usd']) for o in out if o['kind'] == 'unallocated']}"
+    )
+
+
+def test_real_unallocated_amount_still_shown():
+    dmap = {("A", "TC-TAB"): [("Терапия", 1.0)]}
+    items = [row("A", "TC-TAB", 100.0, 100.0, 100.0),
+             row("B", "SYR", 5.0, 5.0, 5.0)]
+
+    out = build_overview_directions(items, dmap, top_n=5)
+    rest_row = next(o for o in out if o["kind"] == "unallocated")
+
+    assert rest_row["usd"] == pytest.approx(5.0)
+
+
+def test_mnn_directions_float_noise_does_not_produce_phantom_row():
+    dmap = {
+        ("A", "TC-TAB"): [("Терапия", 0.1), ("Педиатрия", 0.2),
+                          ("ЛОР", 0.7)],
+    }
+    rng = random.Random(1)  # фиксированное зерно: шум воспроизводим
+    items = [row("A", "TC-TAB", rng.random() * 1000, rng.random() * 1000,
+                 rng.random() * 1000) for _ in range(200)]
+
+    out = build_mnn_directions(items, dmap)
+
+    assert all(r["name"] != UNALLOCATED for r in out["total"]["rows"])
