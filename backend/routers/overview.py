@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session, get_db
 from backend.models import Market, BdpRaw
+from backend.services.directions import (
+    build_overview_directions, load_direction_map,
+)
 from backend.services.market_scoring import (
     get_market_scoring,
     market_settings,
@@ -477,6 +480,8 @@ async def _compute_overview(
 
     home = {c.strip().upper() for c in market_settings(market).home_countries}
     portfolio = _build_portfolio(bdp_items, home)
+    dmap = await load_direction_map(db)
+    portfolio["directions"] = build_overview_directions(bdp_items, dmap)
     volume = _build_volume(bdp_items, shifted_year_list)
     volume["series"] = _build_series(
         _apply_filters(raw_rows, sector, atc3), years,

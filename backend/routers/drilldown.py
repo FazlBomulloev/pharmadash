@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
 from backend.models import Market, BdpRaw
+from backend.services.directions import (
+    build_direction_detail, load_direction_map,
+)
 
 
 log = logging.getLogger(__name__)
@@ -680,3 +683,33 @@ async def country_mnn_scope(
         "mnn_portfolio": None,
         "forms_breakdown": _country_forms_breakdown(items),
     }
+
+
+@router.get("/{market_id}/direction/{direction_name:path}")
+async def direction_market_scope(
+    market_id: int,
+    direction_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    market = await db.get(Market, market_id)
+    if not market:
+        raise HTTPException(404, "Рынок не найден")
+
+    name = direction_name.strip()
+    dmap = await load_direction_map(db)
+    known = {d for pairs in dmap.values() for d, _ in pairs}
+    if name not in known:
+        raise HTTPException(
+            404, f"Направление «{name}» не найдено в справочнике",
+        )
+
+    items = (
+        await db.execute(
+            select(*BDP_COLS).where(BdpRaw.market_id == market_id)
+        )
+    ).all()
+    total = await _market_total_usd_y3(db, market_id)
+
+    detail = build_direction_detail(items, dmap, name, total)
+    detail["years_labels"] = _years_labels(market)
+    return detail

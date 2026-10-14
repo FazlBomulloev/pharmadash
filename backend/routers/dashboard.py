@@ -18,6 +18,9 @@ from backend.database import get_db
 from backend.models import Market, BdpRaw
 from backend.routers.overview import build_movers
 from backend.services.bdp_keys import EMPTY_KEY, dose_key, form_key
+from backend.services.directions import (
+    build_mnn_directions, load_direction_map,
+)
 from backend.services.market_scoring import (
     get_market_scoring,
     mnn_scoring_item,
@@ -206,6 +209,8 @@ async def dashboard(
         "thresholds": scoring["settings"]["thresholds"],
         "stop": scoring["settings"]["stop"],
     }
+    dmap = await load_direction_map(db)
+    directions = build_mnn_directions(items, dmap)
 
     payload = {
         "mnn": real_mnn,
@@ -225,6 +230,7 @@ async def dashboard(
         "zone1": zone1,
         "zone2": zone2,
         "zone3": zone3,
+        "directions": directions,
     }
     body = json.dumps(
         jsonable_encoder(payload), ensure_ascii=False,

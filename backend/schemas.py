@@ -115,6 +115,7 @@ class OverviewPortfolio(BaseModel):
     top3_share: float | None
     atc_distribution: list[dict]
     countries: list[dict]
+    directions: list[dict] = []
 
 
 class ProducerKpi(BaseModel):
@@ -260,3 +261,12 @@ class DirectionRowsResponse(BaseModel):
     total: int
     page: int
     per_page: int
+
+
+class DirectionOverviewItem(BaseModel):
+    name: str
+    usd: float
+    share: float | None
+    shares_by_year: list[float | None]
+    growth: float | None
+    kind: str
