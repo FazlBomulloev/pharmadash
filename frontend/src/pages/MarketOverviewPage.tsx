@@ -9,8 +9,10 @@ import { Page } from "../components/layout/Layout";
 import {
   AtcCard, CountriesCard, MoversCard, ProducersCard, ScoringCard, TopMnnCard,
 } from "../components/overview/OverviewCards";
+import { DirectionsCard } from "../components/overview/DirectionsCard";
 import { OverviewHero, type HeroMode } from "../components/overview/OverviewHero";
 import { CountryPanel } from "../components/panels/CountryPanel";
+import { DirectionPanel } from "../components/panels/DirectionPanel";
 import { ProducerPanel } from "../components/panels/ProducerPanel";
 import { PageHeader } from "../components/ui/Card";
 import { Segmented } from "../components/ui/Segmented";
@@ -55,6 +57,7 @@ function writeUrl(s: UrlState): Record<string, string> {
 type Panel =
   | { kind: "country"; name: string }
   | { kind: "producer"; name: string; isHome: boolean }
+  | { kind: "direction"; name: string }
   | null;
 
 export default function MarketOverviewPage() {
@@ -201,19 +204,29 @@ export default function MarketOverviewPage() {
         </section>
 
         <section className="flex flex-wrap gap-6">
+          <DirectionsCard
+            rows={portfolio.directions}
+            yearLabels={volume.years_labels}
+            selected={panel?.kind === "direction" ? panel.name : null}
+            onPick={(name) => setPanel({ kind: "direction", name })}
+            index={5}
+          />
+        </section>
+
+        <section className="flex flex-wrap gap-6">
           <CountriesCard
             countries={portfolio.countries}
             yearLabels={volume.years_labels}
             selected={panel?.kind === "country" ? panel.name : null}
             onPick={(name) => setPanel({ kind: "country", name })}
-            index={5}
+            index={6}
           />
           <ProducersCard
             producers={portfolio.top_producers}
             hhi={portfolio.hhi}
             selected={panel?.kind === "producer" ? panel.name : null}
             onPick={pickProducer}
-            index={6}
+            index={7}
           />
         </section>
       </div>
@@ -223,6 +236,14 @@ export default function MarketOverviewPage() {
           key={panel.name}
           marketId={id}
           country={panel.name}
+          onClose={() => setPanel(null)}
+        />
+      )}
+      {panel?.kind === "direction" && (
+        <DirectionPanel
+          key={panel.name}
+          marketId={id}
+          direction={panel.name}
           onClose={() => setPanel(null)}
         />
       )}
