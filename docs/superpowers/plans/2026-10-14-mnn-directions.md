@@ -19,6 +19,11 @@
 - Миграций в проекте нет: новые таблицы создаются через `Base.metadata.create_all` в `init_db()`. Для добавления колонок в существующие таблицы есть список `_MIGRATIONS` в `backend/database.py` — в этой работе он не нужен.
 - Загружается только лист `Длинный формат`. Лист `Лист1` не используется.
 - Все команды бекенда запускаются из корня репозитория, модули импортируются как `backend.<...>`.
+- Зависимости бекенда живут в `.venv`, а не в системном Python. Любая
+  команда Python для бекенда вызывается как `./.venv/Scripts/python.exe`:
+  системный интерпретатор не видит ни fastapi, ни sqlalchemy.
+- В `.venv` уже стоят pytest 9.1.1, pytest-asyncio 1.4.0 и httpx 0.28.1.
+  Ничего не доустанавливать и не понижать версии.
 - Подпись «оценка по долям назначений» обязательна везде, где показываются деньги направлений. Доли в справочнике — доли назначений, а не выручки.
 
 ## Review Focus
@@ -75,20 +80,24 @@
 - Consumes: ничего
 - Produces: модели `MnnDirection` (поля `id: int`, `mnn: str`, `lf: str`, `direction: str`, `share: float`) и `DirectionImport` (поля `id: int`, `filename: str`, `uploaded_at: datetime`, `rows_count: int`, `pairs_count: int`, `directions_count: int`, `report_json: str`); фикстура pytest `db` типа `AsyncSession`
 
-- [ ] **Step 1: Добавить pytest в зависимости**
+- [ ] **Step 1: Зафиксировать тестовые зависимости**
 
-В конец `backend/requirements.txt` дописать:
+Пакеты уже установлены в `.venv` — ставить ничего не нужно. Зафиксировать
+фактические версии в конце `backend/requirements.txt`:
 
 ```
-pytest==8.3.4
-pytest-asyncio==0.25.0
+pytest==9.1.1
+pytest-asyncio==1.4.0
 ```
 
-Установить:
+Проверить, что версии совпадают с установленными:
 
 ```bash
-pip install pytest==8.3.4 pytest-asyncio==0.25.0
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -c "import pytest, pytest_asyncio; print(pytest.__version__, pytest_asyncio.__version__)"
 ```
+
+Ожидается: `9.1.1 1.4.0`. Если версии другие — записать в
+`requirements.txt` фактические, а не эти.
 
 - [ ] **Step 2: Написать падающий тест на модели**
 
@@ -173,7 +182,7 @@ async def test_direction_import_stores_report(db):
 - [ ] **Step 3: Запустить тест и убедиться, что падает**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_models_directions.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_models_directions.py -v
 ```
 
 Ожидается: FAIL с `ImportError: cannot import name 'MnnDirection' from 'backend.models'`.
@@ -230,27 +239,20 @@ from sqlalchemy import (
 - [ ] **Step 5: Запустить тест и убедиться, что проходит**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_models_directions.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_models_directions.py -v
 ```
 
 Ожидается: 3 passed.
 
-- [ ] **Step 6: Настроить pytest-asyncio, чтобы не ругался на режим**
+- [ ] **Step 6: Коммит**
 
-Создать `backend/pytest.ini`:
-
-```ini
-[pytest]
-asyncio_mode = auto
-asyncio_default_fixture_loop_scope = function
-```
-
-Перезапустить `python -m pytest backend/tests -v` из корня репозитория — 3 passed без предупреждений о `asyncio_mode`.
-
-- [ ] **Step 7: Коммит**
+`pytest.ini` в корне репозитория уже создан контроллером и проверен —
+`testpaths = backend/tests`, `asyncio_mode = auto`,
+`asyncio_default_fixture_loop_scope = function`. Отдельный
+`backend/pytest.ini` не нужен, создавать его не надо.
 
 ```bash
-git add backend/models.py backend/requirements.txt backend/tests backend/pytest.ini
+git add backend/models.py backend/requirements.txt backend/tests pytest.ini
 git commit -m "Add mnn_direction and direction_import tables with test harness"
 ```
 
@@ -406,7 +408,7 @@ async def test_load_direction_map_reads_rows_and_caches(db):
 - [ ] **Step 2: Запустить тесты и убедиться, что падают**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_attribution.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_attribution.py -v
 ```
 
 Ожидается: FAIL с `ModuleNotFoundError: No module named 'backend.services.directions'`.
@@ -503,7 +505,7 @@ def attribute_usd(
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_attribution.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_attribution.py -v
 ```
 
 Ожидается: 12 passed.
@@ -534,16 +536,27 @@ git commit -m "Add direction attribution core with exact reconciliation"
 
 - [ ] **Step 1: Написать падающие тесты**
 
-Дописать в конец `backend/tests/test_directions_attribution.py`:
+Сначала дополнить существующий верхний блок импортов в
+`backend/tests/test_directions_attribution.py` — он становится таким:
 
 ```python
 from backend.services.directions import (
+    UNALLOCATED,
+    attribute_usd,
     build_direction_detail,
     build_mnn_directions,
     build_overview_directions,
+    invalidate_direction_map,
+    load_direction_map,
+    pair_key,
 )
+```
 
+Второй блок `import` в середине файла не создавать.
 
+Затем дописать тесты в конец файла:
+
+```python
 def test_overview_directions_sorted_with_tail_rows():
     dmap = {
         ("A", "TC-TAB"): [("Терапия", 1.0)],
@@ -665,7 +678,7 @@ def test_direction_detail_unknown_name_is_empty_not_error():
 - [ ] **Step 2: Запустить тесты и убедиться, что падают**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_attribution.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_attribution.py -v
 ```
 
 Ожидается: FAIL с `ImportError: cannot import name 'build_overview_directions'`.
@@ -855,7 +868,7 @@ def build_direction_detail(
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_attribution.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_attribution.py -v
 ```
 
 Ожидается: 21 passed.
@@ -1028,7 +1041,7 @@ def test_share_above_hundred_is_clamped_out(tmp_path):
 - [ ] **Step 2: Запустить тесты и убедиться, что падают**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_parser.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_parser.py -v
 ```
 
 Ожидается: FAIL с `ModuleNotFoundError: No module named 'backend.services.parsers.directions_parser'`.
@@ -1153,7 +1166,7 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
 - [ ] **Step 4: Запустить тесты и убедиться, что проходят**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_parser.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_parser.py -v
 ```
 
 Ожидается: 9 passed.
@@ -1352,7 +1365,7 @@ async def test_rows_paginates_and_filters(client):
 - [ ] **Step 2: Запустить тесты и убедиться, что падают**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_api.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_api.py -v
 ```
 
 Ожидается: FAIL — эндпоинтов нет, ответ 404.
@@ -1614,7 +1627,7 @@ app.include_router(directions.router, prefix="/api")
 - [ ] **Step 7: Запустить тесты и убедиться, что проходят**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
 Ожидается: 38 passed.
@@ -1692,7 +1705,7 @@ def test_scoring_query_sorts_without_direction():
 - [ ] **Step 2: Запустить тест и убедиться, что падает**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_scoring_direction_removed.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_scoring_direction_removed.py -v
 ```
 
 Ожидается: FAIL — `directions` пока есть в `model_fields`.
@@ -1768,7 +1781,7 @@ class DirectionDictionary(BaseModel):
 - [ ] **Step 7: Запустить все тесты**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
 Ожидается: 43 passed.
@@ -1784,7 +1797,7 @@ cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && grep -rn "direction" backend/ --
 - [ ] **Step 9: Поднять сервер и убедиться, что скоринг отвечает**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m uvicorn backend.main:app --port 8010 &
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m uvicorn backend.main:app --port 8010 &
 sleep 6
 curl -s "http://127.0.0.1:8010/api/markets/1/scoring?per_page=3" | head -c 600
 ```
@@ -1970,7 +1983,7 @@ async def test_direction_panel_unknown_name_is_404(client):
 - [ ] **Step 2: Запустить тесты и убедиться, что падают**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests/test_directions_integration.py -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_integration.py -v
 ```
 
 Ожидается: FAIL — ключа `directions` нет, эндпоинт панели отдаёт 404 на все имена.
@@ -2086,7 +2099,7 @@ async def direction_market_scope(
 - [ ] **Step 7: Запустить тесты и убедиться, что проходят**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
 Ожидается: 51 passed.
@@ -2094,10 +2107,10 @@ cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests -
 - [ ] **Step 8: Проверить на реальных данных**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m uvicorn backend.main:app --port 8010 &
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m uvicorn backend.main:app --port 8010 &
 sleep 6
 curl -s -F "file=@C:/Users/B Fazliddin/Dropbox/Data Analytics_2025/Шаблоны/Направления/Направления_01.xlsx" http://127.0.0.1:8010/api/directions/upload
-curl -s "http://127.0.0.1:8010/api/markets/1/overview" | python -c "
+curl -s "http://127.0.0.1:8010/api/markets/1/overview" | ./.venv/Scripts/python.exe -c "
 import json, sys
 d = json.load(sys.stdin)
 rows = d['portfolio']['directions']
@@ -2125,6 +2138,12 @@ git commit -m "Expose directions in overview, MNN dashboard and drilldown panel"
 ---
 
 ## Task 8: Типы и клиент API на фронтенде
+
+> **Исполняется вместе с задачей 9, одним коммитом.** Удаление поля
+> `direction` из типов ломает сборку в четырёх файлах, а починка стоит в
+> задаче 9 — отдельный коммит задачи 8 оставил бы в истории ветки заведомо
+> нерабочую сборку. Шаг 3 ниже поэтому не ожидает зелёной сборки: он
+> перечисляет ожидаемые ошибки, которые закрывает задача 9.
 
 **Files:**
 - Modify: `frontend/src/types/api.ts`
@@ -2325,16 +2344,16 @@ cd "C:/Users/B Fazliddin/Desktop/Pharmadash/frontend" && npm run build
 `OverviewCards.tsx`, `MarketScoringPage.tsx`. Они закрываются в задаче 9.
 Если ошибок больше, исправить расхождение типов здесь.
 
-- [ ] **Step 4: Коммит**
+- [ ] **Step 4: Коммита здесь нет**
 
-```bash
-git add frontend/src/types/api.ts frontend/src/api/client.ts
-git commit -m "Add directions types and API client functions"
-```
+Переходи к задаче 9 в том же диспатче. Коммит один, в конце задачи 9.
 
 ---
 
 ## Task 9: Удаление старого направления из интерфейса
+
+> **Исполняется вместе с задачей 8, одним коммитом.** См. пометку у задачи 8.
+> Коммит делается один раз, в конце задачи 9, и включает файлы обеих задач.
 
 **Files:**
 - Modify: `frontend/src/components/scoring/ScoringTable.tsx:36`
@@ -2407,8 +2426,8 @@ cd "C:/Users/B Fazliddin/Desktop/Pharmadash/frontend" && grep -rn "\.direction\b
 - [ ] **Step 7: Коммит**
 
 ```bash
-git add frontend/src/components/scoring/ScoringTable.tsx frontend/src/components/dashboard/MnnHero.tsx frontend/src/components/overview/OverviewCards.tsx frontend/src/pages/MarketScoringPage.tsx
-git commit -m "Drop class-derived direction from the UI"
+git add frontend/src/types/api.ts frontend/src/api/client.ts frontend/src/components/scoring/ScoringTable.tsx frontend/src/components/dashboard/MnnHero.tsx frontend/src/components/overview/OverviewCards.tsx frontend/src/pages/MarketScoringPage.tsx
+git commit -m "Add directions types and drop class-derived direction from the UI"
 ```
 
 ---
@@ -2417,6 +2436,7 @@ git commit -m "Drop class-derived direction from the UI"
 
 **Files:**
 - Create: `frontend/src/pages/DirectionsRefPage.tsx`
+- Create: `frontend/src/components/admin/DirectionsUploadBlock.tsx`
 - Modify: `frontend/src/App.tsx`
 - Modify: `frontend/src/components/layout/Sidebar.tsx`
 - Modify: `frontend/src/pages/AdminPage.tsx`
@@ -2610,18 +2630,23 @@ import DirectionsRefPage from "./pages/DirectionsRefPage";
         </NavLink>
 ```
 
-- [ ] **Step 4: Добавить блок заливки в AdminPage**
+- [ ] **Step 4: Создать блок заливки отдельным компонентом**
 
-В `frontend/src/pages/AdminPage.tsx` добавить импорты:
-
-```tsx
-import { getDirectionsMeta, uploadDirectionsFile } from "../api/client";
-import type { DirectionUploadReport } from "../types/api";
-```
-
-Добавить в файл компонент (вне основного, в конце файла):
+Создать `frontend/src/components/admin/DirectionsUploadBlock.tsx`. Отдельный
+файл, а не экспорт из `AdminPage.tsx`: страница уже 839 строк, а экспорт
+второго компонента из файла страницы в этом проекте уже ловил ошибку линтера
+`react-refresh/only-export-components`.
 
 ```tsx
+import { useEffect, useState } from "react";
+import { Upload } from "lucide-react";
+import { getDirectionsMeta, uploadDirectionsFile } from "../../api/client";
+import type { DirectionUploadReport } from "../../types/api";
+import { apiErrorText } from "../../lib/apiError";
+import { fmtInt } from "../../lib/format";
+import { Card, CardTitle } from "../ui/Card";
+import { ErrorNote } from "../ui/states";
+
 export function DirectionsUploadBlock() {
   const [report, setReport] = useState<DirectionUploadReport | null>(null);
   const [error, setError] = useState("");
@@ -2717,19 +2742,17 @@ function Stat({
 }
 ```
 
-Отрендерить `<DirectionsUploadBlock />` в разметке `AdminPage` под существующим визардом, вне его шагов.
+- [ ] **Step 5: Подключить блок к AdminPage**
 
-- [ ] **Step 5: Дополнить импорты AdminPage**
-
-`AdminPage.tsx` уже импортирует `useEffect`, `useState`, `Upload`, `Card`,
-`PageHeader`, `fmtInt` и `apiErrorText`. Не хватает двух — добавить:
+В `frontend/src/pages/AdminPage.tsx` добавить импорт:
 
 ```tsx
-import { Card, CardTitle, PageHeader } from "../components/ui/Card";
-import { ErrorNote } from "../components/ui/states";
+import { DirectionsUploadBlock } from "../components/admin/DirectionsUploadBlock";
 ```
 
-Первая строка заменяет существующий импорт из `Card`, вторая добавляется.
+Отрендерить `<DirectionsUploadBlock />` в разметке страницы под существующим
+пятишаговым визардом, вне его шагов. Больше в `AdminPage.tsx` ничего менять не
+нужно.
 
 - [ ] **Step 6: Собрать, прогнать линтер и посмотреть глазами**
 
@@ -2745,7 +2768,7 @@ cd "C:/Users/B Fazliddin/Desktop/Pharmadash/frontend" && npm run build && npm ru
 - [ ] **Step 7: Коммит**
 
 ```bash
-git add frontend/src/pages/DirectionsRefPage.tsx frontend/src/App.tsx frontend/src/components/layout/Sidebar.tsx frontend/src/pages/AdminPage.tsx
+git add frontend/src/pages/DirectionsRefPage.tsx frontend/src/components/admin/DirectionsUploadBlock.tsx frontend/src/App.tsx frontend/src/components/layout/Sidebar.tsx frontend/src/pages/AdminPage.tsx
 git commit -m "Add directions reference page and upload block"
 ```
 
@@ -3313,7 +3336,7 @@ git commit -m "Add directions tab to MNN dashboard"
 - [ ] **Step 1: Прогнать весь бекенд-тестовый набор**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m pytest backend/tests -v
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
 Ожидается: 51 passed, 0 failed.
@@ -3329,9 +3352,9 @@ cd "C:/Users/B Fazliddin/Desktop/Pharmadash/frontend" && npm run build && npm ru
 - [ ] **Step 3: Сверить цифры с таблицей «Результат на рынке 1» из спеки**
 
 ```bash
-cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && python -m uvicorn backend.main:app --port 8010 &
+cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m uvicorn backend.main:app --port 8010 &
 sleep 6
-curl -s "http://127.0.0.1:8010/api/markets/1/overview" | python -c "
+curl -s "http://127.0.0.1:8010/api/markets/1/overview" | ./.venv/Scripts/python.exe -c "
 import json, sys
 d = json.load(sys.stdin)
 rows = d['portfolio']['directions']
