@@ -508,7 +508,7 @@ def attribute_usd(
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_attribution.py -v
 ```
 
-Ожидается: 12 passed.
+Ожидается: 11 passed.
 
 - [ ] **Step 5: Коммит**
 
@@ -871,7 +871,7 @@ def build_direction_detail(
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_attribution.py -v
 ```
 
-Ожидается: 21 passed.
+Ожидается: 19 passed.
 
 - [ ] **Step 5: Коммит**
 
@@ -1036,7 +1036,25 @@ def test_share_above_hundred_is_clamped_out(tmp_path):
 
     assert rows == []
     assert report["rows_skipped"] == 1
+
+
+def test_pair_whose_shares_exceed_hundred_is_dropped(tmp_path):
+    path = make_file(tmp_path, SHEET_NAME, [
+        ("A", "TC-TAB", "Терапия", 0.7),
+        ("A", "TC-TAB", "Педиатрия", 0.6),
+        ("B", "TC-TAB", "Терапия", 1.0),
+    ])
+    rows, report = parse_directions(path)
+
+    assert [r["mnn"] for r in rows] == ["B"]
+    assert report["pairs_over_100"] == 1
+    assert report["pairs_count"] == 1
+    assert report["rows_accepted"] == 1
 ```
+
+Пара `A / TC-TAB` даёт в сумме 130% и отбрасывается целиком: при сумме долей
+выше 100% ветки недобора нет, и инвариант сходимости сломался бы в сторону
+раздувания рынка. USD такой пары честно уходит в «Не распределено».
 
 - [ ] **Step 2: Запустить тесты и убедиться, что падают**
 
@@ -1143,6 +1161,18 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
         key = (r["mnn"], r["lf"])
         pair_shares[key] = pair_shares.get(key, 0.0) + r["share"]
 
+    # Пара с суммой долей выше 100% ломает инвариант сходимости в сторону
+    # раздувания рынка: недобора у неё нет, а переизбыток попал бы в итог
+    # лишними деньгами. Отбрасываем целиком, её USD уйдёт в «Не распределено».
+    over = {k for k, v in pair_shares.items() if v > 1.0 + 1e-6}
+    if over:
+        rows = [r for r in rows if (r["mnn"], r["lf"]) not in over]
+        rows_skipped += sum(
+            1 for r in accepted.values() if (r["mnn"], r["lf"]) in over
+        )
+        for k in over:
+            pair_shares.pop(k, None)
+
     report = {
         "sheet": sheet,
         "rows_read": rows_read,
@@ -1154,12 +1184,17 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
         "pairs_incomplete": sum(
             1 for s in pair_shares.values() if abs(s - 1.0) > 1e-6
         ),
+        "pairs_over_100": len(over),
     }
     log.info(
         "Справочник направлений разобран: лист «%s», принято %d строк, "
         "отброшено %d, пар %d",
         sheet, report["rows_accepted"], rows_skipped, report["pairs_count"],
     )
+    if over:
+        log.warning(
+            "Отброшено %d пар с суммой долей выше 100%%", len(over),
+        )
     return rows, report
 ```
 
@@ -1169,7 +1204,7 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_parser.py -v
 ```
 
-Ожидается: 9 passed.
+Ожидается: 10 passed.
 
 - [ ] **Step 5: Коммит**
 
@@ -1630,7 +1665,7 @@ app.include_router(directions.router, prefix="/api")
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
-Ожидается: 38 passed.
+Ожидается: 39 passed.
 
 - [ ] **Step 8: Коммит**
 
@@ -1784,7 +1819,7 @@ class DirectionDictionary(BaseModel):
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
-Ожидается: 43 passed.
+Ожидается: 44 passed.
 
 - [ ] **Step 8: Проверить, что в бекенде не осталось ссылок**
 
@@ -2102,7 +2137,7 @@ async def direction_market_scope(
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
-Ожидается: 51 passed.
+Ожидается: 52 passed.
 
 - [ ] **Step 8: Проверить на реальных данных**
 
