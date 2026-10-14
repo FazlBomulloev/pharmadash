@@ -7,6 +7,9 @@ from backend.services import directions
 from backend.services.directions import (
     UNALLOCATED,
     attribute_usd,
+    build_direction_detail,
+    build_mnn_directions,
+    build_overview_directions,
     invalidate_direction_map,
     load_direction_map,
     pair_key,
@@ -221,3 +224,130 @@ async def test_stale_load_does_not_overwrite_cache_after_invalidation(
     dmap = await load_direction_map(db)
     assert ("A", "TC-TAB") in dmap  # запросу отдаётся то, что он прочитал
     assert directions._MAP_CACHE is None  # но устаревший кеш не записан
+
+
+def test_overview_directions_sorted_with_tail_rows():
+    dmap = {
+        ("A", "TC-TAB"): [("Терапия", 1.0)],
+        ("B", "TC-TAB"): [("Педиатрия", 1.0)],
+        ("C", "TC-TAB"): [("ЛОР", 1.0)],
+    }
+    items = [
+        row("A", "TC-TAB", 300.0, 100.0, 200.0),
+        row("B", "TC-TAB", 200.0, 100.0, 100.0),
+        row("C", "TC-TAB", 100.0, 100.0, 100.0),
+        row("D", "SYR", 400.0, 400.0, 400.0),
+    ]
+    out = build_overview_directions(items, dmap, top_n=2)
+
+    assert [o["name"] for o in out] == [
+        "Терапия", "Педиатрия", "Прочие направления", UNALLOCATED,
+    ]
+    assert [o["kind"] for o in out] == [
+        "direction", "direction", "other", "unallocated",
+    ]
+    assert out[0]["usd"] == pytest.approx(300.0)
+    assert out[2]["usd"] == pytest.approx(100.0)
+    assert out[3]["usd"] == pytest.approx(400.0)
+    assert out[0]["share"] == pytest.approx(0.3)
+    assert out[0]["growth"] == pytest.approx(0.5)
+
+
+def test_overview_directions_omits_tail_rows_when_empty():
+    dmap = {("A", "TC-TAB"): [("Терапия", 1.0)]}
+    out = build_overview_directions(
+        [row("A", "TC-TAB", 100.0, 100.0, 100.0)], dmap, top_n=5,
+    )
+
+    assert [o["name"] for o in out] == ["Терапия"]
+
+
+def test_overview_directions_on_empty_reference():
+    items = [row("A", "TC-TAB", 100.0, 100.0, 100.0)]
+    out = build_overview_directions(items, {}, top_n=5)
+
+    assert [o["name"] for o in out] == [UNALLOCATED]
+    assert out[0]["share"] == pytest.approx(1.0)
+
+
+def test_overview_directions_on_zero_money_market():
+    out = build_overview_directions([row("A", "TC-TAB", 0.0)], {}, top_n=5)
+
+    assert out == []
+
+
+def test_mnn_directions_splits_by_form_and_rolls_up():
+    dmap = {
+        ("A", "D-CRM"): [("Дерматология", 0.85), ("Педиатрия", 0.15)],
+        ("A", "D-OINT"): [("Дерматология", 1.0)],
+    }
+    items = [
+        row("A", "D-CRM", 100.0),
+        row("A", "D-OINT", 100.0),
+        row("A", "D-SOL", 50.0),
+    ]
+    out = build_mnn_directions(items, dmap)
+
+    assert out["total"]["usd"] == pytest.approx(250.0)
+    derm = next(r for r in out["total"]["rows"] if r["name"] == "Дерматология")
+    assert derm["usd"] == pytest.approx(185.0)
+    assert derm["share"] == pytest.approx(185.0 / 250.0)
+
+    forms = {f["form"]: f for f in out["forms"]}
+    assert forms["D-CRM"]["in_reference"] is True
+    assert forms["D-SOL"]["in_reference"] is False
+    assert forms["D-SOL"]["rows"] == []
+    assert [f["form"] for f in out["forms"]] == ["D-CRM", "D-OINT", "D-SOL"]
+
+
+def test_mnn_directions_includes_unallocated_row_in_total():
+    dmap = {("A", "D-CRM"): [("Дерматология", 1.0)]}
+    out = build_mnn_directions(
+        [row("A", "D-CRM", 100.0), row("A", "SYR", 100.0)], dmap,
+    )
+
+    rest = next(r for r in out["total"]["rows"] if r["name"] == UNALLOCATED)
+    assert rest["usd"] == pytest.approx(100.0)
+    assert rest["share"] == pytest.approx(0.5)
+
+
+def test_direction_detail_lists_pairs_and_kpi():
+    dmap = {
+        ("A", "D-CRM"): [("Дерматология", 0.8), ("Педиатрия", 0.2)],
+        ("B", "D-GEL"): [("Дерматология", 0.5)],
+    }
+    items = [
+        row("A", "D-CRM", 100.0, 60.0, 80.0),
+        row("B", "D-GEL", 100.0, 100.0, 100.0),
+    ]
+    out = build_direction_detail(items, dmap, "Дерматология", 1000.0)
+
+    assert out["name"] == "Дерматология"
+    assert out["kpi"]["usd_y3"] == pytest.approx(130.0)
+    assert out["kpi"]["share_of_market"] == pytest.approx(0.13)
+    assert out["kpi"]["pairs_count"] == 2
+    assert out["kpi"]["mnns_count"] == 2
+    assert [p["mnn"] for p in out["pairs"]] == ["A", "B"]
+    assert out["pairs"][0]["usd_y3"] == pytest.approx(80.0)
+    assert out["pairs"][0]["share_in_pair"] == pytest.approx(0.8)
+    assert [f["form"] for f in out["forms"]] == ["D-CRM", "D-GEL"]
+
+
+def test_direction_detail_unknown_name_is_empty_not_error():
+    dmap = {("A", "D-CRM"): [("Дерматология", 1.0)]}
+    out = build_direction_detail(
+        [row("A", "D-CRM", 100.0)], dmap, "Космонавтика", 1000.0,
+    )
+
+    assert out["pairs"] == []
+    assert out["kpi"]["usd_y3"] == pytest.approx(0.0)
+    assert out["kpi"]["share_of_market"] == pytest.approx(0.0)
+
+
+def test_direction_detail_normalises_shares_over_100_percent():
+    dmap = {("A", "D-CRM"): [("Дерматология", 0.8), ("Педиатрия", 0.8)]}
+    items = [row("A", "D-CRM", 100.0, 100.0, 100.0)]
+    out = build_direction_detail(items, dmap, "Дерматология", 100.0)
+
+    assert out["kpi"]["usd_y3"] == pytest.approx(50.0)
+    assert out["pairs"][0]["share_in_pair"] == pytest.approx(0.5)

@@ -103,3 +103,183 @@ def attribute_usd(
             rest[k] += usd[k] - allocated[k]
 
     return dict(by_dir), rest
+
+
+OTHER = "Прочие направления"
+OVERVIEW_TOP_N = 15
+
+
+def _safe_div(num: float, den: float) -> float | None:
+    return num / den if den else None
+
+
+def _growth(cur: float, prev: float) -> float | None:
+    return (cur - prev) / prev if prev else None
+
+
+def _row(name: str, usd: list[float], totals: list[float], kind: str) -> dict:
+    return {
+        "name": name,
+        "usd": usd[2],
+        "share": _safe_div(usd[2], totals[2]),
+        "shares_by_year": [
+            _safe_div(usd[k], totals[k]) for k in range(3)
+        ],
+        "growth": _growth(usd[2], usd[1]),
+        "kind": kind,
+    }
+
+
+def build_overview_directions(
+    items: Iterable[Any], dmap: DirectionMap, top_n: int = OVERVIEW_TOP_N,
+) -> list[dict]:
+    materialised = list(items)
+    by_dir, rest = attribute_usd(materialised, dmap)
+    totals = [
+        sum(i.usd_y1 or 0.0 for i in materialised),
+        sum(i.usd_y2 or 0.0 for i in materialised),
+        sum(i.usd_y3 or 0.0 for i in materialised),
+    ]
+    if totals[2] <= 0:
+        return []
+
+    ranked = sorted(by_dir.items(), key=lambda x: (-x[1][2], x[0]))
+    out = [
+        _row(name, usd, totals, "direction") for name, usd in ranked[:top_n]
+    ]
+
+    tail = ranked[top_n:]
+    if tail:
+        merged = [sum(usd[k] for _, usd in tail) for k in range(3)]
+        out.append(_row(OTHER, merged, totals, "other"))
+
+    if rest[2] > 0:
+        out.append(_row(UNALLOCATED, rest, totals, "unallocated"))
+
+    return out
+
+
+def _share_rows(
+    by_dir: dict[str, list[float]], rest: list[float], total: float,
+) -> list[dict]:
+    rows = [
+        {
+            "name": name,
+            "usd": usd[2],
+            "share": _safe_div(usd[2], total) or 0.0,
+        }
+        for name, usd in sorted(by_dir.items(), key=lambda x: (-x[1][2], x[0]))
+    ]
+    if rest[2] > 0:
+        rows.append({
+            "name": UNALLOCATED,
+            "usd": rest[2],
+            "share": _safe_div(rest[2], total) or 0.0,
+        })
+    return rows
+
+
+def build_mnn_directions(items: Iterable[Any], dmap: DirectionMap) -> dict:
+    materialised = list(items)
+
+    by_form: dict[str, list[Any]] = defaultdict(list)
+    for item in materialised:
+        by_form[item_key(item)[1] or "—"].append(item)
+
+    total_by_dir, total_rest = attribute_usd(materialised, dmap)
+    total_usd = sum(i.usd_y3 or 0.0 for i in materialised)
+
+    forms = []
+    for form, group in sorted(
+        by_form.items(), key=lambda x: (-sum(i.usd_y3 or 0.0 for i in x[1]), x[0]),
+    ):
+        group_by_dir, group_rest = attribute_usd(group, dmap)
+        group_usd = sum(i.usd_y3 or 0.0 for i in group)
+        forms.append({
+            "form": form,
+            "usd": group_usd,
+            "in_reference": bool(group_by_dir),
+            "rows": (
+                _share_rows(group_by_dir, [0.0, 0.0, 0.0], group_usd)
+                if group_by_dir else []
+            ),
+        })
+
+    return {
+        "total": {
+            "usd": total_usd,
+            "rows": _share_rows(total_by_dir, total_rest, total_usd),
+        },
+        "forms": forms,
+    }
+
+
+def build_direction_detail(
+    items: Iterable[Any],
+    dmap: DirectionMap,
+    name: str,
+    market_total_y3: float,
+) -> dict:
+    pairs: dict[tuple[str, str], dict] = {}
+    kpi_usd = [0.0, 0.0, 0.0]
+    form_usd: dict[str, float] = defaultdict(float)
+
+    for item in items:
+        key = item_key(item)
+        pair_shares = dmap.get(key, [])
+        share = next((s for d, s in pair_shares if d == name), None)
+        if share is None:
+            continue
+        # Та же нормировка, что в attribute_usd: сумма долей выше 100%.
+        covered = sum(s for _, s in pair_shares)
+        if covered > 1.0:
+            share = share / covered
+        usd = [
+            (item.usd_y1 or 0.0) * share,
+            (item.usd_y2 or 0.0) * share,
+            (item.usd_y3 or 0.0) * share,
+        ]
+        for k in range(3):
+            kpi_usd[k] += usd[k]
+        form_usd[key[1] or "—"] += usd[2]
+
+        entry = pairs.get(key)
+        if entry is None:
+            pairs[key] = {
+                "mnn": item.mnn,
+                "lf": key[1] or "—",
+                "usd_y2": usd[1],
+                "usd_y3": usd[2],
+                "share_in_pair": share,
+            }
+        else:
+            entry["usd_y2"] += usd[1]
+            entry["usd_y3"] += usd[2]
+
+    ranked = sorted(
+        pairs.values(), key=lambda p: (-p["usd_y3"], p["mnn"], p["lf"]),
+    )
+    for entry in ranked:
+        entry["growth"] = _growth(entry["usd_y3"], entry["usd_y2"])
+        entry.pop("usd_y2")
+
+    return {
+        "name": name,
+        "kpi": {
+            "usd_y1": kpi_usd[0],
+            "usd_y2": kpi_usd[1],
+            "usd_y3": kpi_usd[2],
+            "usd_growth": _growth(kpi_usd[2], kpi_usd[1]),
+            "share_of_market": _safe_div(kpi_usd[2], market_total_y3) or 0.0,
+            "pairs_count": len(ranked),
+            "mnns_count": len({p["mnn"] for p in ranked}),
+        },
+        "pairs": ranked,
+        "forms": [
+            {"form": form, "usd_y3": usd,
+             "share_in_direction": _safe_div(usd, kpi_usd[2]) or 0.0}
+            for form, usd in sorted(
+                form_usd.items(), key=lambda x: (-x[1], x[0]),
+            )
+        ],
+    }
