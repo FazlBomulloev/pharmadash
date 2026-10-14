@@ -54,7 +54,7 @@ async def timing_middleware(request: Request, call_next):
     return response
 
 from backend.routers import (  # noqa: E402
-    markets, dashboard, overview, drilldown, pharmacies, scoring,
+    markets, dashboard, overview, drilldown, pharmacies, scoring, directions,
 )
 
 app.include_router(markets.router, prefix="/api")
@@ -63,3 +63,4 @@ app.include_router(overview.router, prefix="/api")
 app.include_router(drilldown.router, prefix="/api")
 app.include_router(pharmacies.router, prefix="/api")
 app.include_router(scoring.router, prefix="/api")
+app.include_router(directions.router, prefix="/api")

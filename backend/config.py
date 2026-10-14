@@ -5,6 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "pharmdash.db"
 UPLOAD_DIR = DATA_DIR / "uploads"
+DIRECTIONS_FILE = UPLOAD_DIR / "directions_ref.xlsx"
 
 DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 

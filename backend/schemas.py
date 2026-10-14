@@ -223,3 +223,40 @@ class CountryDetails(BaseModel):
     producers: list[CountryProducer]
     mnn_portfolio: list[CountryMnnItem] | None = None
     forms_breakdown: list[CountryFormItem]
+
+
+class DirectionUploadResponse(BaseModel):
+    sheet: str
+    rows_read: int
+    rows_accepted: int
+    rows_skipped: int
+    rows_duplicate: int
+    pairs_count: int
+    directions_count: int
+    forms_count: int
+    pairs_incomplete: int
+    pairs_over_100: int
+
+
+class DirectionMetaResponse(BaseModel):
+    filename: str | None
+    uploaded_at: str | None
+    rows_count: int
+    pairs_count: int
+    directions: list[str]
+    forms: list[str]
+    report: dict | None
+
+
+class DirectionRowItem(BaseModel):
+    mnn: str
+    lf: str
+    direction: str
+    share: float
+
+
+class DirectionRowsResponse(BaseModel):
+    items: list[DirectionRowItem]
+    total: int
+    page: int
+    per_page: int
