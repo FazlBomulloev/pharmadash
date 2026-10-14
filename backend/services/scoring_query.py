@@ -18,7 +18,6 @@ _SORT_KEYS: dict[str, Callable[[dict], Any]] = {
     "mnn": lambda i: (i["mnn"], i["lf"]),
     "lf": lambda i: i["lf"],
     "cls": lambda i: i["cls"],
-    "direction": lambda i: i["direction"],
     "usd": lambda i: i["sales"][2],
     "usd_y1": lambda i: i["sales"][0],
     "usd_y2": lambda i: i["sales"][1],
@@ -58,7 +57,6 @@ def filter_items(
             needle in i["mnn"].upper()
             or needle in i["lf"].upper()
             or needle in (i["cls"] or "").upper()
-            or needle in i["direction"].upper()
         ):
             continue
         result.append(i)

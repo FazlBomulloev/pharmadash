@@ -141,10 +141,6 @@ def _collect_metrics(
             "mnn": mnn,
             "lf": lf,
             "cls": cls,
-            "direction": (
-                settings.directions.map.get(cls, settings.directions.default)
-                if cls else settings.directions.default
-            ),
             "sales": a["usd"],
             "units": a["un"],
             "price": sales / units if units > 0 else None,

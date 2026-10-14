@@ -75,11 +75,6 @@ class ScoreDictionary(BaseModel):
         return self
 
 
-class DirectionDictionary(BaseModel):
-    default: str = Field(min_length=1)
-    map: dict[str, str]
-
-
 def _default_form_scores() -> ScoreDictionary:
     injections_inhalations = (
         "I-INF", "I-VIAL", "I-PFS", "I-AMP", "I-CART", "I-PWD",
@@ -111,39 +106,6 @@ def _default_class_barriers() -> ScoreDictionary:
     return ScoreDictionary(default=1.0, map=scores)
 
 
-def _default_directions() -> DirectionDictionary:
-    return DirectionDictionary(
-        default="Терапия",
-        map={
-            "КАРДИО": "Кардиология",
-            "ГИНО": "Гинекология",
-            "ОНКО": "Онкология",
-            "НЕЙРО": "Неврология",
-            "ЖКТ": "Гастроэнтерология",
-            "ПЕЧЕНЬ": "Гастроэнтерология",
-            "ПРОКТО": "Гастроэнтерология",
-            "ДИАБЕТ": "Эндокринология",
-            "ЭНДО": "Эндокринология",
-            "ГОРМОН": "Эндокринология",
-            "ДЕРМ": "Дерматология",
-            "ГЛАЗНЫЕ": "Офтальмология",
-            "УРОЛОГИЯ": "Урология",
-            "ПОЧКИ": "Урология",
-            "ЛОР": "ЛОР",
-            "УШНЫЕ": "ЛОР",
-            "БА": "Пульмонология",
-            "ПУЛЬМОНОЛОГИЯ": "Пульмонология",
-            "РЕВМАТОЛОГИЯ": "Ревматология",
-            "КРОВЬ": "Гематология",
-            "ГЕМАТОЛОГИЯ": "Гематология",
-            "ИММУНО": "Иммунология",
-            "ИММУНОСУПРЕССАНТ": "Иммунология",
-            "АЛЛЕР": "Аллергология",
-            "ДЕНТА": "Стоматология",
-        },
-    )
-
-
 class ScoringSettings(BaseModel):
     weights: Weights = Field(default_factory=Weights)
     stop: StopFilters = Field(default_factory=StopFilters)
@@ -158,9 +120,6 @@ class ScoringSettings(BaseModel):
     )
     class_barriers: ScoreDictionary = Field(
         default_factory=_default_class_barriers,
-    )
-    directions: DirectionDictionary = Field(
-        default_factory=_default_directions,
     )
     home_countries: list[str] = Field(
         default_factory=lambda: ["РОССИЯ"],
