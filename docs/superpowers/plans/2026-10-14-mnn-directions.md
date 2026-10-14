@@ -895,7 +895,7 @@ git commit -m "Add direction aggregates for overview, MNN dashboard and panel"
 - Consumes: ничего из предыдущих задач
 - Produces:
   - `SHEET_NAME: str` — константа `"Длинный формат"`
-  - `parse_directions(file_path: Path) -> tuple[list[dict], dict]` — строки с ключами `mnn`, `lf`, `direction`, `share` и отчёт с ключами `sheet: str`, `rows_read: int`, `rows_accepted: int`, `rows_skipped: int`, `pairs_count: int`, `directions_count: int`, `forms_count: int`, `pairs_incomplete: int`
+  - `parse_directions(file_path: Path) -> tuple[list[dict], dict]` — строки с ключами `mnn`, `lf`, `direction`, `share` и отчёт с ключами `sheet: str`, `rows_read: int`, `rows_accepted: int`, `rows_skipped: int`, `rows_duplicate: int`, `pairs_count: int`, `directions_count: int`, `forms_count: int`, `pairs_incomplete: int`, `pairs_over_100: int`
   - `DirectionsParseError(Exception)` — поднимается, когда подходящего листа нет
 
 - [ ] **Step 1: Написать падающие тесты**
@@ -1426,10 +1426,12 @@ class DirectionUploadResponse(BaseModel):
     rows_read: int
     rows_accepted: int
     rows_skipped: int
+    rows_duplicate: int
     pairs_count: int
     directions_count: int
     forms_count: int
     pairs_incomplete: int
+    pairs_over_100: int
 
 
 class DirectionMetaResponse(BaseModel):
@@ -2272,10 +2274,12 @@ export interface DirectionUploadReport {
   rows_read: number;
   rows_accepted: number;
   rows_skipped: number;
+  rows_duplicate: number;
   pairs_count: number;
   directions_count: number;
   forms_count: number;
   pairs_incomplete: number;
+  pairs_over_100: number;
 }
 
 export interface DirectionRefRow {
@@ -2750,10 +2754,16 @@ export function DirectionsUploadBlock() {
           <Stat label="Пар МНН×ЛФ" value={fmtInt(report.pairs_count)} />
           <Stat label="Форм" value={fmtInt(report.forms_count)} />
           <Stat label="Отброшено строк" value={fmtInt(report.rows_skipped)} />
+          <Stat label="Дубликатов" value={fmtInt(report.rows_duplicate)} />
           <Stat
             label="Пар с суммой ≠ 100%"
             value={fmtInt(report.pairs_incomplete)}
             warn={report.pairs_incomplete > 0}
+          />
+          <Stat
+            label="Пар выше 100% (отброшено)"
+            value={fmtInt(report.pairs_over_100)}
+            warn={report.pairs_over_100 > 0}
           />
         </div>
       )}
