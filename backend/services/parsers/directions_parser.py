@@ -59,6 +59,7 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
         accepted: dict[tuple[str, str, str], dict] = {}
         rows_read = 0
         rows_skipped = 0
+        rows_duplicate = 0
 
         for idx, values in enumerate(ws.iter_rows(values_only=True)):
             if idx == 0:
@@ -76,7 +77,10 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
                 rows_skipped += 1
                 continue
 
-            accepted[(mnn, lf, direction)] = {
+            key = (mnn, lf, direction)
+            if key in accepted:
+                rows_duplicate += 1
+            accepted[key] = {
                 "mnn": mnn, "lf": lf,
                 "direction": direction, "share": share,
             }
@@ -107,6 +111,7 @@ def parse_directions(file_path: Path) -> tuple[list[dict], dict]:
         "rows_read": rows_read,
         "rows_accepted": len(rows),
         "rows_skipped": rows_skipped,
+        "rows_duplicate": rows_duplicate,
         "pairs_count": len(pair_shares),
         "directions_count": len({r["direction"] for r in rows}),
         "forms_count": len({r["lf"] for r in rows}),

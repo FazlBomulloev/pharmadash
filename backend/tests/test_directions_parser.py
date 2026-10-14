@@ -113,6 +113,7 @@ def test_duplicate_triple_keeps_last(tmp_path):
     assert len(rows) == 1
     assert rows[0]["share"] == 0.9
     assert report["rows_accepted"] == 1
+    assert report["rows_duplicate"] == 1
 
 
 def test_counts_pairs_with_incomplete_shares(tmp_path):
@@ -148,3 +149,38 @@ def test_pair_whose_shares_exceed_hundred_is_dropped(tmp_path):
     assert report["pairs_over_100"] == 1
     assert report["pairs_count"] == 1
     assert report["rows_accepted"] == 1
+
+
+def test_out_of_range_value_is_dropped_without_killing_its_pair(tmp_path):
+    path = make_file(tmp_path, SHEET_NAME, [
+        ("A", "TC-TAB", "Терапия", 150),       # 1.5 после деления — вне диапазона
+        ("A", "TC-TAB", "Педиатрия", 0.2),
+    ])
+    rows, report = parse_directions(path)
+
+    # битая строка отброшена по значению, пара выжила с остальными долями
+    assert [r["direction"] for r in rows] == ["Педиатрия"]
+    assert report["rows_skipped"] == 1
+    assert report["pairs_over_100"] == 0
+    assert report["pairs_count"] == 1
+
+
+def test_report_arithmetic_closes(tmp_path):
+    path = make_file(tmp_path, SHEET_NAME, [
+        ("A", "TC-TAB", "Терапия", 0.6),
+        ("A", "TC-TAB", "Педиатрия", 0.4),
+        ("A", "TC-TAB", "Терапия", 0.6),        # дубликат триплета
+        ("B", "D-CRM", "Дерматология", 0),       # битая доля
+        ("C", "LOZ", "ЛОР", 0.7),
+        ("C", "LOZ", "Терапия", 0.6),            # пара C в сумме 130%
+    ])
+    _, report = parse_directions(path)
+
+    assert report["rows_read"] == (
+        report["rows_accepted"]
+        + report["rows_skipped"]
+        + report["rows_duplicate"]
+    )
+    assert report["rows_duplicate"] == 1
+    assert report["pairs_over_100"] == 1
+    assert report["pairs_count"] == 1          # осталась только пара A
