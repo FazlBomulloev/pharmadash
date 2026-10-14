@@ -34,3 +34,5 @@ samples/
 .playwright-mcp/
 *.db-wal
 *.db-shm
+
+.superpowers/
