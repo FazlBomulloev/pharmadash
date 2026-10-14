@@ -6,6 +6,27 @@ import { growthTone } from "../../lib/palette";
 import { HeatCell } from "../ui/bars";
 import { Card, CardTitle } from "../ui/Card";
 
+const TOP = 15;
+const OTHER_NAME = "Прочие направления";
+
+const sumNullable = (values: (number | null)[]): number | null =>
+  values.every((v) => v === null)
+    ? null
+    : values.reduce<number>((acc, v) => acc + (v ?? 0), 0);
+
+function mergeTail(tail: DirectionOverviewRow[]): DirectionOverviewRow {
+  return {
+    name: OTHER_NAME,
+    usd: tail.reduce((acc, r) => acc + r.usd, 0),
+    share: sumNullable(tail.map((r) => r.share)),
+    shares_by_year: [0, 1, 2].map((i) =>
+      sumNullable(tail.map((r) => r.shares_by_year[i] ?? null)),
+    ),
+    growth: null,
+    kind: "other",
+  };
+}
+
 const GRID = "grid grid-cols-[minmax(0,1fr)_92px_repeat(3,56px)_64px] gap-2.5";
 
 export function DirectionsCard({
@@ -18,10 +39,16 @@ export function DirectionsCard({
   index: number;
 }) {
   const [all, setAll] = useState(false);
-  const tail = rows.filter((r) => r.kind !== "direction");
-  const main = rows.filter((r) => r.kind === "direction");
-  const shown = all ? main : main.slice(0, 15);
-  const hidden = main.length - shown.length;
+  const directions = rows.filter((r) => r.kind === "direction");
+  const unalloc = rows.filter((r) => r.kind === "unallocated");
+  const tail = directions.slice(TOP);
+  const visible = all || tail.length === 0
+    ? [...directions, ...unalloc]
+    : [
+        ...directions.slice(0, TOP),
+        mergeTail(tail),
+        ...unalloc,
+      ];
 
   return (
     <Card index={index} className="flex flex-1 flex-col gap-1.5">
@@ -47,7 +74,7 @@ export function DirectionsCard({
             <span className="text-right">г/г</span>
           </div>
 
-          {[...shown, ...tail].map((r) => {
+          {visible.map((r) => {
             const clickable = r.kind === "direction";
             const body = (
               <>
@@ -88,13 +115,13 @@ export function DirectionsCard({
             );
           })}
 
-          {(hidden > 0 || all) && (
+          {directions.length > TOP && (
             <button
               type="button"
               onClick={() => setAll((v) => !v)}
               className="mt-1.5 w-fit border-0 bg-transparent px-1.5 py-1 text-[13px] font-medium text-accent hover:text-accent-hover"
             >
-              {all ? "Свернуть" : `Показать все ${main.length}`}
+              {all ? "Свернуть" : `Показать все ${directions.length}`}
             </button>
           )}
         </>

@@ -105,8 +105,6 @@ def attribute_usd(
     return dict(by_dir), rest
 
 
-OTHER = "Прочие направления"
-OVERVIEW_TOP_N = 15
 NOISE_REL = 1e-9  # относительный порог показа остатка
 
 
@@ -132,7 +130,7 @@ def _row(name: str, usd: list[float], totals: list[float], kind: str) -> dict:
 
 
 def build_overview_directions(
-    items: Iterable[Any], dmap: DirectionMap, top_n: int = OVERVIEW_TOP_N,
+    items: Iterable[Any], dmap: DirectionMap,
 ) -> list[dict]:
     materialised = list(items)
     by_dir, rest = attribute_usd(materialised, dmap)
@@ -145,14 +143,7 @@ def build_overview_directions(
         return []
 
     ranked = sorted(by_dir.items(), key=lambda x: (-x[1][2], x[0]))
-    out = [
-        _row(name, usd, totals, "direction") for name, usd in ranked[:top_n]
-    ]
-
-    tail = ranked[top_n:]
-    if tail:
-        merged = [sum(usd[k] for _, usd in tail) for k in range(3)]
-        out.append(_row(OTHER, merged, totals, "other"))
+    out = [_row(name, usd, totals, "direction") for name, usd in ranked]
 
     # Порог отсекает шум float: при суммах долей ровно 100% невязка может
     # дать около 1e-14, и строка «Не распределено $0 · 0%» выглядела бы

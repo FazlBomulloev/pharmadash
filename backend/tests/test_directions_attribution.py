@@ -227,7 +227,7 @@ async def test_stale_load_does_not_overwrite_cache_after_invalidation(
     assert directions._MAP_CACHE is None  # но устаревший кеш не записан
 
 
-def test_overview_directions_sorted_with_tail_rows():
+def test_overview_directions_returns_all_directions_plus_unallocated():
     dmap = {
         ("A", "TC-TAB"): [("Терапия", 1.0)],
         ("B", "TC-TAB"): [("Педиатрия", 1.0)],
@@ -239,13 +239,13 @@ def test_overview_directions_sorted_with_tail_rows():
         row("C", "TC-TAB", 100.0, 100.0, 100.0),
         row("D", "SYR", 400.0, 400.0, 400.0),
     ]
-    out = build_overview_directions(items, dmap, top_n=2)
+    out = build_overview_directions(items, dmap)
 
     assert [o["name"] for o in out] == [
-        "Терапия", "Педиатрия", "Прочие направления", UNALLOCATED,
+        "Терапия", "Педиатрия", "ЛОР", UNALLOCATED,
     ]
     assert [o["kind"] for o in out] == [
-        "direction", "direction", "other", "unallocated",
+        "direction", "direction", "direction", "unallocated",
     ]
     assert out[0]["usd"] == pytest.approx(300.0)
     assert out[2]["usd"] == pytest.approx(100.0)
@@ -254,10 +254,10 @@ def test_overview_directions_sorted_with_tail_rows():
     assert out[0]["growth"] == pytest.approx(0.5)
 
 
-def test_overview_directions_omits_tail_rows_when_empty():
+def test_overview_directions_omits_unallocated_when_fully_covered():
     dmap = {("A", "TC-TAB"): [("Терапия", 1.0)]}
     out = build_overview_directions(
-        [row("A", "TC-TAB", 100.0, 100.0, 100.0)], dmap, top_n=5,
+        [row("A", "TC-TAB", 100.0, 100.0, 100.0)], dmap,
     )
 
     assert [o["name"] for o in out] == ["Терапия"]
@@ -265,14 +265,14 @@ def test_overview_directions_omits_tail_rows_when_empty():
 
 def test_overview_directions_on_empty_reference():
     items = [row("A", "TC-TAB", 100.0, 100.0, 100.0)]
-    out = build_overview_directions(items, {}, top_n=5)
+    out = build_overview_directions(items, {})
 
     assert [o["name"] for o in out] == [UNALLOCATED]
     assert out[0]["share"] == pytest.approx(1.0)
 
 
 def test_overview_directions_on_zero_money_market():
-    out = build_overview_directions([row("A", "TC-TAB", 0.0)], {}, top_n=5)
+    out = build_overview_directions([row("A", "TC-TAB", 0.0)], {})
 
     assert out == []
 
@@ -364,7 +364,7 @@ def test_float_noise_does_not_produce_phantom_unallocated_row():
     items = [row("A", "TC-TAB", rng.random() * 1000, rng.random() * 1000,
                  rng.random() * 1000) for _ in range(200)]
 
-    out = build_overview_directions(items, dmap, top_n=5)
+    out = build_overview_directions(items, dmap)
 
     assert all(o["kind"] != "unallocated" for o in out), (
         f"фантомная строка остатка: "
@@ -377,7 +377,7 @@ def test_real_unallocated_amount_still_shown():
     items = [row("A", "TC-TAB", 100.0, 100.0, 100.0),
              row("B", "SYR", 5.0, 5.0, 5.0)]
 
-    out = build_overview_directions(items, dmap, top_n=5)
+    out = build_overview_directions(items, dmap)
     rest_row = next(o for o in out if o["kind"] == "unallocated")
 
     assert rest_row["usd"] == pytest.approx(5.0)
@@ -422,7 +422,7 @@ def test_overview_directions_sort_unsorted_input_with_name_tiebreak():
         row("A", "TC-TAB", 100.0, 100.0, 100.0),
         row("C", "TC-TAB", 500.0, 500.0, 500.0),
     ]
-    out = build_overview_directions(items, dmap, top_n=10)
+    out = build_overview_directions(items, dmap)
 
     assert [o["name"] for o in out] == [
         "Онкология", "Аллергология", "Яхтенная медицина",
@@ -458,7 +458,7 @@ def test_overview_shares_by_year_use_per_year_denominators():
         row("A", "TC-TAB", 400.0, 100.0, 250.0),
         row("B", "SYR", 600.0, 100.0, 250.0),
     ]
-    out = build_overview_directions(items, dmap, top_n=5)
+    out = build_overview_directions(items, dmap)
     therapy = next(o for o in out if o["name"] == "Терапия")
 
     assert therapy["shares_by_year"][0] == pytest.approx(0.5)
@@ -466,22 +466,22 @@ def test_overview_shares_by_year_use_per_year_denominators():
     assert therapy["shares_by_year"][2] == pytest.approx(0.4)
 
 
-def test_overview_shares_by_year_distinct_and_for_other_row():
+def test_overview_shares_by_year_distinct_per_direction():
     dmap = {
         ("A", "TC-TAB"): [("Терапия", 1.0)],
         ("B", "TC-TAB"): [("ЛОР", 1.0)],
     }
-    # итоги: y1=400, y2=500, y3=1000; Терапия в топе, ЛОР в «Прочих»
+    # итоги: y1=400, y2=500, y3=1000
     items = [
         row("A", "TC-TAB", 600.0, 300.0, 250.0),
         row("B", "TC-TAB", 400.0, 100.0, 250.0),
     ]
-    out = build_overview_directions(items, dmap, top_n=1)
+    out = build_overview_directions(items, dmap)
 
     therapy = next(o for o in out if o["name"] == "Терапия")
-    other = next(o for o in out if o["kind"] == "other")
+    lor = next(o for o in out if o["name"] == "ЛОР")
     assert therapy["shares_by_year"] == pytest.approx([0.75, 0.5, 0.6])
-    assert other["shares_by_year"] == pytest.approx([0.25, 0.5, 0.4])
+    assert lor["shares_by_year"] == pytest.approx([0.25, 0.5, 0.4])
 
 
 def test_form_row_shares_use_form_total_not_mnn_total():
@@ -511,10 +511,10 @@ def test_overview_rows_sum_to_market_total():
         row("D", "LOZ", 50.0, 40.0, 45.0),
         row("E", "SYR", 70.0, 60.0, 65.0),
     ]
-    out = build_overview_directions(items, dmap, top_n=2)
+    out = build_overview_directions(items, dmap)
     total = sum(i.usd_y3 for i in items)
 
-    assert any(o["kind"] == "other" for o in out)
+    assert all(o["kind"] != "other" for o in out)
     assert sum(o["usd"] for o in out) == pytest.approx(total)
 
 
@@ -581,11 +581,11 @@ def test_threshold_boundary_hides_below_and_shows_above():
     total = 1_000_000.0
 
     below = [row("A", "TC-TAB", total), row("B", "SYR", total * 5e-10)]
-    out_below = build_overview_directions(below, dmap, top_n=5)
+    out_below = build_overview_directions(below, dmap)
     assert all(o["kind"] != "unallocated" for o in out_below)
 
     above = [row("A", "TC-TAB", total), row("B", "SYR", total * 5e-9)]
-    out_above = build_overview_directions(above, dmap, top_n=5)
+    out_above = build_overview_directions(above, dmap)
     assert any(o["kind"] == "unallocated" for o in out_above)
 
 
