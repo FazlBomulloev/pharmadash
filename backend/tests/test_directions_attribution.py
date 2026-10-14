@@ -410,13 +410,16 @@ def test_form_block_rows_reconcile_with_form_usd():
 
 def test_overview_directions_sort_unsorted_input_with_name_tiebreak():
     dmap = {
-        ("A", "TC-TAB"): [("Аллергология", 1.0)],
         ("B", "TC-TAB"): [("Яхтенная медицина", 1.0)],
+        ("A", "TC-TAB"): [("Аллергология", 1.0)],
         ("C", "TC-TAB"): [("Онкология", 1.0)],
     }
+    # Яхтенная подаётся первой: порядок вставки обратен алфавитному.
+    # Без тай-брейка по имени устойчивая сортировка оставила бы её выше
+    # Аллергологии при равных деньгах.
     items = [
-        row("A", "TC-TAB", 100.0, 100.0, 100.0),
         row("B", "TC-TAB", 100.0, 100.0, 100.0),
+        row("A", "TC-TAB", 100.0, 100.0, 100.0),
         row("C", "TC-TAB", 500.0, 500.0, 500.0),
     ]
     out = build_overview_directions(items, dmap, top_n=10)
@@ -549,6 +552,7 @@ def test_direction_detail_kpi_years_and_counts_are_distinct():
     assert kpi["usd_y2"] == pytest.approx(330.0)
     assert kpi["usd_y3"] == pytest.approx(500.0)
     assert kpi["usd_growth"] == pytest.approx((500.0 - 330.0) / 330.0)
+    assert kpi["share_of_market"] == pytest.approx(0.5)
 
     top = out["pairs"][0]
     assert top["growth"] == pytest.approx((300.0 - 200.0) / 200.0)
@@ -595,3 +599,75 @@ def test_mnn_directions_on_zero_market_and_empty_reference():
     assert empty["total"]["rows"][0]["share"] == pytest.approx(1.0)
     assert empty["forms"][0]["in_reference"] is False
     assert empty["forms"][0]["rows"] == []
+
+
+def test_mnn_directions_form_tiebreak_is_alphabetical():
+    dmap = {
+        ("A", "D-SOL"): [("Дерматология", 1.0)],
+        ("A", "D-CRM"): [("Дерматология", 1.0)],
+    }
+    # равные деньги, порядок вставки обратен алфавитному
+    items = [row("A", "D-SOL", 50.0), row("A", "D-CRM", 50.0)]
+    out = build_mnn_directions(items, dmap)
+
+    assert [f["form"] for f in out["forms"]] == ["D-CRM", "D-SOL"]
+
+
+def test_direction_detail_pair_tiebreak_is_alphabetical():
+    dmap = {
+        ("B", "TC-TAB"): [("Терапия", 1.0)],
+        ("A", "TC-TAB"): [("Терапия", 1.0)],
+    }
+    # равные деньги, порядок вставки обратен алфавитному
+    items = [row("B", "TC-TAB", 50.0), row("A", "TC-TAB", 50.0)]
+    out = build_direction_detail(items, dmap, "Терапия", 1000.0)
+
+    assert [p["mnn"] for p in out["pairs"]] == ["A", "B"]
+
+
+def test_mnn_total_rows_sort_by_money_with_name_tiebreak():
+    dmap = {
+        ("B", "D-CRM"): [("Яхтенная медицина", 1.0)],
+        ("A", "D-CRM"): [("Аллергология", 1.0)],
+        ("C", "D-CRM"): [("Онкология", 1.0)],
+        ("D", "D-CRM"): [("Терапия", 1.0)],
+    }
+    # Терапия подаётся последней, но дороже; у двух направлений ничья
+    items = [
+        row("B", "D-CRM", 50.0), row("A", "D-CRM", 50.0),
+        row("C", "D-CRM", 10.0), row("D", "D-CRM", 90.0),
+    ]
+    out = build_mnn_directions(items, dmap)
+
+    assert [r["name"] for r in out["total"]["rows"]] == [
+        "Терапия", "Аллергология", "Яхтенная медицина", "Онкология",
+    ]
+
+
+def test_direction_detail_forms_sort_by_money_with_name_tiebreak():
+    dmap = {
+        ("A", "D-SOL"): [("Дерматология", 1.0)],
+        ("A", "D-CRM"): [("Дерматология", 1.0)],
+        ("A", "D-GEL"): [("Дерматология", 1.0)],
+    }
+    # D-GEL дороже, но подан последним; у D-SOL и D-CRM ничья
+    items = [
+        row("A", "D-SOL", 50.0), row("A", "D-CRM", 50.0),
+        row("A", "D-GEL", 80.0),
+    ]
+    out = build_direction_detail(items, dmap, "Дерматология", 1000.0)
+
+    assert [f["form"] for f in out["forms"]] == ["D-GEL", "D-CRM", "D-SOL"]
+
+
+def test_mnns_count_collapses_case_variants_of_same_mnn():
+    dmap = {
+        ("A", "D-CRM"): [("Дерматология", 1.0)],
+        ("A", "D-OINT"): [("Дерматология", 1.0)],
+    }
+    # два написания одного МНН в разных формах: пар две, МНН один
+    items = [row("a", "D-CRM", 100.0), row("A ", "D-OINT", 50.0)]
+    out = build_direction_detail(items, dmap, "Дерматология", 1000.0)
+
+    assert out["kpi"]["pairs_count"] == 2
+    assert out["kpi"]["mnns_count"] == 1
