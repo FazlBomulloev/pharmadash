@@ -78,7 +78,6 @@ export function MnnHero({
             )}
           </div>
           <span className="text-[13px] text-ink-fg-2">
-            {item ? `${item.direction} · ` : ""}
             {fmtInt(zone1.active_competitors)} активных конкурентов из{" "}
             {fmtInt(zone1.total_producers)}
           </span>

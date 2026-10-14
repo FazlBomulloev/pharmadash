@@ -117,7 +117,7 @@ export function ScoringCard({
                   {item.mnn}
                 </span>
                 <span className="truncate text-[11px] text-faint">
-                  {item.lf} · {item.direction}
+                  {item.lf}
                 </span>
               </span>
             </span>

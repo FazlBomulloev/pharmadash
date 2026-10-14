@@ -31,7 +31,7 @@ import { ErrorNote, Loading } from "../components/ui/states";
 
 type CatFilter = "all" | "passed" | ScoringCategory;
 
-const TEXT_SORT = new Set(["mnn", "cls", "direction", "rank"]);
+const TEXT_SORT = new Set(["mnn", "cls", "rank"]);
 const DEFAULT_SORT: SortState = { key: "rank", order: "asc" };
 
 function initialCat(params: URLSearchParams): CatFilter {
@@ -298,8 +298,7 @@ function MnnPanel({
       gap={26}
       eyebrow={
         <>
-          {item.direction}
-          {item.cls && ` · ${item.cls}`} · {item.lf} · ранг {fmtInt(item.rank)}
+          {item.cls ? `${item.cls} · ` : ""}{item.lf} · ранг {fmtInt(item.rank)}
         </>
       }
       title={item.mnn}

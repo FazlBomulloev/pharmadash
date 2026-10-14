@@ -168,7 +168,6 @@ export interface ScoringItem {
   mnn: string;
   lf: string;
   cls: string | null;
-  direction: string;
   sales: number[];
   units: number[];
   price: number | null;
@@ -270,7 +269,6 @@ export interface ScoringSettings {
   };
   form_scores: ScoreDictionary;
   class_barriers: ScoreDictionary;
-  directions: { default: string; map: Record<string, string> };
   home_countries: string[];
 }
 
@@ -310,6 +308,7 @@ export interface DashboardResponse {
   zone1: KpiZone1;
   zone2: Zone2Data;
   zone3: Zone3Data;
+  directions: MnnDirectionsBlock;
 }
 
 export interface MnnListResponse {
@@ -393,6 +392,7 @@ export interface OverviewPortfolio {
   top3_share: number | null;
   atc_distribution: OverviewAtc[];
   countries: OverviewCountry[];
+  directions: DirectionOverviewRow[];
 }
 
 export interface OverviewDecisionItem {
@@ -400,7 +400,6 @@ export interface OverviewDecisionItem {
   mnn: string;
   lf: string;
   cls: string | null;
-  direction: string;
   usd: number;
   total: number;
   category: ScoringCategory;
@@ -643,4 +642,110 @@ export interface PriceCompareItem {
 export interface ColumnsResponse {
   columns: string[];
   samples: Record<string, string[]>;
+}
+
+export type DirectionRowKind = "direction" | "other" | "unallocated";
+
+export interface DirectionOverviewRow {
+  name: string;
+  usd: number;
+  share: number | null;
+  shares_by_year: (number | null)[];
+  growth: number | null;
+  kind: DirectionRowKind;
+}
+
+export interface DirectionShareRow {
+  name: string;
+  share: number;
+  usd: number;
+}
+
+export interface MnnDirectionsForm {
+  form: string;
+  usd: number;
+  in_reference: boolean;
+  rows: DirectionShareRow[];
+}
+
+export interface MnnDirectionsBlock {
+  total: { usd: number; rows: DirectionShareRow[] };
+  forms: MnnDirectionsForm[];
+}
+
+export interface DirectionKpi {
+  usd_y1: number;
+  usd_y2: number;
+  usd_y3: number;
+  usd_growth: number | null;
+  share_of_market: number;
+  pairs_count: number;
+  mnns_count: number;
+}
+
+export interface DirectionPair {
+  mnn: string;
+  lf: string;
+  usd_y3: number;
+  share_in_pair: number;
+  growth: number | null;
+}
+
+export interface DirectionForm {
+  form: string;
+  usd_y3: number;
+  share_in_direction: number;
+}
+
+export interface DirectionDetails {
+  name: string;
+  kpi: DirectionKpi;
+  pairs: DirectionPair[];
+  forms: DirectionForm[];
+  years_labels: string[];
+}
+
+export interface DirectionMeta {
+  filename: string | null;
+  uploaded_at: string | null;
+  rows_count: number;
+  pairs_count: number;
+  directions: string[];
+  forms: string[];
+  report: DirectionUploadReport | null;
+}
+
+export interface DirectionUploadReport {
+  sheet: string;
+  rows_read: number;
+  rows_accepted: number;
+  rows_skipped: number;
+  rows_duplicate: number;
+  pairs_count: number;
+  directions_count: number;
+  forms_count: number;
+  pairs_incomplete: number;
+  pairs_over_100: number;
+}
+
+export interface DirectionRefRow {
+  mnn: string;
+  lf: string;
+  direction: string;
+  share: number;
+}
+
+export interface DirectionRowsResponse {
+  items: DirectionRefRow[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface DirectionRowsQuery {
+  q?: string | null;
+  direction?: string | null;
+  lf?: string | null;
+  page?: number;
+  per_page?: number;
 }

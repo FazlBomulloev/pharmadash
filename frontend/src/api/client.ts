@@ -24,6 +24,11 @@ import type {
   SettingsPreview,
   PriceCompareItem,
   ColumnsResponse,
+  DirectionDetails,
+  DirectionMeta,
+  DirectionRowsQuery,
+  DirectionRowsResponse,
+  DirectionUploadReport,
 } from "../types/api";
 
 const api = axios.create({ baseURL: "/api" });
@@ -266,5 +271,45 @@ export async function getPriceComparison(
 
 export async function getPharmacyFilters(): Promise<PharmacyFiltersResponse> {
   const { data } = await api.get<PharmacyFiltersResponse>("/pharmacies/filters");
+  return data;
+}
+
+export async function getDirectionsMeta(): Promise<DirectionMeta> {
+  const { data } = await api.get<DirectionMeta>("/directions/meta");
+  return data;
+}
+
+export async function getDirectionRows(
+  query: DirectionRowsQuery = {},
+  signal?: AbortSignal,
+): Promise<DirectionRowsResponse> {
+  const params: Record<string, string | number> = {};
+  Object.entries(query).forEach(([k, v]) => {
+    if (v != null && v !== "") params[k] = v as string | number;
+  });
+  const { data } = await api.get<DirectionRowsResponse>("/directions/rows", {
+    params, signal,
+  });
+  return data;
+}
+
+export async function uploadDirectionsFile(
+  file: File,
+): Promise<DirectionUploadReport> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const { data } = await api.post<DirectionUploadReport>(
+    "/directions/upload", fd,
+  );
+  return data;
+}
+
+export async function getDirectionDetails(
+  marketId: number,
+  name: string,
+): Promise<DirectionDetails> {
+  const { data } = await api.get<DirectionDetails>(
+    `/markets/${marketId}/direction/${encodeURIComponent(name)}`,
+  );
   return data;
 }

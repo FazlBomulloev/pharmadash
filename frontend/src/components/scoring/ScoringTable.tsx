@@ -33,7 +33,6 @@ function columnsFor(mode: TableMode, years: number[]): Column[] {
   if (mode === "sum") {
     return [
       { key: "cls", label: "Класс", cell: (i) => <AtcChip cls={i.cls} /> },
-      { key: "direction", label: "Направление", cell: (i) => text(i.direction) },
       {
         key: "usd", label: `$ ${year(2)}`, align: "right",
         cell: (i) => text(fmtUsd(i.sales[2]), "font-semibold text-fg"),
