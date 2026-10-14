@@ -24,6 +24,9 @@
   системный интерпретатор не видит ни fastapi, ни sqlalchemy.
 - В `.venv` уже стоят pytest 9.1.1, pytest-asyncio 1.4.0 и httpx 0.28.1.
   Ничего не доустанавливать и не понижать версии.
+- Ожидаемые числа пройденных тестов в шагах — ориентир, а не требование.
+  Круги правок добавляют тесты, поэтому фактическое число может быть больше.
+  Значение имеет только одно: ноль упавших.
 - Подпись «оценка по долям назначений» обязательна везде, где показываются деньги направлений. Доли в справочнике — доли назначений, а не выручки.
 
 ## Review Focus
@@ -871,7 +874,7 @@ def build_direction_detail(
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests/test_directions_attribution.py -v
 ```
 
-Ожидается: 19 passed.
+Ожидается: 30 passed в этом файле (21 из задач 2 и её круга правок + 8 из задания + порог остатка).
 
 - [ ] **Step 5: Коммит**
 
@@ -1665,7 +1668,7 @@ app.include_router(directions.router, prefix="/api")
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
-Ожидается: 39 passed.
+Ожидается: 50 passed.
 
 - [ ] **Step 8: Коммит**
 
@@ -1819,7 +1822,7 @@ class DirectionDictionary(BaseModel):
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
-Ожидается: 44 passed.
+Ожидается: 55 passed.
 
 - [ ] **Step 8: Проверить, что в бекенде не осталось ссылок**
 
@@ -2137,7 +2140,7 @@ async def direction_market_scope(
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
-Ожидается: 52 passed.
+Ожидается: 63 passed.
 
 - [ ] **Step 8: Проверить на реальных данных**
 
@@ -3374,7 +3377,7 @@ git commit -m "Add directions tab to MNN dashboard"
 cd "C:/Users/B Fazliddin/Desktop/Pharmadash" && ./.venv/Scripts/python.exe -m pytest backend/tests -v
 ```
 
-Ожидается: 51 passed, 0 failed.
+Ожидается: 0 failed. Число пройденных тестов — около 63, точное значение зависит от того, сколько тестов добавили круги правок; значение имеет только ноль упавших.
 
 - [ ] **Step 2: Собрать фронтенд и прогнать линтер**
 
