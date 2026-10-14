@@ -395,3 +395,203 @@ def test_mnn_directions_float_noise_does_not_produce_phantom_row():
     out = build_mnn_directions(items, dmap)
 
     assert all(r["name"] != UNALLOCATED for r in out["total"]["rows"])
+
+
+def test_form_block_rows_reconcile_with_form_usd():
+    dmap = {("A", "D-CRM"): [("Дерматология", 0.85)]}
+    out = build_mnn_directions([row("A", "D-CRM", 100.0)], dmap)
+
+    form = out["forms"][0]
+    assert sum(r["usd"] for r in form["rows"]) == pytest.approx(form["usd"])
+    rest = next(r for r in form["rows"] if r["name"] == UNALLOCATED)
+    assert rest["usd"] == pytest.approx(15.0)
+    assert rest["share"] == pytest.approx(0.15)
+
+
+def test_overview_directions_sort_unsorted_input_with_name_tiebreak():
+    dmap = {
+        ("A", "TC-TAB"): [("Аллергология", 1.0)],
+        ("B", "TC-TAB"): [("Яхтенная медицина", 1.0)],
+        ("C", "TC-TAB"): [("Онкология", 1.0)],
+    }
+    items = [
+        row("A", "TC-TAB", 100.0, 100.0, 100.0),
+        row("B", "TC-TAB", 100.0, 100.0, 100.0),
+        row("C", "TC-TAB", 500.0, 500.0, 500.0),
+    ]
+    out = build_overview_directions(items, dmap, top_n=10)
+
+    assert [o["name"] for o in out] == [
+        "Онкология", "Аллергология", "Яхтенная медицина",
+    ]
+
+
+def test_mnn_directions_sorts_forms_by_money_desc():
+    dmap = {
+        ("A", "D-SOL"): [("Дерматология", 1.0)],
+        ("A", "D-CRM"): [("Дерматология", 1.0)],
+    }
+    items = [row("A", "D-SOL", 10.0), row("A", "D-CRM", 90.0)]
+    out = build_mnn_directions(items, dmap)
+
+    assert [f["form"] for f in out["forms"]] == ["D-CRM", "D-SOL"]
+
+
+def test_direction_detail_sorts_pairs_by_money_desc():
+    dmap = {
+        ("A", "TC-TAB"): [("Терапия", 1.0)],
+        ("B", "TC-TAB"): [("Терапия", 1.0)],
+    }
+    items = [row("A", "TC-TAB", 10.0), row("B", "TC-TAB", 90.0)]
+    out = build_direction_detail(items, dmap, "Терапия", 1000.0)
+
+    assert [p["mnn"] for p in out["pairs"]] == ["B", "A"]
+
+
+def test_overview_shares_by_year_use_per_year_denominators():
+    dmap = {("A", "TC-TAB"): [("Терапия", 1.0)]}
+    # row(mnn, lf, usd3, usd1, usd2): итоги y1=200, y2=500, y3=1000
+    items = [
+        row("A", "TC-TAB", 400.0, 100.0, 250.0),
+        row("B", "SYR", 600.0, 100.0, 250.0),
+    ]
+    out = build_overview_directions(items, dmap, top_n=5)
+    therapy = next(o for o in out if o["name"] == "Терапия")
+
+    assert therapy["shares_by_year"][0] == pytest.approx(0.5)
+    assert therapy["shares_by_year"][1] == pytest.approx(0.5)
+    assert therapy["shares_by_year"][2] == pytest.approx(0.4)
+
+
+def test_overview_shares_by_year_distinct_and_for_other_row():
+    dmap = {
+        ("A", "TC-TAB"): [("Терапия", 1.0)],
+        ("B", "TC-TAB"): [("ЛОР", 1.0)],
+    }
+    # итоги: y1=400, y2=500, y3=1000; Терапия в топе, ЛОР в «Прочих»
+    items = [
+        row("A", "TC-TAB", 600.0, 300.0, 250.0),
+        row("B", "TC-TAB", 400.0, 100.0, 250.0),
+    ]
+    out = build_overview_directions(items, dmap, top_n=1)
+
+    therapy = next(o for o in out if o["name"] == "Терапия")
+    other = next(o for o in out if o["kind"] == "other")
+    assert therapy["shares_by_year"] == pytest.approx([0.75, 0.5, 0.6])
+    assert other["shares_by_year"] == pytest.approx([0.25, 0.5, 0.4])
+
+
+def test_form_row_shares_use_form_total_not_mnn_total():
+    dmap = {
+        ("A", "D-CRM"): [("Дерматология", 0.85), ("Педиатрия", 0.15)],
+        ("A", "D-OINT"): [("Дерматология", 1.0)],
+    }
+    items = [row("A", "D-CRM", 100.0), row("A", "D-OINT", 900.0)]
+    out = build_mnn_directions(items, dmap)
+
+    crm = next(f for f in out["forms"] if f["form"] == "D-CRM")
+    derm = next(r for r in crm["rows"] if r["name"] == "Дерматология")
+    assert derm["share"] == pytest.approx(0.85)
+
+
+def test_overview_rows_sum_to_market_total():
+    dmap = {
+        ("A", "TC-TAB"): [("Терапия", 0.6), ("Педиатрия", 0.4)],
+        ("B", "D-CRM"): [("Дерматология", 0.9)],
+        ("C", "TC-CAP"): [("Онкология", 1.0)],
+        ("D", "LOZ"): [("ЛОР", 1.0)],
+    }
+    items = [
+        row("A", "TC-TAB", 500.0, 400.0, 450.0),
+        row("B", "D-CRM", 300.0, 200.0, 250.0),
+        row("C", "TC-CAP", 100.0, 90.0, 95.0),
+        row("D", "LOZ", 50.0, 40.0, 45.0),
+        row("E", "SYR", 70.0, 60.0, 65.0),
+    ]
+    out = build_overview_directions(items, dmap, top_n=2)
+    total = sum(i.usd_y3 for i in items)
+
+    assert any(o["kind"] == "other" for o in out)
+    assert sum(o["usd"] for o in out) == pytest.approx(total)
+
+
+def test_mnn_total_rows_sum_to_mnn_total():
+    dmap = {
+        ("A", "D-CRM"): [("Дерматология", 0.85), ("Педиатрия", 0.15)],
+        ("A", "D-OINT"): [("Дерматология", 0.7)],
+    }
+    items = [row("A", "D-CRM", 100.0), row("A", "D-OINT", 50.0),
+             row("A", "SYR", 25.0)]
+    out = build_mnn_directions(items, dmap)
+
+    assert sum(r["usd"] for r in out["total"]["rows"]) == pytest.approx(
+        out["total"]["usd"],
+    )
+
+
+def test_direction_detail_kpi_years_and_counts_are_distinct():
+    dmap = {
+        ("A", "D-CRM"): [("Дерматология", 1.0)],
+        ("A", "D-OINT"): [("Дерматология", 1.0)],
+        ("B", "D-GEL"): [("Дерматология", 0.5)],
+    }
+    items = [
+        row("A", "D-CRM", 300.0, 100.0, 200.0),
+        row("A", "D-OINT", 100.0, 50.0, 80.0),
+        row("B", "D-GEL", 200.0, 100.0, 100.0),
+    ]
+    out = build_direction_detail(items, dmap, "Дерматология", 1000.0)
+    kpi = out["kpi"]
+
+    assert kpi["pairs_count"] == 3
+    assert kpi["mnns_count"] == 2
+    assert kpi["usd_y1"] == pytest.approx(200.0)
+    assert kpi["usd_y2"] == pytest.approx(330.0)
+    assert kpi["usd_y3"] == pytest.approx(500.0)
+    assert kpi["usd_growth"] == pytest.approx((500.0 - 330.0) / 330.0)
+
+    top = out["pairs"][0]
+    assert top["growth"] == pytest.approx((300.0 - 200.0) / 200.0)
+
+    forms = {f["form"]: f for f in out["forms"]}
+    assert forms["D-CRM"]["share_in_direction"] == pytest.approx(300.0 / 500.0)
+
+
+def test_direction_detail_handles_none_mnn_and_case_variants():
+    dmap = {
+        ("A", "D-CRM"): [("Дерматология", 1.0)],
+        ("", "D-GEL"): [("Дерматология", 1.0)],
+    }
+    items = [
+        row("a", "D-CRM", 50.0), row("A ", "D-CRM", 50.0),
+        row(None, "D-GEL", 50.0), row("", "D-GEL", 50.0),
+    ]
+    out = build_direction_detail(items, dmap, "Дерматология", 1000.0)
+
+    assert out["kpi"]["mnns_count"] == 2
+    assert out["kpi"]["pairs_count"] == 2
+
+
+def test_threshold_boundary_hides_below_and_shows_above():
+    dmap = {("A", "TC-TAB"): [("Терапия", 1.0)]}
+    total = 1_000_000.0
+
+    below = [row("A", "TC-TAB", total), row("B", "SYR", total * 5e-10)]
+    out_below = build_overview_directions(below, dmap, top_n=5)
+    assert all(o["kind"] != "unallocated" for o in out_below)
+
+    above = [row("A", "TC-TAB", total), row("B", "SYR", total * 5e-9)]
+    out_above = build_overview_directions(above, dmap, top_n=5)
+    assert any(o["kind"] == "unallocated" for o in out_above)
+
+
+def test_mnn_directions_on_zero_market_and_empty_reference():
+    zero = build_mnn_directions([row("A", "D-CRM", 0.0)], {})
+    assert zero["total"]["usd"] == pytest.approx(0.0)
+    assert zero["total"]["rows"] == []
+
+    empty = build_mnn_directions([row("A", "D-CRM", 100.0)], {})
+    assert [r["name"] for r in empty["total"]["rows"]] == [UNALLOCATED]
+    assert empty["total"]["rows"][0]["share"] == pytest.approx(1.0)
+    assert empty["forms"][0]["in_reference"] is False
+    assert empty["forms"][0]["rows"] == []

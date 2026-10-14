@@ -157,7 +157,8 @@ def build_overview_directions(
     # Порог отсекает шум float: при суммах долей ровно 100% невязка может
     # дать около 1e-14, и строка «Не распределено $0 · 0%» выглядела бы
     # как дефект продукта. Инвариант сходимости при этом не меняется —
-    # порог влияет только на отображение.
+    # порог влияет только на отображение. Порог намеренно привязан к
+    # последнему году (rest[2]): и рынок, и сортировка определяются по нему.
     if rest[2] > totals[2] * NOISE_REL:
         out.append(_row(UNALLOCATED, rest, totals, "unallocated"))
 
@@ -205,7 +206,7 @@ def build_mnn_directions(items: Iterable[Any], dmap: DirectionMap) -> dict:
             "usd": group_usd,
             "in_reference": bool(group_by_dir),
             "rows": (
-                _share_rows(group_by_dir, [0.0, 0.0, 0.0], group_usd)
+                _share_rows(group_by_dir, group_rest, group_usd)
                 if group_by_dir else []
             ),
         })
@@ -228,6 +229,7 @@ def build_direction_detail(
     pairs: dict[tuple[str, str], dict] = {}
     kpi_usd = [0.0, 0.0, 0.0]
     form_usd: dict[str, float] = defaultdict(float)
+    mnn_keys: set[str] = set()
 
     for item in items:
         key = item_key(item)
@@ -247,11 +249,13 @@ def build_direction_detail(
         for k in range(3):
             kpi_usd[k] += usd[k]
         form_usd[key[1] or "—"] += usd[2]
+        mnn_keys.add(key[0])
 
         entry = pairs.get(key)
         if entry is None:
             pairs[key] = {
                 "mnn": item.mnn,
+                "mnn_key": key[0],
                 "lf": key[1] or "—",
                 "usd_y2": usd[1],
                 "usd_y3": usd[2],
@@ -262,11 +266,12 @@ def build_direction_detail(
             entry["usd_y3"] += usd[2]
 
     ranked = sorted(
-        pairs.values(), key=lambda p: (-p["usd_y3"], p["mnn"], p["lf"]),
+        pairs.values(), key=lambda p: (-p["usd_y3"], p["mnn_key"], p["lf"]),
     )
     for entry in ranked:
         entry["growth"] = _growth(entry["usd_y3"], entry["usd_y2"])
         entry.pop("usd_y2")
+        entry.pop("mnn_key")
 
     return {
         "name": name,
@@ -277,7 +282,7 @@ def build_direction_detail(
             "usd_growth": _growth(kpi_usd[2], kpi_usd[1]),
             "share_of_market": _safe_div(kpi_usd[2], market_total_y3) or 0.0,
             "pairs_count": len(ranked),
-            "mnns_count": len({p["mnn"] for p in ranked}),
+            "mnns_count": len(mnn_keys),
         },
         "pairs": ranked,
         "forms": [
