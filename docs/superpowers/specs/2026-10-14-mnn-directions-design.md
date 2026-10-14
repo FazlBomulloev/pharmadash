@@ -20,9 +20,11 @@
 
 ## Границы
 
-- Скоринг не меняется. Направление служит только просмотру и фильтрации;
-  `services/scoring.py`, веса и пороги не трогаем. Текущие скоры остаются
-  сравнимыми с прежними.
+- Баллы скоринга не меняются. Веса, пороги и формулы не трогаем, текущие
+  скоры остаются сравнимыми с прежними. Направление служит только просмотру и
+  фильтрации.
+- Старый механизм направления из `services/scoring.py` удаляется целиком —
+  см. раздел «Удаление старого направления».
 - Справочник один на все рынки. Колонки `market_id` в нём нет.
 - В интерфейсе справочник только читается. Правки делаются в Excel и
   перезаливаются целиком.
@@ -48,6 +50,59 @@
 | Покрытие продаж USD | 94,2% |
 | Направлений в справочнике | 35 |
 | Направлений с долей рынка ≥ 1% | 23 |
+
+## Удаление старого направления
+
+В проекте уже есть понятие «Направление», и оно конфликтует с новым.
+`services/scoring.py:144` выводит одно направление на пару МНН × ЛФ из класса
+препарата (`BdpRaw.atc`) через словарь `settings.directions` на 25 записей.
+Значение видно в четырёх местах интерфейса: колонка «Направление» в таблице
+скоринга, строка под заголовком в дашборде МНН, карточка скоринга в обзоре,
+страница скоринга.
+
+Механизм измеримо неточен. В БДП рынка 1 встречается 51 значение класса, а в
+словаре есть 25 из них — остальные падают в заглушку «Терапия». Сверка со
+справочником:
+
+| | |
+|---|---|
+| Пар, где есть оба значения | 3 868 |
+| Совпадает | 1 540 (39,8%) |
+| Расходится | 2 328 (60,2%) |
+| Денег под расхождением | 9 066 млн $ (43,6% рынка) |
+
+Пастилки для горла `2,4-DICHLOROBENZYL ALCOHOL + AMYLMETACRESOL / LOZ`
+(27 млн $) старый механизм относит к терапии, справочник — к ЛОР на 90%.
+`ABACAVIR / ORAL SOL` — терапия против инфектологии на 90%.
+
+Оставить оба нельзя: пользователь увидел бы «Терапия» в скоринге и «ЛОР 90%»
+во вкладке направлений и решил, что система противоречит себе.
+
+Удаление безопасно, проверено:
+
+- `direction` не участвует ни в одной формуле баллов — только отображение,
+  сортировка (`scoring_query.py:21`) и поиск (`scoring_query.py:61`);
+- редактора `directions` в интерфейсе нет — поля нет ни в
+  `MarketSettingsPage.tsx`, ни в роутере настроек;
+- `directions` в `scoring_settings_json` рынка 1 побайтово совпадает с
+  дефолтом: словарь никогда не настраивался вручную, он попал в JSON потому,
+  что `dump_settings()` сохраняет объект целиком;
+- Pydantic v2 по умолчанию игнорирует лишние ключи, поэтому уже сохранённый
+  JSON с ключом `directions` продолжит загружаться без миграции.
+
+Что удаляется:
+
+- `services/scoring_settings.py` — класс `DirectionDictionary`, функция
+  `_default_directions()`, поле `directions` в `ScoringSettings`;
+- `services/scoring.py` — ключ `direction` в `metrics`;
+- `services/scoring_query.py` — `direction` в сортировке и в поиске;
+- `routers/overview.py:325` — `direction` в `decision.top`;
+- `components/scoring/ScoringTable.tsx` — колонка «Направление»;
+- `components/dashboard/MnnHero.tsx:81` — вывод направления в строке;
+- `components/overview/OverviewCards.tsx:120` — вывод направления;
+- `pages/MarketScoringPage.tsx` — `direction` в `TEXT_SORT` и в выводе;
+- `types/api.ts` — `direction` в типах элементов скоринга и решения,
+  `directions` в `ScoringSettings`.
 
 ## Модель данных
 
@@ -337,10 +392,17 @@ attribute_usd(items, dmap) -> tuple[dict[str, list[float]], list[float]]
 
 - `backend/models.py` — две таблицы
 - `backend/main.py` — подключение роутера
-- `backend/routers/overview.py` — ключ `directions` в `portfolio`
+- `backend/routers/overview.py` — ключ `directions` в `portfolio`, удаление
+  `direction` из `decision.top`
 - `backend/routers/dashboard.py` — ключ `directions` в ответе
 - `backend/routers/drilldown.py` — эндпоинт панели
 - `backend/schemas.py` — схемы ответов заливки и справочника
+- `backend/services/scoring.py` — удаление ключа `direction`
+- `backend/services/scoring_settings.py` — удаление `DirectionDictionary`,
+  `_default_directions()` и поля `directions`
+- `backend/services/scoring_query.py` — удаление `direction` из сортировки и
+  поиска
+- `backend/requirements.txt` — `pytest`, `pytest-asyncio`
 
 Фронтенд, новое:
 
@@ -357,6 +419,10 @@ attribute_usd(items, dmap) -> tuple[dict[str, list[float]], list[float]]
 - `frontend/src/pages/MarketDashboardPage.tsx` — вкладка
 - `frontend/src/pages/AdminPage.tsx` — блок заливки
 - `frontend/src/api/client.ts`, `frontend/src/types/api.ts`
+- `frontend/src/components/scoring/ScoringTable.tsx` — удаление колонки
+- `frontend/src/components/dashboard/MnnHero.tsx` — удаление вывода
+- `frontend/src/components/overview/OverviewCards.tsx` — удаление вывода
+- `frontend/src/pages/MarketScoringPage.tsx` — удаление вывода и сортировки
 
 ## Тестирование
 
@@ -405,6 +471,10 @@ attribute_usd(items, dmap) -> tuple[dict[str, list[float]], list[float]]
   направления компании, молекулы под них получают баллы. Решено не делать в
   этой итерации — потребует перенастройки весов и сделает прежние скоры
   несравнимыми. Модель данных это переживёт без переделки.
+- Колонка «Направление» в таблице скоринга, заполненная из справочника
+  главным направлением пары. Старая колонка удаляется, новая не добавляется —
+  решение заказчика. Данные для неё к тому моменту уже будут в системе, так
+  что это правка на один вечер.
 - Редактирование справочника в интерфейсе с аудитом изменений.
 - Рынок-специфичные версии справочника: добавляется колонкой `market_id` с
   `NULL` в значении «общий», без переделки схемы.
