@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import html as html_lib
-import json
 import logging
 import random
 import re
-from typing import Any, AsyncIterator
-from urllib.parse import urlencode
+from typing import AsyncIterator
 
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page, Route, async_playwright
@@ -20,138 +17,111 @@ from .name_parse_en import (
 log = logging.getLogger(__name__)
 
 SITE_URL = "https://www.watsons.com.ph"
-API_URL = "https://api.watsons.com.ph/api/v2/wtcph/products/search"
-CATEGORY = "060000"
-PAGE_SIZE = 100
-FIELDS = "products(FULL),pagination(DEFAULT)"
+CATEGORIES = (
+    ("/health-and-rx/prescription/c/061200", "Prescription"),
+    ("/health-and-rx/over-the-counter/c/061100", "Over-the-counter"),
+    ("/health-and-rx/vitamins-and-supplements/c/060800",
+     "Vitamins and supplements"),
+)
+PAGE_SIZE = 64
 # Akamai пропускает Firefox, а Chromium и обычные HTTP-клиенты получают 403.
+# API тоже режется, поэтому товары берутся из отрисованной витрины.
 BROWSER = "firefox"
-PAGE_DELAY = (1.5, 3.0)
+TILE_SELECTOR = "wtc-product-tile a.product-name"
+RENDER_TIMEOUT_MS = 40_000
+PAGE_DELAY = (2.0, 4.0)
 RETRY_WAITS = (15, 30, 60, 120)
 BLOCKED_TYPES = {"image", "media", "font"}
 
-FETCH_JS = """async (url) => {
-    const r = await fetch(url, {credentials: "include"});
-    return [r.status, await r.text()];
+TILES_JS = """() => {
+  const text = (root, sel) => {
+    const el = root.querySelector(sel);
+    return el ? el.textContent.trim() : "";
+  };
+  const tiles = [...document.querySelectorAll("wtc-product-tile")].map(t => {
+    const link = t.querySelector("a.product-name");
+    const img = t.querySelector(".product-img img");
+    const box = t.querySelector(".productPrice");
+    return {
+      href: link ? link.getAttribute("href") || "" : "",
+      brand: text(t, ".product-name .brand"),
+      title: text(t, ".product-name .title"),
+      image: img ? img.getAttribute("src") || "" : "",
+      origin: text(t, ".origin-price"),
+      rrp: text(t, ".rrp-price"),
+      prices: box ? box.textContent : "",
+      text: t.textContent.toLowerCase(),
+    };
+  });
+  const pages = [...document.querySelectorAll("e2-pagination li a")]
+    .map(a => parseInt(a.textContent.trim(), 10))
+    .filter(n => !isNaN(n));
+  return [tiles, pages.length ? Math.max(...pages) : null];
 }"""
 
-_TAG_RE = re.compile(r"<[^>]+>")
+_CODE_RE = re.compile(r"/p/(BP_\w+)")
+_PESO_RE = re.compile(r"₱\s*([\d,]+(?:\.\d+)?)")
+_OUT_OF_STOCK = ("out of stock", "sold out", "notify me")
 
 
-def _text(value: Any) -> str:
-    if value is None:
-        return ""
-    text = html_lib.unescape(_TAG_RE.sub(" ", str(value)))
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def _amount(value: Any) -> float | None:
-    if isinstance(value, dict):
-        value = value.get("value")
+def _peso(value: str) -> float | None:
+    match = _PESO_RE.search(value or "")
+    if not match:
+        return None
     try:
-        amount = float(value)
-    except (TypeError, ValueError):
+        amount = float(match.group(1).replace(",", ""))
+    except ValueError:
         return None
     return amount if amount > 0 else None
 
 
-def _features(item: dict) -> dict[str, str]:
-    features: dict[str, str] = {}
-    for group in item.get("classifications") or []:
-        for feature in group.get("features") or []:
-            values = [
-                _text(v.get("value"))
-                for v in feature.get("featureValues") or []
-            ]
-            name = (feature.get("name") or "").strip().lower()
-            if name and any(values):
-                features[name] = ", ".join(v for v in values if v)
-    return features
+def _prices(tile: dict) -> tuple[float | None, float | None]:
+    amounts = [
+        a for a in (
+            _peso(m.group(0)) for m in _PESO_RE.finditer(tile["prices"])
+        ) if a is not None
+    ]
+    regular = _peso(tile["rrp"]) or _peso(tile["origin"])
+    if regular is None:
+        regular = max(amounts, default=None)
+    if regular is None:
+        return None, None
+    lower = [a for a in amounts if a < regular]
+    return regular, min(lower) if lower else None
 
 
-def _find(features: dict[str, str], *words: str) -> str:
-    for name, value in features.items():
-        if any(word in name for word in words):
-            return value
-    return ""
-
-
-def _image(item: dict) -> str:
-    images = item.get("images") or []
-    preferred = [i for i in images if i.get("format") in ("zoom", "product")]
-    for image in preferred + images:
-        url = image.get("url") or ""
-        if url:
-            return url if url.startswith("http") else SITE_URL + url
-    return ""
-
-
-def _brand(item: dict) -> str:
-    brand = item.get("masterBrand")
-    if isinstance(brand, dict):
-        return _text(brand.get("name"))
-    return _text(brand)
-
-
-def _in_stock(item: dict) -> bool:
-    stock = item.get("stock")
-    if isinstance(stock, dict):
-        return stock.get("stockLevelStatus") != "outOfStock"
-    return True
-
-
-def parse_products(payload: dict) -> list[PharmacyProduct]:
+def parse_tiles(tiles: list[dict], category: str) -> list[PharmacyProduct]:
     products: list[PharmacyProduct] = []
-    for item in payload.get("products") or []:
-        code = item.get("code") or ""
-        name = _text(item.get("name") or item.get("elabProductName"))
-        current = _amount(item.get("price")) or _amount(item.get("elabPrice"))
-        if not code or not name or current is None:
+    for tile in tiles:
+        code = _CODE_RE.search(tile["href"])
+        brand = " ".join(tile["brand"].split())
+        title = " ".join(tile["title"].split())
+        price, discount = _prices(tile)
+        if not code or not title or price is None:
             continue
-        old = (
-            _amount(item.get("strikeThroughPrice"))
-            or _amount(item.get("elabOldPrice"))
-        )
-        if old is not None and old <= current:
-            old = None
-        features = _features(item)
-        brand = _brand(item)
-        url = item.get("url") or ""
-        categories = [
-            c.get("name", "") for c in item.get("categoryNameLevels") or []
-        ]
+        href = tile["href"]
         products.append(PharmacyProduct(
             source=WatsonsAdapter.slug,
-            sku=code,
-            name=name,
-            mnn=_find(features, "generic", "active ingredient"),
-            trade_name=brand or parse_trade_name(name),
-            manufacturer=_find(features, "manufactur", "distribut"),
-            country=_text(item.get("elabCountryOfOrigin")).title(),
-            form=parse_form(_find(features, "dosage form", "form"), name),
-            dosage=parse_dosage(_find(features, "strength", "dosage"), name),
-            pack_qty=parse_pack("", name),
-            price=old if old is not None else current,
-            price_discount=current if old is not None else None,
-            url=url if url.startswith("http") else SITE_URL + url,
-            image_url=_image(item),
+            sku=code.group(1),
+            name=title,
+            trade_name=brand or parse_trade_name(title),
+            form=parse_form("", title),
+            dosage=parse_dosage("", title),
+            pack_qty=parse_pack("", title),
+            price=price,
+            price_discount=discount,
+            url=href if href.startswith("http") else SITE_URL + href,
+            image_url=tile["image"],
             extra={
-                "category": " / ".join(c for c in categories if c),
-                "prescription": bool(item.get("elabPrescription")),
-                "ean": item.get("ean") or "",
-                "in_stock": _in_stock(item),
+                "category": category,
+                "in_stock": not any(w in tile["text"] for w in _OUT_OF_STOCK),
             },
         ))
     return products
 
 
-def page_url(number: int) -> str:
-    return API_URL + "?" + urlencode({
-        "fields": FIELDS,
-        "query": f":mostRelevant:category:{CATEGORY}",
-        "pageSize": PAGE_SIZE,
-        "currentPage": number,
-    })
+def page_url(path: str, number: int) -> str:
+    return f"{SITE_URL}{path}?currentPage={number}&pageSize={PAGE_SIZE}"
 
 
 async def _block_media(route: Route) -> None:
@@ -161,47 +131,33 @@ async def _block_media(route: Route) -> None:
         await route.continue_()
 
 
-async def _open_site(page: Page) -> bool:
-    try:
-        response = await page.goto(
-            SITE_URL + "/", wait_until="domcontentloaded", timeout=90_000,
-        )
-    except PlaywrightError as e:
-        log.warning("Watsons: главная не открылась: %s", e.message)
-        return False
-    # Скрипты Akamai выставляют cookie уже после загрузки документа.
-    await page.wait_for_timeout(6000)
-    status = response.status if response else None
-    if status != 200:
-        log.warning("Watsons: главная вернула HTTP %s", status)
-        return False
-    return True
-
-
-async def _fetch_page(page: Page, number: int) -> dict | None:
+async def _load_page(
+    page: Page, url: str,
+) -> tuple[list[dict], int | None] | None:
     for attempt, wait in enumerate(RETRY_WAITS):
         try:
-            status, body = await page.evaluate(FETCH_JS, page_url(number))
+            response = await page.goto(
+                url, wait_until="domcontentloaded", timeout=90_000,
+            )
+            status = response.status if response else None
+            if status == 200:
+                await page.wait_for_selector(
+                    TILE_SELECTOR, timeout=RENDER_TIMEOUT_MS,
+                )
+                tiles, pages = await page.evaluate(TILES_JS)
+                return tiles, pages
+            log.warning(
+                "Watsons: %s — HTTP %s, попытка %d/%d, пауза %d с",
+                url, status, attempt + 1, len(RETRY_WAITS), wait,
+            )
         except PlaywrightError as e:
             log.warning(
-                "Watsons: стр. %d, ошибка запроса: %s", number, e.message,
+                "Watsons: %s — нет карточек (%s), попытка %d/%d, "
+                "пауза %d с", url, e.message.splitlines()[0],
+                attempt + 1, len(RETRY_WAITS), wait,
             )
-            status, body = None, ""
-        if status == 200:
-            try:
-                return json.loads(body)
-            except ValueError:
-                log.warning("Watsons: стр. %d вернула не JSON", number)
-        else:
-            log.warning(
-                "Watsons: стр. %d — HTTP %s, попытка %d/%d, пауза %d с",
-                number, status, attempt + 1, len(RETRY_WAITS), wait,
-            )
-        if attempt == len(RETRY_WAITS) - 1:
-            break
-        await asyncio.sleep(wait)
-        if status in (401, 403):
-            await _open_site(page)
+        if attempt < len(RETRY_WAITS) - 1:
+            await asyncio.sleep(wait)
     return None
 
 
@@ -219,48 +175,45 @@ class WatsonsAdapter(PharmacyAdapter):
                 context = await browser.new_context(locale="en-PH")
                 await context.route("**/*", _block_media)
                 page = await context.new_page()
-                if not await _open_site(page):
-                    raise RuntimeError(
-                        "Watsons: сайт не открылся (вероятно, блок Akamai)"
-                    )
-                number, pages = 0, None
-                while pages is None or number < pages:
-                    payload = await _fetch_page(page, number)
-                    if payload is None:
-                        log.warning(
-                            "Watsons: стр. %d недоступна, сбор прерван",
-                            number,
-                        )
-                        break
-                    if pages is None:
-                        pagination = payload.get("pagination") or {}
-                        pages = int(pagination.get("totalPages") or 1)
+                for path, category in CATEGORIES:
+                    number, pages = 0, None
+                    while pages is None or number < pages:
+                        loaded = await _load_page(page, page_url(path, number))
+                        if loaded is None:
+                            log.warning(
+                                "Watsons: %s стр. %d недоступна, "
+                                "раздел прерван", category, number + 1,
+                            )
+                            break
+                        tiles, last = loaded
+                        if pages is None:
+                            pages = last or 1
+                            log.info(
+                                "Watsons: %s — %d страниц", category, pages,
+                            )
+                        new = 0
+                        for product in parse_tiles(tiles, category):
+                            if product.sku in seen:
+                                continue
+                            seen.add(product.sku)
+                            new += 1
+                            yield product
+                            yielded += 1
+                            if self.limit and yielded >= self.limit:
+                                return
                         log.info(
-                            "Watsons: %s товаров, %d страниц",
-                            pagination.get("totalResults"), pages,
+                            "Watsons: %s стр. %d/%d (новых: %d, всего: %d)",
+                            category, number + 1, pages, new, yielded,
                         )
-                    items = parse_products(payload)
-                    if not items:
-                        break
-                    for product in items:
-                        if product.sku in seen:
-                            continue
-                        seen.add(product.sku)
-                        yield product
-                        yielded += 1
-                        if self.limit and yielded >= self.limit:
-                            return
-                    log.info(
-                        "Watsons: стр. %d/%d (товаров: %d)",
-                        number + 1, pages, yielded,
-                    )
-                    number += 1
-                    await asyncio.sleep(random.uniform(*PAGE_DELAY))
+                        if new == 0:
+                            break
+                        number += 1
+                        await asyncio.sleep(random.uniform(*PAGE_DELAY))
             finally:
                 await browser.close()
 
         if yielded == 0:
             raise RuntimeError(
                 "Watsons: не удалось получить ни одного товара "
-                "(блок Akamai или изменился формат API)"
+                "(блок Akamai или изменилась вёрстка витрины)"
             )
