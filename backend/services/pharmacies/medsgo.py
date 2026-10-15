@@ -13,6 +13,7 @@ from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import Page, Route, async_playwright
 
 from .base import PharmacyAdapter, PharmacyProduct
+from .name_parse_en import parse_dosage, parse_form, parse_pack
 
 log = logging.getLogger(__name__)
 
@@ -46,54 +47,6 @@ _FEATURE_RE = re.compile(
     r"<em>([^<]+)</em></span>\s*<span><em>(.*?)</em>", re.S,
 )
 _COUNT_RE = re.compile(r'"product_count":"(\d+)"')
-_DOSE_RE = re.compile(
-    r"\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|%)(?:\s*/\s*\d*(?:\.\d+)?\s*"
-    r"(?:mg|mcg|g|ml|iu))?",
-    re.I,
-)
-_PACK_RE = re.compile(
-    r"(\d+)\s*(?:'s\b|pcs\b|pieces?\b|tablets?\b|tabs?\b|capsules?\b|"
-    r"caps\b|softgels?\b|sachets?\b|vials?\b|ampoules?\b|ampules?\b)",
-    re.I,
-)
-_VOLUME_RE = re.compile(r"\d+(?:\.\d+)?\s*(?:ml|g)\b", re.I)
-_FORMS = (
-    ("film-coated tablet", "Film-Coated Tablet"),
-    ("chewable tablet", "Chewable Tablet"),
-    ("effervescent tablet", "Effervescent Tablet"),
-    ("oral drops", "Oral Drops"),
-    ("oral suspension", "Oral Suspension"),
-    ("softgel", "Softgel Capsule"),
-    ("tablet", "Tablet"),
-    ("tab", "Tablet"),
-    ("capsule", "Capsule"),
-    ("caps", "Capsule"),
-    ("syrup", "Syrup"),
-    ("suspension", "Suspension"),
-    ("drops", "Drops"),
-    ("sachet", "Sachet"),
-    ("cream", "Cream"),
-    ("ointment", "Ointment"),
-    ("gel", "Gel"),
-    ("lotion", "Lotion"),
-    ("spray", "Spray"),
-    ("inhaler", "Inhaler"),
-    ("nebule", "Nebule"),
-    ("vial", "Injection"),
-    ("ampoule", "Injection"),
-    ("ampule", "Injection"),
-    ("injection", "Injection"),
-    ("solution", "Solution"),
-    ("powder", "Powder"),
-    ("suppository", "Suppository"),
-    ("patch", "Patch"),
-)
-_FORM_RE = re.compile(
-    r"\b(" + "|".join(re.escape(k) for k, _ in _FORMS) + r")s?\b", re.I,
-)
-_FORM_NAMES = dict(_FORMS)
-
-
 def _text(fragment: str | None) -> str:
     if not fragment:
         return ""
@@ -111,30 +64,6 @@ def _price(card: str, element_id: str) -> float | None:
         return float(f"{match.group(1).replace(',', '')}.{match.group(2)}")
     except ValueError:
         return None
-
-
-def parse_form(*texts: str) -> str:
-    for text in texts:
-        match = _FORM_RE.search(text or "")
-        if match:
-            return _FORM_NAMES[match.group(1).lower()]
-    return ""
-
-
-def parse_dosage(feature: str, name: str) -> str:
-    if feature and re.search(r"\d", feature):
-        return feature
-    match = _DOSE_RE.search(name or "")
-    return match.group(0).strip() if match else ""
-
-
-def parse_pack(packaging: str, name: str) -> str:
-    for text in (name, packaging):
-        match = _PACK_RE.search(text or "")
-        if match:
-            return match.group(1)
-    match = _VOLUME_RE.search(name or "")
-    return match.group(0).replace(" ", "") if match else ""
 
 
 def parse_listing(page_html: str) -> list[PharmacyProduct]:
