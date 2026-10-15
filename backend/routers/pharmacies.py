@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
 from backend.services.permissions import require
-from backend.models import PharmacyPrice, PharmacySourceRun
-from backend.services.pharmacies.registry import ADAPTERS
+from backend.models import Market, PharmacyPrice, PharmacySourceRun
+from backend.services.pharmacies.registry import ADAPTERS, market_sources
 from backend.services.pharmacies.runner import (
     is_running,
     launch_background,
@@ -39,6 +39,17 @@ async def _data_version(db: AsyncSession) -> tuple:
     return tuple(row)
 
 
+async def _scope(db: AsyncSession, market_id: int | None) -> list[str]:
+    # Без рынка — все источники: так их видит запуск парсеров. С рынком —
+    # только назначенные ему, чтобы не показывать аптеки другой страны.
+    if market_id is None:
+        return list(ADAPTERS)
+    market = await db.get(Market, market_id)
+    if market is None:
+        raise HTTPException(404, "Рынок не найден")
+    return market_sources(market.pharmacy_sources_json)
+
+
 async def _cached_total(db: AsyncSession, key: tuple, total_stmt) -> int:
     total = _TOTALS_CACHE.get(key)
     if total is not None:
@@ -52,9 +63,13 @@ async def _cached_total(db: AsyncSession, key: tuple, total_stmt) -> int:
 
 
 @router.get("")
-async def list_sources(db: AsyncSession = Depends(get_db)):
+async def list_sources(
+    market_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
     out = []
-    for slug, cls in ADAPTERS.items():
+    for slug in await _scope(db, market_id):
+        cls = ADAPTERS[slug]
         count = (await db.execute(
             select(func.count()).select_from(PharmacyPrice)
             .where(PharmacyPrice.source == slug)
@@ -70,6 +85,7 @@ async def list_sources(db: AsyncSession = Depends(get_db)):
         out.append({
             "slug": slug,
             "display_name": cls.display_name,
+            "currency": cls.currency,
             "items_count": count,
             "running": is_running(slug),
             "last_run": _serialize_run(last_run_row),
@@ -107,6 +123,7 @@ async def list_runs(
 
 @router.get("/prices")
 async def list_prices(
+    market_id: Optional[int] = None,
     source: Optional[str] = None,
     search: Optional[str] = None,
     mnn: Optional[str] = None,
@@ -121,10 +138,12 @@ async def list_prices(
     order: str = Query("desc"),
     db: AsyncSession = Depends(get_db),
 ):
-    conds = []
-    slugs = [x for x in (source or "").split(",") if x]
-    if slugs:
-        conds.append(PharmacyPrice.source.in_(slugs))
+    scope = await _scope(db, market_id)
+    requested = [x for x in (source or "").split(",") if x]
+    slugs = [s for s in scope if s in requested] if requested else scope
+    if not slugs:
+        return {"total": 0, "offset": offset, "limit": limit, "items": []}
+    conds = [PharmacyPrice.source.in_(slugs)]
     if mnn:
         conds.append(PharmacyPrice.mnn == mnn)
     if manufacturer:
@@ -192,11 +211,13 @@ async def list_prices(
 @router.get("/prices/{price_id}/compare")
 async def compare_prices(
     price_id: int,
+    market_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
 ):
     current = await db.get(PharmacyPrice, price_id)
     if not current:
         raise HTTPException(404, "Позиция не найдена")
+    scope = await _scope(db, market_id)
 
     rows = [current]
     if current.trade_name:
@@ -204,6 +225,7 @@ async def compare_prices(
             func.lower(PharmacyPrice.trade_name)
             == current.trade_name.lower(),
             PharmacyPrice.price.isnot(None),
+            PharmacyPrice.source.in_(scope),
         ]
         if current.dosage:
             conds.append(PharmacyPrice.dosage == current.dosage)
@@ -241,27 +263,50 @@ def cheapest_per_source(rows, current) -> list[dict]:
 
 
 @router.get("/filters")
-async def get_filters(db: AsyncSession = Depends(get_db)):
+async def get_filters(
+    market_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    scope = await _scope(db, market_id)
+    if not scope:
+        return {
+            "sources": [], "manufacturers": [], "countries": [],
+            "forms": [], "mnns": [],
+        }
     version = await _data_version(db)
-    cached = _FILTERS_CACHE.get(version)
+    key = (version, tuple(scope))
+    cached = _FILTERS_CACHE.get(key)
     if cached is not None:
         return cached
+
+    present = (await db.execute(
+        select(PharmacyPrice.source).distinct()
+    )).scalars().all()
+    # Если рынку назначены все источники из таблицы, условие по source
+    # лишнее: без него группировка идёт по индексу колонки, а не по строкам.
+    source_cond = (
+        None if set(present) <= set(scope)
+        else PharmacyPrice.source.in_(scope)
+    )
+
     async def _distinct(col, limit_n: int = 300):
-        rows = (await db.execute(
+        stmt = (
             select(col, func.count().label("c"))
             .where(col.isnot(None))
             .where(col != "")
-            .group_by(col)
-            .order_by(func.count().desc())
-            .limit(limit_n)
+        )
+        if source_cond is not None:
+            stmt = stmt.where(source_cond)
+        rows = (await db.execute(
+            stmt.group_by(col).order_by(func.count().desc()).limit(limit_n)
         )).all()
         return [
             {"value": r[0], "count": r[1]} for r in rows if r[0]
         ]
 
     sources = [
-        {"slug": s, "display_name": cls.display_name}
-        for s, cls in ADAPTERS.items()
+        {"slug": s, "display_name": ADAPTERS[s].display_name}
+        for s in scope
     ]
     payload = {
         "sources": sources,
@@ -270,8 +315,9 @@ async def get_filters(db: AsyncSession = Depends(get_db)):
         "forms": await _distinct(PharmacyPrice.form),
         "mnns": await _distinct(PharmacyPrice.mnn, 500),
     }
-    _FILTERS_CACHE.clear()
-    _FILTERS_CACHE[version] = payload
+    for stale in [k for k in _FILTERS_CACHE if k[0] != version]:
+        del _FILTERS_CACHE[stale]
+    _FILTERS_CACHE[key] = payload
     return payload
 
 

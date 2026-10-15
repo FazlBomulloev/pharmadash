@@ -10,6 +10,7 @@ export interface Market {
   usd_growth?: number | null;
   categories?: Record<ScoringCategory, number> | null;
   bdp_loaded_at?: string | null;
+  pharmacy_sources?: string[];
 }
 
 export interface YearSeries {
@@ -571,6 +572,7 @@ export interface PharmacySourceRun {
 export interface PharmacySource {
   slug: string;
   display_name: string;
+  currency: string;
   items_count: number;
   running: boolean;
   last_run: PharmacySourceRun | null;
@@ -616,6 +618,7 @@ export interface PharmacyFiltersResponse {
 }
 
 export interface PharmacyPricesQuery {
+  market_id?: number;
   source?: string;
   search?: string;
   mnn?: string;

@@ -64,9 +64,21 @@ export function fmtScore(v: number | null | undefined, digits = 1): string {
   return fixed(v, digits);
 }
 
-export function fmtRub(v: number | null | undefined): string {
+const CURRENCY_SIGNS: Record<string, string> = { RUB: "₽", PHP: "₱" };
+
+export function currencySign(currency: string | undefined): string {
+  return CURRENCY_SIGNS[currency ?? "RUB"] ?? currency ?? "₽";
+}
+
+export function fmtMoney(
+  v: number | null | undefined,
+  currency: string | undefined,
+): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return `${fmtInt(v)}${NBSP}₽`;
+  const amount = (currency ?? "RUB") === "RUB"
+    ? fmtInt(v)
+    : fixed(v, 2).replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+  return `${amount}${NBSP}${currencySign(currency)}`;
 }
 
 export function titleCase(s: string | null | undefined): string {

@@ -26,6 +26,7 @@ from backend.schemas import (
     UploadResponse,
     PreviewResponse,
     PreviewRow,
+    PharmacySourcesUpdate,
 )
 from backend.routers.drilldown import invalidate_drilldown_cache
 from backend.routers.overview import invalidate_overview_cache
@@ -37,6 +38,7 @@ from backend.services.market_scoring import (
 from backend.services.market_caches import (
     MARKET_CARDS, invalidate_market_card, invalidate_settings_lists,
 )
+from backend.services.pharmacies.registry import ADAPTERS, market_sources
 from backend.services.prewarm import prewarm_market
 from backend.services.parsers.base import (
     read_column_samples,
@@ -105,6 +107,7 @@ async def _build_market_card(db: AsyncSession, m: Market) -> MarketOut:
         ),
         categories=categories,
         bdp_loaded_at=loaded_at,
+        pharmacy_sources=market_sources(m.pharmacy_sources_json),
     )
 
 
@@ -158,6 +161,35 @@ async def create_market(
         regions=None,
         created_at=market.created_at.isoformat(),
     )
+
+
+@router.put(
+    "/{market_id}/pharmacy-sources", response_model=MarketOut,
+    dependencies=[Depends(require("markets:write"))],
+)
+async def update_pharmacy_sources(
+    market_id: int,
+    body: PharmacySourcesUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    market = await db.get(Market, market_id)
+    if not market:
+        raise HTTPException(404, "Рынок не найден")
+    unknown = sorted(set(body.sources) - set(ADAPTERS))
+    if unknown:
+        raise HTTPException(
+            400, f"Неизвестные источники цен: {', '.join(unknown)}",
+        )
+    market.pharmacy_sources_json = json.dumps(
+        [s for s in ADAPTERS if s in body.sources],
+    )
+    await db.commit()
+    invalidate_market_card(market_id)
+    log.info(
+        "Источники цен рынка %s: %s",
+        market.name, ", ".join(body.sources) or "нет",
+    )
+    return await _market_card(db, market)
 
 
 @router.delete("/{market_id}", dependencies=[Depends(require("markets:write"))])

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import delete, insert
+from sqlalchemy import delete, insert, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session
@@ -77,6 +77,8 @@ async def run_source(
                     batch = rows[start:start + BATCH_SIZE]
                     await _flush(db, batch)
                     count += len(batch)
+                await db.execute(text("ANALYZE pharmacy_prices"))
+                await db.commit()
 
             log.info(
                 "Пharmacy %s: снапшот обновлён (%d записей за %.1f с)",

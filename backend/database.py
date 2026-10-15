@@ -39,6 +39,7 @@ async def get_db():
 _MIGRATIONS = [
     ("pharmacy_prices", "image_url", "TEXT"),
     ("markets", "scoring_settings_json", "TEXT"),
+    ("markets", "pharmacy_sources_json", "TEXT"),
 ]
 
 _DROPPED_COLUMNS = [
@@ -67,6 +68,12 @@ _EXPRESSION_INDEXES = [
     (
         "ix_pharmacy_prices_lower_trade_name",
         "pharmacy_prices", "lower(trade_name)",
+    ),
+    # Цены рынка — это source IN (...) с сортировкой по дате: без этого
+    # индекса SQLite сортировал все строки источников на каждой странице.
+    (
+        "ix_pharmacy_prices_source_scraped",
+        "pharmacy_prices", "source, scraped_at",
     ),
 ]
 
@@ -106,6 +113,11 @@ async def _apply_migrations(conn):
                 text(f"CREATE INDEX {name} ON {table} ({expr})")
             )
             log.info("Миграция: индекс %s создан", name)
+
+    # Без статистики планировщик для нескольких источников выбирает индекс
+    # по source и сортирует всё заново. Таблица меняется парсерами, поэтому
+    # статистика обновляется и после каждого их запуска.
+    await conn.execute(text("ANALYZE pharmacy_prices"))
 
 
 async def init_db():

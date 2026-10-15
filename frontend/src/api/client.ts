@@ -262,8 +262,21 @@ export async function getCountryDetails(
   return data;
 }
 
-export async function getPharmacySources(): Promise<PharmacySource[]> {
-  const { data } = await api.get<PharmacySource[]>("/pharmacies");
+export async function getPharmacySources(
+  marketId?: number,
+): Promise<PharmacySource[]> {
+  const { data } = await api.get<PharmacySource[]>("/pharmacies", {
+    params: marketId == null ? {} : { market_id: marketId },
+  });
+  return data;
+}
+
+export async function updatePharmacySources(
+  marketId: number, sources: string[],
+): Promise<Market> {
+  const { data } = await api.put<Market>(
+    `/markets/${marketId}/pharmacy-sources`, { sources },
+  );
   return data;
 }
 
@@ -300,16 +313,22 @@ export async function getPharmacyPrices(
 
 export async function getPriceComparison(
   priceId: number,
+  marketId: number,
   signal?: AbortSignal,
 ): Promise<PriceCompareItem[]> {
   const { data } = await api.get<{ items: PriceCompareItem[] }>(
-    `/pharmacies/prices/${priceId}/compare`, { signal },
+    `/pharmacies/prices/${priceId}/compare`,
+    { params: { market_id: marketId }, signal },
   );
   return data.items;
 }
 
-export async function getPharmacyFilters(): Promise<PharmacyFiltersResponse> {
-  const { data } = await api.get<PharmacyFiltersResponse>("/pharmacies/filters");
+export async function getPharmacyFilters(
+  marketId: number,
+): Promise<PharmacyFiltersResponse> {
+  const { data } = await api.get<PharmacyFiltersResponse>(
+    "/pharmacies/filters", { params: { market_id: marketId } },
+  );
   return data;
 }
 

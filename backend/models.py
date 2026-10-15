@@ -29,6 +29,7 @@ class Market(Base):
         DateTime, nullable=False, default=datetime.utcnow
     )
     scoring_settings_json = Column(Text, nullable=True)
+    pharmacy_sources_json = Column(Text, nullable=True)
 
     field_mappings = relationship(
         "FieldMapping", back_populates="market",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createPortal } from "react-dom";
+import { useParams } from "react-router-dom";
 import { ArrowUpRight, RefreshCw, Search, X } from "lucide-react";
 import clsx from "clsx";
 import {
@@ -13,14 +14,14 @@ import type {
 import { useDebounce } from "../hooks/useDebounce";
 import { useFetch } from "../hooks/useFetch";
 import {
-  fmtAgo, fmtInt, fmtPct, fmtRub, plural, titleCase,
+  currencySign, fmtAgo, fmtInt, fmtMoney, fmtPct, plural, titleCase,
 } from "../lib/format";
 import { pharmacyHue, tintChip } from "../lib/palette";
 import { Page } from "../components/layout/Layout";
 import { DarkHero, PageHeader } from "../components/ui/Card";
 import { Select } from "../components/ui/Select";
 import { SidePanel } from "../components/ui/SidePanel";
-import { ErrorNote, Loading } from "../components/ui/states";
+import { EmptyCard, ErrorNote, Loading } from "../components/ui/states";
 
 const PAGE_SIZE = 100;
 const ROW_HEIGHT = 57;
@@ -53,6 +54,10 @@ interface Sort {
 
 const DEFAULT_SORT: Sort = { key: "scraped_at", order: "desc" };
 
+type SourceMeta = Record<
+  string, { name: string; hue: number; currency: string }
+>;
+
 const COLUMNS: { key: string; label: string; align?: "right" }[] = [
   { key: "name", label: "Название" },
   { key: "manufacturer", label: "Производитель" },
@@ -74,11 +79,14 @@ function fmtDate(iso: string): string {
 }
 
 export default function PharmaciesPage() {
+  const { marketId: marketParam } = useParams<{ marketId: string }>();
+  const marketId = Number(marketParam);
   const sources = useFetch<PharmacySource[]>(
-    () => getPharmacySources(), [], "Не удалось загрузить источники",
+    () => getPharmacySources(marketId), [marketId],
+    "Не удалось загрузить источники",
   );
   const options = useFetch<PharmacyFiltersResponse>(
-    () => getPharmacyFilters(), [],
+    () => getPharmacyFilters(marketId), [marketId],
   );
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
@@ -110,12 +118,15 @@ export default function PharmaciesPage() {
   }
 
   const meta = useMemo(() => {
-    const map: Record<string, { name: string; hue: number }> = {};
+    const map: SourceMeta = {};
     sourceList.forEach((s, i) => {
-      map[s.slug] = { name: s.display_name, hue: pharmacyHue(i) };
+      map[s.slug] = {
+        name: s.display_name, hue: pharmacyHue(i), currency: s.currency,
+      };
     });
     return map;
   }, [sourceList]);
+  const currency = sourceList[0]?.currency;
 
   const totalItems = sourceList.reduce((sum, s) => sum + s.items_count, 0);
   const maxItems = Math.max(...sourceList.map((s) => s.items_count), 1);
@@ -144,6 +155,18 @@ export default function PharmaciesPage() {
   ) => (list ?? []).map((o) => ({
     value: o.value, label: label(o.value), hint: fmtInt(o.count),
   }));
+
+  if (sources.data && sourceList.length === 0) {
+    return (
+      <Page>
+        <PageHeader title="Цены аптек" />
+        <EmptyCard
+          title="Для рынка не подключены источники цен"
+          description="Выберите аптечные сети рынка в разделе «Загрузка данных»"
+        />
+      </Page>
+    );
+  }
 
   return (
     <Page>
@@ -240,7 +263,7 @@ export default function PharmaciesPage() {
           options={selectOptions(options.data?.forms)}
         />
         <div className="flex h-9 items-center gap-1.5 rounded-[9px] border border-line-strong bg-white px-2.5 text-[13px] text-faint">
-          Цена, ₽
+          Цена, {currencySign(currency)}
           <PriceInput
             label="Цена от" placeholder="от" value={filters.priceMin}
             onChange={(priceMin) => patch({ priceMin })}
@@ -263,6 +286,7 @@ export default function PharmaciesPage() {
       </div>
 
       <PriceTable
+        marketId={marketId}
         filters={filters}
         sort={sort}
         onSort={toggleSort}
@@ -275,6 +299,7 @@ export default function PharmaciesPage() {
         <ProductPanel
           key={selected.id}
           item={selected}
+          marketId={marketId}
           meta={meta}
           onClose={() => setSelected(null)}
         />
@@ -496,7 +521,7 @@ function SourceChip({
   slug, meta,
 }: {
   slug: string;
-  meta: Record<string, { name: string; hue: number }>;
+  meta: SourceMeta;
 }) {
   const hue = meta[slug]?.hue ?? 262;
   return (
@@ -514,12 +539,13 @@ function SourceChip({
 }
 
 function PriceTable({
-  filters, sort, onSort, meta, selectedId, onSelect,
+  marketId, filters, sort, onSort, meta, selectedId, onSelect,
 }: {
+  marketId: number;
   filters: Filters;
   sort: Sort;
   onSort: (key: string) => void;
-  meta: Record<string, { name: string; hue: number }>;
+  meta: SourceMeta;
   selectedId: number | null;
   onSelect: (item: PharmacyPrice) => void;
 }) {
@@ -535,14 +561,15 @@ function PriceTable({
   const source = filters.sources.join(",");
   const { mnn, manufacturer, country, form } = filters;
   const query = useMemo(() => ({
+    market_id: marketId,
     search, source, mnn, manufacturer, country, form,
     price_min: toNumber(priceMin),
     price_max: toNumber(priceMax),
     sort: sort.key,
     order: sort.order,
   }), [
-    search, source, mnn, manufacturer, country, form, priceMin, priceMax,
-    sort.key, sort.order,
+    marketId, search, source, mnn, manufacturer, country, form, priceMin,
+    priceMax, sort.key, sort.order,
   ]);
 
   const [seenQuery, setSeenQuery] = useState(query);
@@ -679,11 +706,11 @@ function PriceTable({
                   </div>
                   <div className="flex flex-col items-end gap-0.5 px-2.5 py-2">
                     <span className="whitespace-nowrap text-[15px] font-bold tracking-[-0.01em]">
-                      {fmtRub(p.price)}
+                      {fmtMoney(p.price, meta[p.source]?.currency)}
                     </span>
                     {p.price_discount != null && (
                       <span className="whitespace-nowrap text-[11px] font-medium text-pos">
-                        со скидкой {fmtRub(p.price_discount)}
+                        со скидкой {fmtMoney(p.price_discount, meta[p.source]?.currency)}
                       </span>
                     )}
                   </div>
@@ -707,14 +734,16 @@ function PriceTable({
 }
 
 function ProductPanel({
-  item, meta, onClose,
+  item, marketId, meta, onClose,
 }: {
   item: PharmacyPrice;
-  meta: Record<string, { name: string; hue: number }>;
+  marketId: number;
+  meta: SourceMeta;
   onClose: () => void;
 }) {
   const compare = useFetch(
-    (signal) => getPriceComparison(item.id, signal), [item.id],
+    (signal) => getPriceComparison(item.id, marketId, signal),
+    [item.id, marketId],
     "Не удалось сравнить цены",
   );
   const rows = compare.data ?? [];
@@ -722,6 +751,8 @@ function ProductPanel({
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const cheapest = rows.find((r) => r.price === min);
+  const money = (v: number | null | undefined, slug = item.source) =>
+    fmtMoney(v, meta[slug]?.currency);
 
   const fields: [string, string | null][] = [
     ["МНН", item.mnn],
@@ -742,10 +773,10 @@ function ProductPanel({
           {item.name}
         </span>
         <span className="flex flex-wrap items-baseline gap-2.5">
-          <span className="text-[28px] font-semibold">{fmtRub(item.price)}</span>
+          <span className="text-[28px] font-semibold">{money(item.price)}</span>
           {item.price_discount != null && (
             <span className="text-[13px] font-medium text-pos">
-              со скидкой {fmtRub(item.price_discount)}
+              со скидкой {money(item.price_discount)}
             </span>
           )}
         </span>
@@ -809,7 +840,7 @@ function ProductPanel({
                 className="whitespace-nowrap text-right font-semibold"
                 style={{ color: isMin ? "oklch(0.52 0.13 155)" : undefined }}
               >
-                {fmtRub(r.price)}
+                {money(r.price, r.source)}
               </span>
             </div>
           );

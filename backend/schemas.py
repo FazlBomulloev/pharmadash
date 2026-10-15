@@ -19,8 +19,13 @@ class MarketOut(BaseModel):
     usd_growth: float | None = None
     categories: dict[str, int] | None = None
     bdp_loaded_at: str | None = None
+    pharmacy_sources: list[str] = []
 
     model_config = {"from_attributes": True}
+
+
+class PharmacySourcesUpdate(BaseModel):
+    sources: list[str]
 
 
 class FieldMappingItem(BaseModel):

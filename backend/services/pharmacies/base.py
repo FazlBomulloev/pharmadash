@@ -35,6 +35,7 @@ class PharmacyProduct:
 class PharmacyAdapter:
     slug: str = ""
     display_name: str = ""
+    currency: str = "RUB"
 
     def __init__(self, limit: Optional[int] = None):
         self.limit = limit

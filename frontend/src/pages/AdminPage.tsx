@@ -15,6 +15,7 @@ import { fmtInt, fmtUsd, plural, yearsRange } from "../lib/format";
 import { Page } from "../components/layout/Layout";
 import { Card, PageHeader } from "../components/ui/Card";
 import { DirectionsUploadBlock } from "../components/admin/DirectionsUploadBlock";
+import { PharmacySourcesBlock } from "../components/admin/PharmacySourcesBlock";
 import { Segmented } from "../components/ui/Segmented";
 import { apiErrorText } from "../lib/apiError";
 
@@ -547,6 +548,7 @@ export default function AdminPage() {
         </section>
       )}
       <DirectionsUploadBlock />
+      <PharmacySourcesBlock />
     </Page>
   );
 }
