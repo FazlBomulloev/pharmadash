@@ -1,28 +1,50 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from .registry import ADAPTERS
-from .runner import launch_background
+from .runner import is_running, launch_background
 
 log = logging.getLogger(__name__)
 
 DAILY_HOUR = 6
 DAILY_MINUTE = 0
+POLL_SECONDS = 15
+MAX_WAIT_SECONDS = 2 * 3600
 
 _scheduler: AsyncIOScheduler | None = None
 
 
-def _daily_all():
+async def _wait_finished(slug: str) -> bool:
+    deadline = time.monotonic() + MAX_WAIT_SECONDS
+    while is_running(slug):
+        if time.monotonic() > deadline:
+            return False
+        await asyncio.sleep(POLL_SECONDS)
+    return True
+
+
+async def _daily_all():
+    # Строго по очереди: сервер слабый (2 ядра, 2 ГБ), а eApteka, Watsons
+    # и MedsGo гоняют браузер. Одновременный старт всех парсеров съедал
+    # всю память, и страницы переставали грузиться.
     for slug in ADAPTERS:
-        launched = launch_background(slug)
-        log.info(
-            "Плановый запуск %s: %s",
-            slug, "стартовал" if launched else "уже идёт, пропуск",
-        )
+        if launch_background(slug):
+            log.info("Плановый запуск %s: стартовал", slug)
+        else:
+            log.info("Плановый запуск %s: уже идёт, ждём окончания", slug)
+        if await _wait_finished(slug):
+            log.info("Плановый запуск %s: завершён", slug)
+        else:
+            log.warning(
+                "Плановый запуск %s: идёт дольше %d ч, запускаем следующий",
+                slug, MAX_WAIT_SECONDS // 3600,
+            )
 
 
 def start_scheduler() -> None:
