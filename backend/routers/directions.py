@@ -15,15 +15,15 @@ from backend.database import get_db
 from backend.services.permissions import require
 from backend.models import DirectionImport, MnnDirection
 from backend.routers.dashboard import invalidate_dashboard_cache
-from backend.routers.overview import (
-    invalidate_overview_cache, prewarm_all_overviews,
-)
+from backend.routers.drilldown import invalidate_drilldown_cache
+from backend.routers.overview import invalidate_overview_cache
 from backend.schemas import (
     DirectionMetaResponse,
     DirectionRowsResponse,
     DirectionUploadResponse,
 )
 from backend.services.directions import invalidate_direction_map
+from backend.services.prewarm import prewarm_all_markets
 from backend.services.parsers.directions_parser import (
     DirectionsParseError, parse_directions,
 )
@@ -77,7 +77,8 @@ async def upload_directions(
     invalidate_direction_map()
     invalidate_overview_cache()
     invalidate_dashboard_cache()
-    background_tasks.add_task(prewarm_all_overviews)
+    invalidate_drilldown_cache()
+    background_tasks.add_task(prewarm_all_markets)
     log.info(
         "Справочник направлений обновлён из «%s»: %d строк",
         file.filename, report["rows_accepted"],

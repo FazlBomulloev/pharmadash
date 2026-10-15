@@ -27,14 +27,14 @@ from backend.schemas import (
     PreviewResponse,
     PreviewRow,
 )
-from backend.routers.overview import (
-    invalidate_overview_cache, prewarm_overview,
-)
+from backend.routers.drilldown import invalidate_drilldown_cache
+from backend.routers.overview import invalidate_overview_cache
 from backend.routers.dashboard import invalidate_dashboard_cache
 from backend.services.market_scoring import (
     get_market_scoring,
     invalidate_scoring_cache,
 )
+from backend.services.prewarm import prewarm_market
 from backend.services.parsers.base import (
     read_column_samples,
     read_first_rows,
@@ -159,6 +159,7 @@ async def delete_market(
     await db.commit()
     invalidate_overview_cache(market_id)
     invalidate_dashboard_cache(market_id)
+    invalidate_drilldown_cache(market_id)
     invalidate_scoring_cache(market_id)
 
     fp = _upload_path(market_id)
@@ -364,7 +365,8 @@ async def apply_mapping(
     invalidate_overview_cache(market_id)
     invalidate_dashboard_cache(market_id)
     invalidate_scoring_cache(market_id)
-    background_tasks.add_task(prewarm_overview, market_id)
+    invalidate_drilldown_cache(market_id)
+    background_tasks.add_task(prewarm_market, market_id)
 
     return {
         "ok": True,

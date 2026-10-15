@@ -1,14 +1,12 @@
 import asyncio
 import json
 import logging
-import time
 from collections import defaultdict
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import async_session, get_db
+from backend.database import get_db
 from backend.models import Market, BdpRaw
 from backend.services.directions import (
     build_overview_directions, load_direction_map,
@@ -360,73 +358,32 @@ def _collect_atc3_options(items) -> list[dict]:
     ]
 
 
-_PREWARM_COMBOS: list[tuple[str | None, str | None]] = [
-    (None, None),
-    ("ret", None),
-    ("hos", None),
-]
-
-_PREWARM_RUNNING: set[int] = set()
-_PREWARM_AGAIN: set[int] = set()
+_PREWARM_SECTORS: tuple[str | None, ...] = (None, "ret", "hos")
 
 
-async def _prewarm_once(market_id: int) -> None:
-    async with async_session() as db:
-        market = await db.get(Market, market_id)
-        if market is None:
-            return
-        year_idx = resolve_year_idx(market, None)
-        for sector, atc3 in _PREWARM_COMBOS:
+async def prewarm_overview_market(db: AsyncSession, market: Market) -> None:
+    generation = _OVERVIEW_CACHE.generation(market.id)
+    raw_rows = await _load_market_rows(db, market.id)
+    if not raw_rows:
+        return
+    year_count = max(len(parse_years(market)), 1)
+    for year_idx in range(year_count):
+        for sector in _PREWARM_SECTORS:
             try:
                 await _compute_overview(
-                    db, market_id, sector, atc3, year_idx, market,
+                    db, market.id, sector, None, year_idx, market,
+                    raw_rows=raw_rows, generation=generation,
                 )
             except HTTPException as e:
                 log.info(
-                    "Прогрев обзора рынка %d пропущен: %s",
-                    market_id, e.detail,
+                    "Прогрев обзора рынка %d (%s, год %d) пропущен: %s",
+                    market.id, sector or "all", year_idx, e.detail,
                 )
-                return
-            except SQLAlchemyError:
-                log.exception(
-                    "Прогрев обзора рынка %d: ошибка базы", market_id,
-                )
-                return
-
-
-async def prewarm_overview(market_id: int) -> None:
-    # Запрос на прогрев во время прогрева не теряется: данные могли
-    # смениться, и посчитанное до этого кеш уже не примет.
-    if market_id in _PREWARM_RUNNING:
-        _PREWARM_AGAIN.add(market_id)
-        return
-    _PREWARM_RUNNING.add(market_id)
-    try:
-        while True:
-            _PREWARM_AGAIN.discard(market_id)
-            await _prewarm_once(market_id)
-            if market_id not in _PREWARM_AGAIN:
-                break
-    finally:
-        _PREWARM_RUNNING.discard(market_id)
-
-
-async def prewarm_all_overviews() -> None:
-    t0 = time.perf_counter()
-    async with async_session() as db:
-        market_ids = (await db.execute(select(Market.id))).scalars().all()
-    for market_id in market_ids:
-        await prewarm_overview(market_id)
-    log.info(
-        "Кеш обзора прогрет: рынков %d, %.1f с",
-        len(market_ids), time.perf_counter() - t0,
-    )
 
 
 @router.get("/{market_id}/overview")
 async def market_overview(
     market_id: int,
-    background_tasks: BackgroundTasks,
     sector: str | None = Query(None, regex="^(ret|hos|all)?$"),
     atc3: str | None = Query(None),
     year: int | None = Query(None),
@@ -436,16 +393,9 @@ async def market_overview(
     if not market:
         raise HTTPException(404, "Рынок не найден")
     year_idx = resolve_year_idx(market, year)
-    cache_key = (
-        market_id, sector or "all", atc3, year_idx,
-    )
-    was_cached = _OVERVIEW_CACHE.get(cache_key) is not None
-    response = await _compute_overview(
+    return await _compute_overview(
         db, market_id, sector, atc3, year_idx, market,
     )
-    if not was_cached:
-        background_tasks.add_task(prewarm_overview, market_id)
-    return response
 
 
 async def _compute_overview(
@@ -455,6 +405,8 @@ async def _compute_overview(
     atc3: str | None,
     year_idx: int = 2,
     market=None,
+    raw_rows=None,
+    generation: tuple[int, int] | None = None,
 ):
     cache_key = (
         market_id, sector or "all", atc3, year_idx,
@@ -462,14 +414,16 @@ async def _compute_overview(
     cached = _OVERVIEW_CACHE.get(cache_key)
     if cached is not None:
         return cached
-    generation = _OVERVIEW_CACHE.generation(market_id)
+    if generation is None:
+        generation = _OVERVIEW_CACHE.generation(market_id)
 
     if market is None:
         market = await db.get(Market, market_id)
         if not market:
             raise HTTPException(404, "Рынок не найден")
 
-    raw_rows = await _load_market_rows(db, market_id)
+    if raw_rows is None:
+        raw_rows = await _load_market_rows(db, market_id)
     if not raw_rows:
         raise HTTPException(400, "Для рынка не загружены данные БДП")
 

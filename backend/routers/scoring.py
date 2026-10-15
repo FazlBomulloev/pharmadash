@@ -11,15 +11,14 @@ from backend.database import get_db
 from backend.services.permissions import require
 from backend.models import BdpRaw, Market
 from backend.routers.dashboard import invalidate_dashboard_cache
-from backend.routers.overview import (
-    invalidate_overview_cache, prewarm_overview,
-)
+from backend.routers.overview import invalidate_overview_cache
 from backend.services.market_scoring import (
     get_market_scoring,
     invalidate_scoring_cache,
     load_scoring_rows,
     market_settings,
 )
+from backend.services.prewarm import prewarm_market
 from backend.services.scoring import CATEGORIES, compute_scoring, summarize
 from backend.services.scoring_query import (
     DEFAULT_PAGE_SIZE,
@@ -133,7 +132,7 @@ async def update_settings(
     invalidate_scoring_cache(market_id)
     invalidate_dashboard_cache(market_id)
     invalidate_overview_cache(market_id)
-    background_tasks.add_task(prewarm_overview, market_id)
+    background_tasks.add_task(prewarm_market, market_id)
     log.info("Настройки рынка id=%d обновлены", market_id)
     return await _settings_payload(db, market)
 

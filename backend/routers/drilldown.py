@@ -1,3 +1,5 @@
+import asyncio
+import bisect
 import json
 import logging
 from collections import defaultdict
@@ -12,10 +14,41 @@ from backend.models import Market, BdpRaw
 from backend.services.directions import (
     build_direction_detail, load_direction_map,
 )
+from backend.services.response_cache import MarketCache
 
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["drilldown"])
+
+# Панели зависят только от БДП рынка и справочника направлений, поэтому
+# живут до явного сброса, как и кеш обзора.
+_DRILLDOWN_CACHE = MarketCache(max_items=3000)
+# Итоги рынка, конкуренты по МНН и суммы производителей одинаковы для
+# всех панелей рынка: считаются один раз, а не на каждое открытие.
+_AGGREGATES_CACHE = MarketCache(max_items=50)
+
+
+def invalidate_drilldown_cache(market_id: int | None = None) -> None:
+    count = _DRILLDOWN_CACHE.invalidate(market_id)
+    _AGGREGATES_CACHE.invalidate(market_id)
+    if market_id is None:
+        log.info("Кеш drilldown сброшен целиком")
+    elif count:
+        log.info(
+            "Кеш drilldown сброшен для market_id=%d (%d ключей)",
+            market_id, count,
+        )
+
+
+async def _cached(market_id: int, key: tuple, compute) -> dict:
+    full_key = (market_id, *key)
+    hit = _DRILLDOWN_CACHE.get(full_key)
+    if hit is not None:
+        return hit
+    generation = _DRILLDOWN_CACHE.generation(market_id)
+    value = await compute()
+    _DRILLDOWN_CACHE.set(full_key, value, generation)
+    return value
 
 
 BDP_COLS = (
@@ -114,14 +147,6 @@ async def _load_mnn_items(
         )
     )
     return result.all()
-
-
-async def _market_total_usd_y3(db: AsyncSession, market_id: int) -> float:
-    result = await db.execute(
-        select(func.coalesce(func.sum(BdpRaw.usd_y3), 0.0))
-        .where(BdpRaw.market_id == market_id)
-    )
-    return float(result.scalar() or 0.0)
 
 
 async def _market_totals_3y(
@@ -370,20 +395,33 @@ def _producer_atc_breakdown(items: Sequence[Any]) -> list[dict]:
     ]
 
 
-async def _producer_rank(
-    db: AsyncSession, market_id: int, producer_usd_y3: float,
-) -> int:
-    totals = (
-        select(func.sum(BdpRaw.usd_y3).label("usd"))
+async def _market_aggregates(db: AsyncSession, market_id: int) -> dict:
+    key = (market_id,)
+    hit = _AGGREGATES_CACHE.get(key)
+    if hit is not None:
+        return hit
+    generation = _AGGREGATES_CACHE.generation(market_id)
+    totals = await _market_totals_3y(db, market_id)
+    competitors = await _mnn_competitors_map(db, market_id)
+    producer_sums = (await db.execute(
+        select(func.sum(BdpRaw.usd_y3))
         .where(BdpRaw.market_id == market_id)
         .group_by(BdpRaw.producer)
-        .subquery()
+    )).scalars().all()
+    value = {
+        "totals": totals,
+        "competitors": competitors,
+        "producer_usd_y3": sorted(v for v in producer_sums if v is not None),
+    }
+    _AGGREGATES_CACHE.set(key, value, generation)
+    return value
+
+
+def _producer_rank(producer_sums: list[float], producer_usd_y3: float) -> int:
+    ahead = len(producer_sums) - bisect.bisect_right(
+        producer_sums, producer_usd_y3,
     )
-    ahead = (await db.execute(
-        select(func.count()).select_from(totals)
-        .where(totals.c.usd > producer_usd_y3)
-    )).scalar() or 0
-    return int(ahead) + 1
+    return ahead + 1
 
 
 def _country_kpi(
@@ -534,12 +572,9 @@ def _country_forms_breakdown(items: Sequence[Any]) -> list[dict]:
     return result
 
 
-@router.get("/{market_id}/producer/{producer_name}")
-async def producer_market_scope(
-    market_id: int,
-    producer_name: str,
-    db: AsyncSession = Depends(get_db),
-):
+async def _producer_market(
+    db: AsyncSession, market_id: int, producer_name: str,
+) -> dict:
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
@@ -549,9 +584,10 @@ async def producer_market_scope(
         raise HTTPException(404, "Производитель не найден в рынке")
 
     real_name = _producer_key(items[0])
-    market_totals = await _market_totals_3y(db, market_id)
+    aggregates = await _market_aggregates(db, market_id)
+    market_totals = aggregates["totals"]
     market_total_usd_y3 = market_totals[2]
-    mnn_competitors = await _mnn_competitors_map(db, market_id)
+    mnn_competitors = aggregates["competitors"]
     years_labels = _years_labels(market)
 
     kpi = _producer_kpi(items, market_total_usd_y3, years_labels)
@@ -560,7 +596,9 @@ async def producer_market_scope(
     ]
     kpi["mnn_count"] = len({i.mnn for i in items if i.mnn})
     kpi["tm_count"] = len({i.tm for i in items if i.tm})
-    kpi["rank"] = await _producer_rank(db, market_id, kpi["usd_y3"])
+    kpi["rank"] = _producer_rank(
+        aggregates["producer_usd_y3"], kpi["usd_y3"],
+    )
 
     return {
         "name": real_name or producer_name,
@@ -575,13 +613,9 @@ async def producer_market_scope(
     }
 
 
-@router.get("/{market_id}/mnn/{mnn}/producer/{producer_name}")
-async def producer_mnn_scope(
-    market_id: int,
-    mnn: str,
-    producer_name: str,
-    db: AsyncSession = Depends(get_db),
-):
+async def _producer_mnn(
+    db: AsyncSession, market_id: int, mnn: str, producer_name: str,
+) -> dict:
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
@@ -616,12 +650,9 @@ async def producer_mnn_scope(
     }
 
 
-@router.get("/{market_id}/country/{country_name}")
-async def country_market_scope(
-    market_id: int,
-    country_name: str,
-    db: AsyncSession = Depends(get_db),
-):
+async def _country_market(
+    db: AsyncSession, market_id: int, country_name: str,
+) -> dict:
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
@@ -631,7 +662,7 @@ async def country_market_scope(
         raise HTTPException(404, "Страна не найдена в рынке")
 
     real_name = items[0].country_mfr
-    market_totals = await _market_totals_3y(db, market_id)
+    market_totals = (await _market_aggregates(db, market_id))["totals"]
     market_total_usd_y3 = market_totals[2]
     years_labels = _years_labels(market)
 
@@ -644,13 +675,9 @@ async def country_market_scope(
     }
 
 
-@router.get("/{market_id}/mnn/{mnn}/country/{country_name}")
-async def country_mnn_scope(
-    market_id: int,
-    mnn: str,
-    country_name: str,
-    db: AsyncSession = Depends(get_db),
-):
+async def _country_mnn(
+    db: AsyncSession, market_id: int, mnn: str, country_name: str,
+) -> dict:
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
@@ -685,17 +712,29 @@ async def country_mnn_scope(
     }
 
 
-@router.get("/{market_id}/direction/{direction_name:path}")
-async def direction_market_scope(
-    market_id: int,
-    direction_name: str,
-    db: AsyncSession = Depends(get_db),
-):
+async def _load_market_items(
+    db: AsyncSession, market_id: int,
+) -> Sequence[Any]:
+    return (await db.execute(
+        select(*BDP_COLS).where(BdpRaw.market_id == market_id)
+    )).all()
+
+
+def _direction_detail(
+    market: Market, items, dmap, name: str, total: float,
+) -> dict:
+    detail = build_direction_detail(items, dmap, name, total)
+    detail["years_labels"] = _years_labels(market)
+    return detail
+
+
+async def _direction_market(
+    db: AsyncSession, market_id: int, name: str,
+) -> dict:
     market = await db.get(Market, market_id)
     if not market:
         raise HTTPException(404, "Рынок не найден")
 
-    name = direction_name.strip()
     dmap = await load_direction_map(db)
     known = {d for pairs in dmap.values() for d, _ in pairs}
     if name not in known:
@@ -703,13 +742,116 @@ async def direction_market_scope(
             404, f"Направление «{name}» не найдено в справочнике",
         )
 
-    items = (
-        await db.execute(
-            select(*BDP_COLS).where(BdpRaw.market_id == market_id)
-        )
-    ).all()
-    total = await _market_total_usd_y3(db, market_id)
+    items = await _load_market_items(db, market_id)
+    total = (await _market_aggregates(db, market_id))["totals"][2]
+    # Обход всех строк рынка — секунды CPU, в потоке он не держит API.
+    return await asyncio.to_thread(
+        _direction_detail, market, items, dmap, name, total,
+    )
 
-    detail = build_direction_detail(items, dmap, name, total)
-    detail["years_labels"] = _years_labels(market)
-    return detail
+
+async def prewarm_drilldown_market(db: AsyncSession, market: Market) -> None:
+    generation = _DRILLDOWN_CACHE.generation(market.id)
+
+    countries = (await db.execute(
+        select(BdpRaw.country_mfr)
+        .where(
+            BdpRaw.market_id == market.id,
+            BdpRaw.country_mfr.isnot(None),
+        )
+        .distinct()
+    )).scalars().all()
+    for country in {_norm_country(c) for c in countries} - {""}:
+        key = (market.id, "country", country)
+        if _DRILLDOWN_CACHE.get(key) is not None:
+            continue
+        try:
+            value = await _country_market(db, market.id, country)
+        except HTTPException as e:
+            log.info(
+                "Прогрев страны «%s» рынка %d пропущен: %s",
+                country, market.id, e.detail,
+            )
+            continue
+        _DRILLDOWN_CACHE.set(key, value, generation)
+
+    dmap = await load_direction_map(db)
+    names = sorted({d for pairs in dmap.values() for d, _ in pairs})
+    pending = [
+        n for n in names
+        if _DRILLDOWN_CACHE.get((market.id, "direction", n)) is None
+    ]
+    if not pending:
+        return
+    items = await _load_market_items(db, market.id)
+    total = (await _market_aggregates(db, market.id))["totals"][2]
+    for name in pending:
+        value = await asyncio.to_thread(
+            _direction_detail, market, items, dmap, name, total,
+        )
+        _DRILLDOWN_CACHE.set((market.id, "direction", name), value, generation)
+
+
+@router.get("/{market_id}/producer/{producer_name}")
+async def producer_market_scope(
+    market_id: int,
+    producer_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await _cached(
+        market_id, ("producer", _norm_producer(producer_name)),
+        lambda: _producer_market(db, market_id, producer_name),
+    )
+
+
+@router.get("/{market_id}/mnn/{mnn}/producer/{producer_name}")
+async def producer_mnn_scope(
+    market_id: int,
+    mnn: str,
+    producer_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await _cached(
+        market_id,
+        ("mnn-producer", _norm_mnn(mnn), _norm_producer(producer_name)),
+        lambda: _producer_mnn(db, market_id, mnn, producer_name),
+    )
+
+
+@router.get("/{market_id}/country/{country_name}")
+async def country_market_scope(
+    market_id: int,
+    country_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await _cached(
+        market_id, ("country", _norm_country(country_name)),
+        lambda: _country_market(db, market_id, country_name),
+    )
+
+
+@router.get("/{market_id}/mnn/{mnn}/country/{country_name}")
+async def country_mnn_scope(
+    market_id: int,
+    mnn: str,
+    country_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await _cached(
+        market_id,
+        ("mnn-country", _norm_mnn(mnn), _norm_country(country_name)),
+        lambda: _country_mnn(db, market_id, mnn, country_name),
+    )
+
+
+@router.get("/{market_id}/direction/{direction_name:path}")
+async def direction_market_scope(
+    market_id: int,
+    direction_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    name = direction_name.strip()
+    return await _cached(
+        market_id, ("direction", name),
+        lambda: _direction_market(db, market_id, name),
+    )

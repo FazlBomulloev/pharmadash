@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import CORS_ORIGINS
 from backend.database import init_db
-from backend.routers.overview import prewarm_all_overviews
+from backend.services.prewarm import prewarm_all_markets
 from backend.services.pharmacies.scheduler import (
     start_scheduler, stop_scheduler,
 )
@@ -25,13 +25,13 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     # Без прогрева первый открывший обзор после перезапуска ждёт
     # полного пересчёта.
-    prewarm = asyncio.create_task(prewarm_all_overviews())
+    prewarm = asyncio.create_task(prewarm_all_markets())
     yield
     prewarm.cancel()
     try:
         await prewarm
     except asyncio.CancelledError:
-        log.info("Прогрев кеша обзора прерван остановкой сервера")
+        log.info("Прогрев кеша прерван остановкой сервера")
     stop_scheduler()
     log.info("Остановка PharmDash API")
 
