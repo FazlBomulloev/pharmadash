@@ -5,11 +5,12 @@ import html as html_lib
 import json
 import logging
 import os
-import random
 import re
+from contextlib import suppress
 from typing import AsyncIterator
 
-import httpx
+from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import Page, Response, Route, async_playwright
 
 from .base import PharmacyAdapter, PharmacyProduct
 from .name_parse import (
@@ -24,23 +25,20 @@ CATEGORY_URLS = (
     f"/{REGION}/goods/drugs/",
     f"/{REGION}/goods/vitaminy_i_bad/",
 )
-CONCURRENCY = 8
+# Антибот eApteka отдаёт IP хостинга 403 («Доступ к сайту временно
+# ограничен») на обычный HTTP-клиент и Chromium, а Firefox проходит его
+# JS-проверку (503 → страница сама перезагружается в каталог). Поэтому
+# страницы грузятся в Firefox: первая страница категории проходит проверку
+# и получает cookies, остальные идут параллельно во вкладках того же
+# контекста.
+BROWSER = "firefox"
+TABS = 4
 BATCH_SIZE = 40
-REQUEST_TIMEOUT = 40
-MAX_RETRIES = 4
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/131.0.0.0 Safari/537.36"
-    ),
-    "Accept": (
-        "text/html,application/xhtml+xml,"
-        "application/xml;q=0.9,*/*;q=0.8"
-    ),
-    "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-}
+PAGE_TIMEOUT_MS = 60_000
+READY_TIMEOUT_MS = 30_000
+RETRY_WAITS = (10, 30, 60)
+BLOCKED_TYPES = {"image", "media", "font"}
+CARD_SELECTOR = "article.listing-card"
 
 _CARD_SPLIT_RE = re.compile(r'<article class="listing-card')
 _OFFER_RE = re.compile(r"data-oldma-offer='(\{.*?\})'", re.S)
@@ -59,24 +57,60 @@ _INGREDIENT_RE = re.compile(
 _PAGES_RE = re.compile(r"PAGEN_1=(\d+)")
 
 
-async def _fetch(client: httpx.AsyncClient, url: str) -> str | None:
-    for attempt in range(MAX_RETRIES):
+async def _block_media(route: Route) -> None:
+    if route.request.resource_type in BLOCKED_TYPES:
+        await route.abort()
+    else:
+        await route.continue_()
+
+
+async def _goto(page: Page, url: str) -> Response | None:
+    return await page.goto(
+        url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS,
+    )
+
+
+async def load_page(page: Page, url: str) -> str | None:
+    """Исходный HTML страницы каталога или None, если она не открылась.
+
+    Берётся тело ответа, а не DOM: скрипты витрины после загрузки
+    затирают data-oldma-offer пустышкой, и в DOM данных товара нет.
+    """
+    attempts = len(RETRY_WAITS) + 1
+    for attempt in range(attempts):
         try:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                return resp.text
-            log.debug("eApteka HTTP %d: %s", resp.status_code, url)
-            if resp.status_code == 503 and _is_antibot(resp.text):
-                log.warning("eApteka: антибот-проверка на %s", url)
-            elif resp.status_code not in (403, 429, 500, 502, 503, 504):
-                return None
-        except httpx.HTTPError as e:
-            log.debug(
-                "eApteka попытка %d/%d %s: %s",
-                attempt + 1, MAX_RETRIES, url, type(e).__name__,
-            )
-        if attempt < MAX_RETRIES - 1:
-            await asyncio.sleep(2 ** attempt + random.uniform(0.2, 0.8))
+            response = await _goto(page, url)
+            status = response.status if response else None
+            if status != 200:
+                # Антибот отдаёт 503 с JS-проверкой, которая сама
+                # перезагружает страницу и выставляет cookies. Дожидаемся
+                # каталога и запрашиваем страницу ещё раз уже с cookies,
+                # чтобы получить её исходный HTML.
+                with suppress(PlaywrightError):
+                    await page.wait_for_selector(
+                        CARD_SELECTOR, state="attached",
+                        timeout=READY_TIMEOUT_MS,
+                    )
+                response = await _goto(page, url)
+                status = response.status if response else None
+            if status == 200 and response is not None:
+                html = await response.text()
+                if not _is_antibot(html):
+                    return html  # страница без товаров — тоже ответ
+                reason = "антибот-проверка не пройдена"
+            else:
+                reason = f"HTTP {status}"
+        except PlaywrightError as e:
+            reason = e.message.splitlines()[0]
+        if attempt == attempts - 1:
+            log.warning("eApteka: %s — %s, попытки исчерпаны", url, reason)
+            break
+        wait = RETRY_WAITS[attempt]
+        log.warning(
+            "eApteka: %s — %s, попытка %d/%d, пауза %d с",
+            url, reason, attempt + 1, attempts, wait,
+        )
+        await asyncio.sleep(wait)
     return None
 
 
@@ -188,68 +222,80 @@ class EaptekaAdapter(PharmacyAdapter):
         return _RESIZED_RE.sub("/1_", url)
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
-        async with httpx.AsyncClient(
-            headers=HEADERS,
-            timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=15.0),
-            follow_redirects=True,
-        ) as session:
-            seen: set[str] = set()
-            yielded = 0
-            sem = asyncio.Semaphore(CONCURRENCY)
-
-            async def page(category_url: str, number: int) -> str | None:
-                async with sem:
-                    return await _fetch(
-                        session,
-                        f"{BASE_URL}{category_url}?PAGEN_1={number}",
-                    )
-
-            def fresh(page_html: str | None) -> list[PharmacyProduct]:
-                result = []
-                for product in parse_listing(page_html or ""):
-                    if product.sku not in seen:
-                        seen.add(product.sku)
-                        result.append(product)
-                return result
-
-            for category_url in CATEGORY_URLS:
-                first = await _fetch(session, BASE_URL + category_url)
-                if not first:
-                    log.warning(
-                        "eApteka: категория %s недоступна", category_url,
-                    )
-                    continue
-                total_pages = max(
-                    (int(n) for n in _PAGES_RE.findall(first)), default=1,
-                )
-                log.info(
-                    "eApteka: %s — %d страниц", category_url, total_pages,
-                )
-                for product in fresh(first):
+        async with async_playwright() as pw:
+            browser = await getattr(pw, BROWSER).launch()
+            try:
+                async for product in self._crawl(browser):
                     yield product
-                    yielded += 1
-                    if self.limit and yielded >= self.limit:
-                        return
+            finally:
+                await browser.close()
 
-                numbers = list(range(2, total_pages + 1))
-                for start in range(0, len(numbers), BATCH_SIZE):
-                    batch = numbers[start:start + BATCH_SIZE]
-                    for page_html in await asyncio.gather(
-                        *(page(category_url, n) for n in batch),
-                    ):
-                        for product in fresh(page_html):
-                            yield product
-                            yielded += 1
-                            if self.limit and yielded >= self.limit:
-                                return
-                    log.info(
-                        "eApteka: %s — %d/%d страниц (товаров: %d)",
-                        category_url, start + len(batch) + 1,
-                        total_pages, yielded,
-                    )
+    async def _crawl(self, browser) -> AsyncIterator[PharmacyProduct]:
+        context = await browser.new_context(locale="ru-RU")
+        await context.route("**/*", _block_media)
+        tabs: asyncio.Queue[Page] = asyncio.Queue()
+        for _ in range(TABS):
+            tabs.put_nowait(await context.new_page())
+        main_tab = await context.new_page()
 
-            if yielded == 0:
-                raise RuntimeError(
-                    "eApteka: не удалось получить ни одного товара "
-                    "(категории недоступны или изменилась вёрстка)"
+        seen: set[str] = set()
+        yielded = 0
+
+        async def page(category_url: str, number: int) -> str | None:
+            tab = await tabs.get()
+            try:
+                return await load_page(
+                    tab, f"{BASE_URL}{category_url}?PAGEN_1={number}",
                 )
+            finally:
+                tabs.put_nowait(tab)
+
+        def fresh(page_html: str | None) -> list[PharmacyProduct]:
+            result = []
+            for product in parse_listing(page_html or ""):
+                if product.sku not in seen:
+                    seen.add(product.sku)
+                    result.append(product)
+            return result
+
+        for category_url in CATEGORY_URLS:
+            first = await load_page(main_tab, BASE_URL + category_url)
+            if not first:
+                log.warning("eApteka: категория %s недоступна", category_url)
+                continue
+            total_pages = max(
+                (int(n) for n in _PAGES_RE.findall(first)), default=1,
+            )
+            log.info("eApteka: %s — %d страниц", category_url, total_pages)
+            for product in fresh(first):
+                yield product
+                yielded += 1
+                if self.limit and yielded >= self.limit:
+                    return
+
+            missed = 0
+            numbers = list(range(2, total_pages + 1))
+            for start in range(0, len(numbers), BATCH_SIZE):
+                batch = numbers[start:start + BATCH_SIZE]
+                for page_html in await asyncio.gather(
+                    *(page(category_url, n) for n in batch),
+                ):
+                    if page_html is None:
+                        missed += 1
+                    for product in fresh(page_html):
+                        yield product
+                        yielded += 1
+                        if self.limit and yielded >= self.limit:
+                            return
+                log.info(
+                    "eApteka: %s — %d/%d страниц (товаров: %d, "
+                    "не открылось: %d)",
+                    category_url, start + len(batch) + 1, total_pages,
+                    yielded, missed,
+                )
+
+        if yielded == 0:
+            raise RuntimeError(
+                "eApteka: не удалось получить ни одного товара "
+                "(категории недоступны или изменилась вёрстка)"
+            )
