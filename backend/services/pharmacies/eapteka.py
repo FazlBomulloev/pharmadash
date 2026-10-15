@@ -47,6 +47,7 @@ _OFFER_RE = re.compile(r"data-oldma-offer='(\{.*?\})'", re.S)
 _XML_ID_RE = re.compile(r'data-xml-id="(\d+)"')
 _HREF_RE = re.compile(rf'href="(/{re.escape(REGION)}/goods/id\d+/)"')
 _IMAGE_RE = re.compile(r'<img\s+src="([^"]+)"')
+_RESIZED_RE = re.compile(r"/resized/\d+_\d+_\d+_")
 _PRICE_RE = re.compile(r'data-price="([\d.,\s]+)"')
 _OLD_PRICE_RE = re.compile(r'data-old-price="([\d.,\s]+)"')
 _MANUFACTURER_RE = re.compile(
@@ -180,6 +181,11 @@ def _parse_card(card: str) -> PharmacyProduct | None:
 class EaptekaAdapter(PharmacyAdapter):
     slug = "eapteka"
     display_name = "eApteka"
+
+    @staticmethod
+    def full_image_url(url: str) -> str:
+        # …/resized/230_230_1_<hash>.png → оригинал …/1_<hash>.png
+        return _RESIZED_RE.sub("/1_", url)
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
         async with httpx.AsyncClient(

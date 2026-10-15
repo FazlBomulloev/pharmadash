@@ -43,6 +43,8 @@ _GA_SPAN_RE = re.compile(r'<span[^>]+id="cp_ga_product_data_\d+"[^>]*>')
 _GA_ATTR_RE = re.compile(r'data-cpga-([a-z]+)="([^"]*)"')
 _IMG_RE = re.compile(r'<img\b[^>]*\bid="det_img_\d+desktop"[^>]*>')
 _SRC_RE = re.compile(r'\bsrc="([^"]+)"')
+_THUMB_RE = re.compile(r"(.*/images/)thumbnails/\d+/\d+/(detailed/.+)$")
+_DOUBLE_EXT_RE = re.compile(r"(.+\.\w{3,4})\.\w{3,4}$")
 _FEATURE_RE = re.compile(
     r"<em>([^<]+)</em></span>\s*<span><em>(.*?)</em>", re.S,
 )
@@ -189,6 +191,17 @@ class MedsgoAdapter(PharmacyAdapter):
     slug = "medsgo"
     display_name = "MedsGo"
     currency = "PHP"
+
+    @staticmethod
+    def full_image_url(url: str) -> str:
+        # CS-Cart: …/images/thumbnails/240/290/detailed/41/x.webp.png →
+        # оригинал …/images/detailed/41/x.webp (у превью дописан формат).
+        match = _THUMB_RE.match(url)
+        if not match:
+            return url
+        path = match.group(2)
+        double = _DOUBLE_EXT_RE.match(path)
+        return match.group(1) + (double.group(1) if double else path)
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
         seen: set[str] = set()

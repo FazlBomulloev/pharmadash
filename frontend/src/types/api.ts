@@ -594,6 +594,8 @@ export interface PharmacyPrice {
   price_discount: number | null;
   url: string | null;
   image_url: string | null;
+  /** Полноразмерное фото для увеличения; превью из image_url — для списка. */
+  image_full_url: string | null;
   scraped_at: string;
 }
 
