@@ -758,3 +758,10 @@ export interface DirectionRowsQuery {
   page?: number;
   per_page?: number;
 }
+
+export interface SessionUser {
+  id: number;
+  username: string;
+  role: string;
+  permissions: string[];
+}

@@ -165,3 +165,26 @@ html {
     scroll-behavior: auto !important;
   }
 }
+
+/* Браузерные поверхности, которые по умолчанию принадлежат не дизайн-системе,
+   а браузеру: каретка, выделение, фокус. */
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-fg);
+}
+input,
+textarea {
+  caret-color: var(--color-accent);
+}
+
+/* Автозаполнение Chrome красит поле своим жёлтым поверх любого фона и
+   ломает вёрстку у всех, у кого сохранён пароль. Перебивается только
+   внутренней тенью: background-color автозаполнение игнорирует. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: inset 0 0 0 1000px var(--color-surface);
+  -webkit-text-fill-color: var(--color-fg);
+  caret-color: var(--color-accent);
+  transition: background-color 9999s ease-out;
+}

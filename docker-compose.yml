@@ -28,9 +28,6 @@ services:
     build:
       context: ./frontend
     restart: unless-stopped
-    environment:
-      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?задайте BASIC_AUTH_USER в .env}
-      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:?задайте BASIC_AUTH_PASSWORD в .env}
     depends_on:
       - backend
 

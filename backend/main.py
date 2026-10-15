@@ -3,6 +3,7 @@ import time
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from backend.config import CORS_ORIGINS
 from backend.database import init_db
 from backend.services.pharmacies.scheduler import (
     start_scheduler, stop_scheduler,
@@ -31,13 +32,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Раньше здесь стоял allow_origins=["*"] вместе с allow_credentials=True.
+# В такой паре CORSMiddleware отражает любой Origin и разрешает ему слать
+# cookie — то есть любой сайт, открытый у вошедшего человека, мог бы читать
+# весь API от его имени. С появлением сессионной аутентификации это
+# недопустимо. И в продакшене (nginx отдаёт фронтенд и проксирует /api), и в
+# разработке (vite проксирует /api) запросы идут с того же источника, поэтому
+# по умолчанию cross-origin не разрешён никому.
+if CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    log.info("CORS разрешён для: %s", ", ".join(CORS_ORIGINS))
 
 
 @app.middleware("http")

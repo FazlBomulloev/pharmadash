@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import {
   NavLink, useLocation, useNavigate, useParams,
 } from "react-router-dom";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import clsx from "clsx";
-import { getMarkets } from "../../api/client";
+import { getMarkets, logout } from "../../api/client";
 import type { Market } from "../../types/api";
 import { useOutsideClose } from "../../hooks/useDismiss";
+import { useSession } from "../../hooks/useSession";
 import { yearsRange } from "../../lib/format";
 import { Logo } from "./Logo";
 
@@ -88,7 +89,46 @@ export default function Sidebar() {
           Справочник направлений
         </NavLink>
       </nav>
+
+      <CurrentUser />
     </aside>
+  );
+}
+
+function CurrentUser() {
+  const { user, clear } = useSession();
+  const [busy, setBusy] = useState(false);
+  if (!user) return null;
+
+  async function leave() {
+    setBusy(true);
+    try {
+      await logout();
+    } finally {
+      clear();
+      window.location.replace("/login");
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 border-t border-seg pt-3">
+      <span className="flex min-w-0 flex-col gap-px">
+        <span className="truncate text-[13px] font-medium text-fg">
+          {user.username}
+        </span>
+        <span className="truncate text-[11px] text-faint">{user.role}</span>
+      </span>
+      <button
+        type="button"
+        onClick={leave}
+        disabled={busy}
+        aria-label="Выйти"
+        title="Выйти"
+        className="tr-soft ml-auto flex size-8 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent text-faint hover:bg-[#f0f0ed] hover:text-fg disabled:opacity-50"
+      >
+        <LogOut size={15} />
+      </button>
+    </div>
   );
 }
 

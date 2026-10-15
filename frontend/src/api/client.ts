@@ -1,5 +1,6 @@
 import axios from "axios";
 import type {
+  SessionUser,
   Market,
   MarketCreate,
   UploadResponse,
@@ -31,7 +32,45 @@ import type {
   DirectionUploadReport,
 } from "../types/api";
 
-const api = axios.create({ baseURL: "/api" });
+const api = axios.create({ baseURL: "/api", withCredentials: true });
+
+// Истёкшая сессия или перезапуск сервера не должны оставлять человека на
+// экране с пустыми данными: любой 401, кроме самого входа, уводит на форму
+// и запоминает, куда он шёл.
+api.interceptors.response.use(
+  (r) => r,
+  (error) => {
+    const status = error?.response?.status;
+    const url: string = error?.config?.url ?? "";
+    if (status === 401 && !url.startsWith("/auth/")) {
+      const here = window.location.pathname + window.location.search;
+      if (window.location.pathname !== "/login") {
+        window.location.replace(
+          `/login?from=${encodeURIComponent(here)}`,
+        );
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
+export async function login(
+  username: string, password: string,
+): Promise<SessionUser> {
+  const { data } = await api.post<SessionUser>("/auth/login", {
+    username, password,
+  });
+  return data;
+}
+
+export async function logout(): Promise<void> {
+  await api.post("/auth/logout");
+}
+
+export async function getSession(): Promise<SessionUser | null> {
+  const { data } = await api.get<{ user: SessionUser | null }>("/auth/session");
+  return data.user;
+}
 
 export async function getMarkets(): Promise<Market[]> {
   const { data } = await api.get<Market[]>("/markets");

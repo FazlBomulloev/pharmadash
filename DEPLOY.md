@@ -13,7 +13,7 @@
 git clone <адрес репозитория> pharmadash
 cd pharmadash
 cp .env.example .env
-nano .env                      # задать DOMAIN и BASIC_AUTH_PASSWORD
+nano .env                      # задать DOMAIN, ADMIN_USERNAME, ADMIN_PASSWORD
 docker compose up -d --build
 ```
 
@@ -72,7 +72,9 @@ docker compose exec backend python -c "import sqlite3; s = sqlite3.connect('/app
 
 | Переменная | Назначение | По умолчанию |
 |---|---|---|
-| `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` | вход в приложение | обязательны |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | первый аккаунт, создаётся при первом старте | обязательны |
+| `COOKIE_SECURE` | `1` в продакшене: cookie сессии только по HTTPS | рекомендуется |
+| `CORS_ORIGINS` | источники для cross-origin запросов, через запятую | пусто |
 | `DOMAIN` | доменное имя приложения | обязательна |
 | `TZ` | часовой пояс; парсеры стартуют в 06:00 | `Europe/Moscow` |
 | `EAPTEKA_REGION`, `OZERKI_REGION` | регионы парсеров | `spb`, `sankt-peterburg` |

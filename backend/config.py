@@ -23,3 +23,11 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "").strip().lower() in (
 )
 SESSION_COOKIE = "epi_session"
 SESSION_DAYS = 30
+
+# Список источников, которым разрешены cross-origin запросы с cookie.
+# Пусто по умолчанию: фронтенд и API живут на одном источнике и в продакшене,
+# и в разработке, поэтому CORS не нужен вовсе. Заполняйте только если
+# появится отдельный домен для фронтенда.
+CORS_ORIGINS = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()
+]

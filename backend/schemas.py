@@ -278,5 +278,14 @@ class LoginRequest(BaseModel):
 
 
 class SessionOut(BaseModel):
+    id: int
     username: str
     role: str
+    # Набор прав отдаётся вместе с сессией, чтобы интерфейс мог прятать
+    # действия, которые сервер всё равно запретит. Сервер при этом проверяет
+    # права сам: скрытая кнопка — удобство, а не защита.
+    permissions: list[str]
+
+
+class SessionEnvelope(BaseModel):
+    user: SessionOut | None
