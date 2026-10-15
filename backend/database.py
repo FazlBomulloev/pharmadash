@@ -17,6 +17,10 @@ engine = create_async_engine(
 
 
 
+def _ulower(value):
+    return value.lower() if isinstance(value, str) else value
+
+
 @event.listens_for(engine.sync_engine, "connect")
 def _sqlite_pragmas(dbapi_connection, _record):
     cursor = dbapi_connection.cursor()
@@ -24,6 +28,11 @@ def _sqlite_pragmas(dbapi_connection, _record):
     cursor.execute("PRAGMA busy_timeout=30000")
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.close()
+    # Встроенные lower() и LIKE в SQLite меняют регистр только у латиницы:
+    # «нуро» не находило «Нурофен». ulower() делает это для любых букв.
+    dbapi_connection.create_function(
+        "ulower", 1, _ulower, deterministic=True,
+    )
 
 
 async_session = async_sessionmaker(
@@ -40,6 +49,7 @@ _MIGRATIONS = [
     ("pharmacy_prices", "image_url", "TEXT"),
     ("markets", "scoring_settings_json", "TEXT"),
     ("markets", "pharmacy_sources_json", "TEXT"),
+    ("pharmacy_prices", "search_text", "TEXT"),
 ]
 
 _DROPPED_COLUMNS = [
@@ -118,6 +128,16 @@ async def _apply_migrations(conn):
     # по source и сортирует всё заново. Таблица меняется парсерами, поэтому
     # статистика обновляется и после каждого их запуска.
     await conn.execute(text("ANALYZE pharmacy_prices"))
+
+    filled = await conn.execute(text(
+        "UPDATE pharmacy_prices SET search_text = ulower(trim("
+        "coalesce(name, '') || ' ' || coalesce(mnn, '') || ' ' "
+        "|| coalesce(trade_name, ''))) WHERE search_text IS NULL"
+    ))
+    if filled.rowcount:
+        log.info(
+            "Миграция: строка поиска заполнена у %d цен", filled.rowcount,
+        )
 
 
 async def init_db():

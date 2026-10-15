@@ -102,6 +102,12 @@ async def run_source(
         return count
 
 
+def search_text(*parts: str | None) -> str:
+    # Нижний регистр считается в Python: lower() в SQLite не трогает
+    # кириллицу, и поиск «нуро» не находил «Нурофен».
+    return " ".join(p for p in parts if p).lower()
+
+
 def _to_row(p: PharmacyProduct) -> dict:
     return {
         "source": p.source,
@@ -119,6 +125,7 @@ def _to_row(p: PharmacyProduct) -> dict:
         "url": p.url or None,
         "image_url": p.image_url or None,
         "extra_json": p.extra_json(),
+        "search_text": search_text(p.name, p.mnn, p.trade_name),
         "scraped_at": datetime.utcnow(),
     }
 

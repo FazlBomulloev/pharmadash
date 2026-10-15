@@ -104,6 +104,7 @@ class PharmacyPrice(Base):
     url = Column(Text, nullable=True)
     image_url = Column(Text, nullable=True)
     extra_json = Column(Text, nullable=True)
+    search_text = Column(Text, nullable=True)
     scraped_at = Column(
         DateTime, nullable=False, default=datetime.utcnow, index=True,
     )

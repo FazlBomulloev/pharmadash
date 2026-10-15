@@ -5,7 +5,7 @@ from collections import OrderedDict
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
@@ -156,12 +156,9 @@ async def list_prices(
         conds.append(PharmacyPrice.price >= price_min)
     if price_max is not None:
         conds.append(PharmacyPrice.price <= price_max)
-    if search:
-        pat = f"%{search.strip()}%"
-        conds.append(or_(
-            PharmacyPrice.name.ilike(pat),
-            PharmacyPrice.mnn.ilike(pat),
-            PharmacyPrice.trade_name.ilike(pat),
+    if search and search.strip():
+        conds.append(PharmacyPrice.search_text.contains(
+            search.strip().lower(), autoescape=True,
         ))
 
     where_clause = and_(*conds) if conds else None
