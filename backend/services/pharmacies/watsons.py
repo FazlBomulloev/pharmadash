@@ -8,7 +8,7 @@ import re
 from typing import AsyncIterator
 
 from playwright.async_api import Error as PlaywrightError
-from playwright.async_api import Page, Route, async_playwright
+from playwright.async_api import Page, Response, Route, async_playwright
 
 from .base import PharmacyAdapter, PharmacyProduct
 from .name_parse_en import (
@@ -32,6 +32,7 @@ PAGE_SIZE = 64
 # ответа в Firefox периодически падает с NS_ERROR_INVALID_CONTENT_ENCODING).
 BROWSER = "firefox"
 PAGE_DELAY = (1.0, 2.5)
+SITE_READY_TIMEOUT_MS = 60_000
 RETRY_WAITS = (15, 30, 60, 120)
 BLOCKED_TYPES = {"image", "media", "font"}
 
@@ -181,19 +182,39 @@ async def _block_media(route: Route) -> None:
         await route.continue_()
 
 
+def _is_storefront_search(response: Response) -> bool:
+    return "/products/search" in response.url \
+        and "category%3A" in response.url and response.ok
+
+
 async def _open_storefront(page: Page, path: str) -> bool:
+    # Свои запросы к API шлём только после того, как витрина сама получила
+    # список товаров: к этому моменту скрипты Akamai выставили cookies.
+    # Иначе на медленном сервере первый fetch падает (NetworkError, 504).
+    ready = asyncio.ensure_future(page.wait_for_event(
+        "response", _is_storefront_search, timeout=SITE_READY_TIMEOUT_MS,
+    ))
     try:
         response = await page.goto(
             SITE_URL + path, wait_until="domcontentloaded", timeout=90_000,
         )
     except PlaywrightError as e:
+        ready.cancel()
         log.warning("Watsons: витрина не открылась (%s)",
                     e.message.splitlines()[0])
         return False
     status = response.status if response else None
     if status != 200:
+        ready.cancel()
         log.warning("Watsons: витрина %s — HTTP %s", path, status)
         return False
+    try:
+        await ready
+    except PlaywrightError:
+        log.warning(
+            "Watsons: витрина %s не загрузила товары за %d с, "
+            "продолжаем без ожидания", path, SITE_READY_TIMEOUT_MS // 1000,
+        )
     return True
 
 
