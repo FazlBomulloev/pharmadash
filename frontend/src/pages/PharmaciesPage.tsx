@@ -412,18 +412,25 @@ function SourceCard({
 }
 
 function Thumb({
-  url, name, size,
+  url, fullUrl, name, size,
 }: {
   url: string | null;
+  /** Полноразмерное фото для панели и увеличения; без него — превью. */
+  fullUrl?: string | null;
   name: string;
   size: "row" | "panel";
 }) {
   const [failed, setFailed] = useState(false);
+  const [fullFailed, setFullFailed] = useState(false);
   const [zoomed, setZoomed] = useState(false);
   const frame = size === "row"
     ? "size-10 rounded-lg text-[9px]"
     : "aspect-[4/3] rounded-inner text-[13px]";
-  if (!url || failed) {
+  // Адрес оригинала вычислен по правилу сайта; если он не открылся,
+  // откатываемся к превью, а не к заглушке.
+  const useFull = !!fullUrl && fullUrl !== url && !fullFailed;
+  const src = useFull ? fullUrl : url;
+  if (!src || (!useFull && failed)) {
     return (
       <div
         className={clsx("flex items-center justify-center text-[#9a9ea6]", frame)}
@@ -435,10 +442,10 @@ function Thumb({
   }
   const image = (
     <img
-      src={url}
+      src={src}
       alt=""
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => (useFull ? setFullFailed(true) : setFailed(true))}
       className="size-full object-contain"
     />
   );
@@ -464,7 +471,7 @@ function Thumb({
         {image}
       </button>
       {zoomed && (
-        <Lightbox url={url} name={name} onClose={() => setZoomed(false)} />
+        <Lightbox url={src} name={name} onClose={() => setZoomed(false)} />
       )}
     </>
   );
@@ -767,7 +774,13 @@ function ProductPanel({
 
   return (
     <SidePanel onClose={onClose} width={440} gap={24}>
-      <Thumb url={item.image_url} name={item.name} size="panel" />
+      <Thumb
+        key={item.id}
+        url={item.image_url}
+        fullUrl={item.image_full_url}
+        name={item.name}
+        size="panel"
+      />
       <div className="flex flex-col gap-2">
         <span className="text-pretty text-[22px] font-semibold leading-tight tracking-[-0.02em]">
           {item.name}

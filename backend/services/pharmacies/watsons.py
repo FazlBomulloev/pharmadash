@@ -44,6 +44,7 @@ _STATE_RE = re.compile(
 _STATE_ESCAPES = (("&q;", '"'), ("&s;", "'"), ("&l;", "<"), ("&g;", ">"),
                   ("&a;", "&"))
 _TAG_RE = re.compile(r"<[^>]+>")
+_PRODCAT_RE = re.compile(r"-prodcat(\.\w+)")
 # «contai\w*» ловит и опечатки витрины вроде «contais».
 _CONTAINS_RE = re.compile(r"\bcontai\w*\s*[:;]?\s*(.+)", re.I)
 _DOSE_RE = re.compile(r"\d[\d.,]*\s*(?:mg|mcg|µg|g|iu|ml)\b", re.I)
@@ -249,6 +250,11 @@ class WatsonsAdapter(PharmacyAdapter):
     slug = "watsons"
     display_name = "Watsons"
     currency = "PHP"
+
+    @staticmethod
+    def full_image_url(url: str) -> str:
+        # …-front-prodcat.jpg (400px, каталог) → …-front-zoom.jpg (до 2500px)
+        return _PRODCAT_RE.sub(r"-zoom\1", url)
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
         seen: set[str] = set()

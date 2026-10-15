@@ -40,6 +40,16 @@ class PharmacyAdapter:
     def __init__(self, limit: Optional[int] = None):
         self.limit = limit
 
+    @staticmethod
+    def full_image_url(url: str) -> str:
+        """Полноразмерное фото по ссылке на превью из каталога.
+
+        Каталоги отдают уменьшенные копии — для списка этого хватает, а
+        при увеличении они мылятся. Адаптер переопределяет метод, если
+        сайт хранит оригинал по предсказуемому адресу.
+        """
+        return url
+
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
         if False:
             yield  # pragma: no cover

@@ -334,6 +334,13 @@ def _serialize_run(r: PharmacySourceRun | None) -> dict | None:
     }
 
 
+def _full_image_url(source: str, url: str | None) -> str | None:
+    adapter = ADAPTERS.get(source)
+    if not url or adapter is None:
+        return url
+    return adapter.full_image_url(url)
+
+
 def _serialize_price(r: PharmacyPrice) -> dict:
     return {
         "id": r.id,
@@ -351,5 +358,6 @@ def _serialize_price(r: PharmacyPrice) -> dict:
         "price_discount": r.price_discount,
         "url": r.url,
         "image_url": r.image_url,
+        "image_full_url": _full_image_url(r.source, r.image_url),
         "scraped_at": r.scraped_at.isoformat(),
     }

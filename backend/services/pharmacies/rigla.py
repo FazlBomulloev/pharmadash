@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import AsyncIterator
 
 import aiohttp
@@ -8,6 +9,8 @@ import aiohttp
 from .base import PharmacyAdapter, PharmacyProduct
 
 log = logging.getLogger(__name__)
+
+_CACHE_RE = re.compile(r"/catalog/product/cache/[0-9a-f]+/")
 
 GRAPHQL_URL = "https://www.rigla.ru/graphql"
 CATEGORY_ID = "2356"
@@ -73,6 +76,12 @@ query productsElastic(
 class RiglaAdapter(PharmacyAdapter):
     slug = "rigla"
     display_name = "Ригла"
+
+    @staticmethod
+    def full_image_url(url: str) -> str:
+        # Magento кладёт уменьшенные копии в …/product/cache/<hash>/…,
+        # оригинал лежит без этого сегмента.
+        return _CACHE_RE.sub("/catalog/product/", url)
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
         timeout = aiohttp.ClientTimeout(total=60)
