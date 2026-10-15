@@ -154,7 +154,7 @@ function FormDonut({
                     key={r.name}
                     onMouseEnter={() => setHovered(r.name)}
                     onMouseLeave={() => setHovered(null)}
-                    className="grid grid-cols-[8px_minmax(0,1fr)_42px] items-center gap-2 text-[13px]"
+                    className="grid grid-cols-[8px_minmax(0,1fr)_40px_68px] items-center gap-x-2 text-[13px]"
                     style={{
                       opacity: hovered && hovered !== r.name ? 0.45 : 1,
                       transition: "opacity .15s",
@@ -168,12 +168,15 @@ function FormDonut({
                     />
                     <span
                       className={`truncate ${muted ? "text-muted-2 italic" : ""}`}
-                      title={`${r.name} · ${fmtUsd(r.usd)}`}
+                      title={r.name}
                     >
                       {r.name}
                     </span>
-                    <span className="text-right font-medium tabular-nums">
+                    <span className="text-right tabular-nums text-muted-2">
                       {fmtShare(r.share)}
+                    </span>
+                    <span className="text-right font-medium tabular-nums">
+                      {fmtUsd(r.usd)}
                     </span>
                   </li>
                 );
