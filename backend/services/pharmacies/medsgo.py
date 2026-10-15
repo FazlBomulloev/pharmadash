@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import html as html_lib
 import logging
-import math
 import random
 import re
 from typing import AsyncIterator
@@ -24,7 +23,8 @@ CATEGORY_PATHS = (
     "/solutions/",
     "/vitamins-and-supplements/",
 )
-PAGE_SIZE = 20
+# Верхняя граница страниц на раздел (в крупнейшем, Rx, их ~40).
+MAX_PAGES = 300
 PAGE_DELAY = (2.5, 4.5)
 RATE_LIMIT_WAITS = (30, 60, 120, 240)
 CONTENT_WAIT_SEC = 30
@@ -46,7 +46,13 @@ _SRC_RE = re.compile(r'\bsrc="([^"]+)"')
 _FEATURE_RE = re.compile(
     r"<em>([^<]+)</em></span>\s*<span><em>(.*?)</em>", re.S,
 )
-_COUNT_RE = re.compile(r'"product_count":"(\d+)"')
+# Число страниц заранее не известно: product_count в данных GA считает
+# только товары, привязанные к категории напрямую (у родительских разделов
+# он 0), а пагинатор начиная с 6-й страницы рисует номера лишь до текущей,
+# и каждая страница выглядит последней. Конец раздела — 404 или страница
+# без новых товаров.
+
+
 def _text(fragment: str | None) -> str:
     if not fragment:
         return ""
@@ -124,11 +130,8 @@ def _parse_card(card: str) -> PharmacyProduct | None:
     )
 
 
-def total_pages(page_html: str) -> int | None:
-    match = _COUNT_RE.search(page_html)
-    if not match:
-        return None
-    return max(math.ceil(int(match.group(1)) / PAGE_SIZE), 1)
+def page_url(path: str, number: int) -> str:
+    return BASE_URL + path + (f"page-{number}/" if number > 1 else "")
 
 
 async def _block_extras(route: Route) -> None:
@@ -142,6 +145,7 @@ async def _block_extras(route: Route) -> None:
 
 
 async def _load(page: Page, url: str) -> str | None:
+    """HTML страницы каталога, "" — если страницы нет (404), None — сбой."""
     for attempt in range(MAX_ATTEMPTS):
         try:
             response = await page.goto(
@@ -160,6 +164,9 @@ async def _load(page: Page, url: str) -> str | None:
             await asyncio.sleep(wait)
             continue
 
+        if response is not None and response.status == 404:
+            return ""
+
         # Shield сначала отдаёт проверку и сам перезагружает страницу:
         # ждём, пока в HTML появятся карточки или пагинация.
         for _ in range(CONTENT_WAIT_SEC):
@@ -168,7 +175,7 @@ async def _load(page: Page, url: str) -> str | None:
             except PlaywrightError:
                 await asyncio.sleep(1)
                 continue
-            if "cp_ga_product_data_" in content or "product_count" in content:
+            if "cp_ga_product_data_" in content:
                 return content
             await asyncio.sleep(1)
         log.warning(
@@ -195,25 +202,31 @@ class MedsgoAdapter(PharmacyAdapter):
                 await context.route("**/*", _block_extras)
                 page = await context.new_page()
                 for path in CATEGORY_PATHS:
-                    pages = None
-                    number = 1
-                    while pages is None or number <= pages:
-                        url = BASE_URL + path + (
-                            f"page-{number}/" if number > 1 else ""
-                        )
-                        content = await _load(page, url)
+                    section: set[str] = set()
+                    for number in range(1, MAX_PAGES + 1):
+                        content = await _load(page, page_url(path, number))
                         if content is None:
                             log.warning(
                                 "MedsGo: %s — страница %d недоступна, "
                                 "раздел прерван", path, number,
                             )
                             break
-                        if pages is None:
-                            pages = total_pages(content) or 1
-                            log.info("MedsGo: %s — %d страниц", path, pages)
-                        cards = parse_listing(content)
+                        cards = [
+                            c for c in parse_listing(content)
+                            if c.sku not in section
+                        ]
+                        section.update(c.sku for c in cards)
                         if not cards:
+                            log.info(
+                                "MedsGo: %s — %d страниц, %d товаров",
+                                path, number - 1, len(section),
+                            )
                             break
+                        if number % 10 == 0:
+                            log.info(
+                                "MedsGo: %s — стр. %d (товаров: %d)",
+                                path, number, len(section),
+                            )
                         for product in cards:
                             if product.sku in seen:
                                 continue
@@ -222,12 +235,6 @@ class MedsgoAdapter(PharmacyAdapter):
                             yielded += 1
                             if self.limit and yielded >= self.limit:
                                 return
-                        if number % 10 == 0:
-                            log.info(
-                                "MedsGo: %s — %d/%d страниц (товаров: %d)",
-                                path, number, pages, yielded,
-                            )
-                        number += 1
                         await asyncio.sleep(random.uniform(*PAGE_DELAY))
             finally:
                 await browser.close()
