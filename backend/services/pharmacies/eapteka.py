@@ -6,11 +6,12 @@ import json
 import logging
 import os
 import re
-from contextlib import suppress
 from typing import AsyncIterator
 
 from playwright.async_api import Error as PlaywrightError
-from playwright.async_api import Page, Response, Route, async_playwright
+from playwright.async_api import (
+    Browser, Page, Response, Route, async_playwright,
+)
 
 from .base import PharmacyAdapter, PharmacyProduct
 from .name_parse import (
@@ -27,12 +28,15 @@ CATEGORY_URLS = (
 )
 # Антибот eApteka отдаёт IP хостинга 403 («Доступ к сайту временно
 # ограничен») на обычный HTTP-клиент и Chromium, а Firefox проходит его
-# JS-проверку (503 → страница сама перезагружается в каталог). Поэтому
-# страницы грузятся в Firefox: первая страница категории проходит проверку
-# и получает cookies, остальные идут параллельно во вкладках того же
-# контекста.
+# JS-проверку (503 → страница сама перезагружается в каталог).
+#
+# Сервер слабый (2 ядра, 2 ГБ): несколько вкладок, исполняющих тяжёлый JS
+# витрины, съедают память, и страницы перестают грузиться. Поэтому JS
+# включён только в контексте проверки, который проходит антибот и отдаёт
+# cookies; страницы каталога читаются в контексте без JS, где грузится
+# один HTML-документ.
 BROWSER = "firefox"
-TABS = 4
+TABS = 2
 BATCH_SIZE = 40
 PAGE_TIMEOUT_MS = 60_000
 READY_TIMEOUT_MS = 30_000
@@ -64,13 +68,67 @@ async def _block_media(route: Route) -> None:
         await route.continue_()
 
 
+async def _only_document(route: Route) -> None:
+    if route.request.resource_type == "document":
+        await route.continue_()
+    else:
+        await route.abort()
+
+
 async def _goto(page: Page, url: str) -> Response | None:
     return await page.goto(
         url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS,
     )
 
 
-async def load_page(page: Page, url: str) -> str | None:
+class Session:
+    """Контекст проверки (с JS) и контекст чтения (без JS) с общими cookies."""
+
+    def __init__(self, browser: Browser):
+        self._browser = browser
+        self._lock = asyncio.Lock()
+        self.generation = 0
+
+    async def open(self) -> None:
+        self._checker = await self._browser.new_context(locale="ru-RU")
+        await self._checker.route("**/*", _block_media)
+        self._check_page = await self._checker.new_page()
+        self._reader = await self._browser.new_context(
+            locale="ru-RU", java_script_enabled=False,
+        )
+        await self._reader.route("**/*", _only_document)
+
+    async def new_tab(self) -> Page:
+        return await self._reader.new_page()
+
+    async def pass_check(self, url: str, generation: int) -> None:
+        async with self._lock:
+            if self.generation != generation:
+                return  # другая вкладка уже обновила cookies
+            try:
+                await _goto(self._check_page, url)
+                # Проверка сама перезагружает страницу в каталог.
+                await self._check_page.wait_for_selector(
+                    CARD_SELECTOR, state="attached", timeout=READY_TIMEOUT_MS,
+                )
+            except PlaywrightError as e:
+                log.warning(
+                    "eApteka: проверка антибота на %s не завершилась (%s)",
+                    url, e.message.splitlines()[0],
+                )
+            await self._reader.add_cookies(await self._checker.cookies())
+            self.generation += 1
+            log.info("eApteka: cookies антибота обновлены")
+
+
+async def _read(tab: Page, url: str) -> tuple[int | None, str]:
+    response = await _goto(tab, url)
+    if response is None:
+        return None, ""
+    return response.status, await response.text()
+
+
+async def load_page(session: Session, tab: Page, url: str) -> str | None:
     """Исходный HTML страницы каталога или None, если она не открылась.
 
     Берётся тело ответа, а не DOM: скрипты витрины после загрузки
@@ -78,26 +136,17 @@ async def load_page(page: Page, url: str) -> str | None:
     """
     attempts = len(RETRY_WAITS) + 1
     for attempt in range(attempts):
+        generation = session.generation
         try:
-            response = await _goto(page, url)
-            status = response.status if response else None
-            if status != 200:
-                # Антибот отдаёт 503 с JS-проверкой, которая сама
-                # перезагружает страницу и выставляет cookies. Дожидаемся
-                # каталога и запрашиваем страницу ещё раз уже с cookies,
-                # чтобы получить её исходный HTML.
-                with suppress(PlaywrightError):
-                    await page.wait_for_selector(
-                        CARD_SELECTOR, state="attached",
-                        timeout=READY_TIMEOUT_MS,
-                    )
-                response = await _goto(page, url)
-                status = response.status if response else None
-            if status == 200 and response is not None:
-                html = await response.text()
-                if not _is_antibot(html):
-                    return html  # страница без товаров — тоже ответ
-                reason = "антибот-проверка не пройдена"
+            status, html = await _read(tab, url)
+            if status == 200 and not _is_antibot(html):
+                return html  # страница без товаров — тоже ответ
+            if status in (403, 503) or _is_antibot(html):
+                await session.pass_check(url, generation)
+                status, html = await _read(tab, url)
+                if status == 200 and not _is_antibot(html):
+                    return html
+                reason = f"антибот-проверка не пройдена (HTTP {status})"
             else:
                 reason = f"HTTP {status}"
         except PlaywrightError as e:
@@ -230,13 +279,13 @@ class EaptekaAdapter(PharmacyAdapter):
             finally:
                 await browser.close()
 
-    async def _crawl(self, browser) -> AsyncIterator[PharmacyProduct]:
-        context = await browser.new_context(locale="ru-RU")
-        await context.route("**/*", _block_media)
+    async def _crawl(self, browser: Browser) -> AsyncIterator[PharmacyProduct]:
+        session = Session(browser)
+        await session.open()
         tabs: asyncio.Queue[Page] = asyncio.Queue()
         for _ in range(TABS):
-            tabs.put_nowait(await context.new_page())
-        main_tab = await context.new_page()
+            tabs.put_nowait(await session.new_tab())
+        main_tab = await session.new_tab()
 
         seen: set[str] = set()
         yielded = 0
@@ -245,7 +294,7 @@ class EaptekaAdapter(PharmacyAdapter):
             tab = await tabs.get()
             try:
                 return await load_page(
-                    tab, f"{BASE_URL}{category_url}?PAGEN_1={number}",
+                    session, tab, f"{BASE_URL}{category_url}?PAGEN_1={number}",
                 )
             finally:
                 tabs.put_nowait(tab)
@@ -259,7 +308,7 @@ class EaptekaAdapter(PharmacyAdapter):
             return result
 
         for category_url in CATEGORY_URLS:
-            first = await load_page(main_tab, BASE_URL + category_url)
+            first = await load_page(session, main_tab, BASE_URL + category_url)
             if not first:
                 log.warning("eApteka: категория %s недоступна", category_url)
                 continue
