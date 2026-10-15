@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     HTTPException,
     Query,
@@ -26,7 +27,9 @@ from backend.schemas import (
     PreviewResponse,
     PreviewRow,
 )
-from backend.routers.overview import invalidate_overview_cache
+from backend.routers.overview import (
+    invalidate_overview_cache, prewarm_overview,
+)
 from backend.routers.dashboard import invalidate_dashboard_cache
 from backend.services.market_scoring import (
     get_market_scoring,
@@ -278,6 +281,7 @@ async def preview_data(
 async def apply_mapping(
     market_id: int,
     body: MappingRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     market = await db.get(Market, market_id)
@@ -360,6 +364,7 @@ async def apply_mapping(
     invalidate_overview_cache(market_id)
     invalidate_dashboard_cache(market_id)
     invalidate_scoring_cache(market_id)
+    background_tasks.add_task(prewarm_overview, market_id)
 
     return {
         "ok": True,

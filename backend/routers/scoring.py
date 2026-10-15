@@ -1,7 +1,9 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, HTTPException, Query,
+)
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +11,9 @@ from backend.database import get_db
 from backend.services.permissions import require
 from backend.models import BdpRaw, Market
 from backend.routers.dashboard import invalidate_dashboard_cache
-from backend.routers.overview import invalidate_overview_cache
+from backend.routers.overview import (
+    invalidate_overview_cache, prewarm_overview,
+)
 from backend.services.market_scoring import (
     get_market_scoring,
     invalidate_scoring_cache,
@@ -118,6 +122,7 @@ async def get_settings(
 async def update_settings(
     market_id: int,
     body: ScoringSettings,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     market = await _get_market(db, market_id)
@@ -128,6 +133,7 @@ async def update_settings(
     invalidate_scoring_cache(market_id)
     invalidate_dashboard_cache(market_id)
     invalidate_overview_cache(market_id)
+    background_tasks.add_task(prewarm_overview, market_id)
     log.info("Настройки рынка id=%d обновлены", market_id)
     return await _settings_payload(db, market)
 

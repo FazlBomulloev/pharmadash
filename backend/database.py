@@ -51,6 +51,22 @@ _DROPPED_COLUMNS = [
 ]
 
 
+# Дашборд МНН и drilldown ищут без учёта регистра: upper(mnn) = ...
+# Обычный индекс по mnn такое условие не использует, и SQLite перебирал
+# всю таблицу. Индекс по тому же выражению это закрывает.
+_EXPRESSION_INDEXES = [
+    ("ix_bdp_raw_market_upper_mnn", "bdp_raw", "market_id, upper(mnn)"),
+    (
+        "ix_bdp_raw_market_upper_country",
+        "bdp_raw", "market_id, upper(country_mfr)",
+    ),
+    (
+        "ix_bdp_raw_market_lower_producer",
+        "bdp_raw", "market_id, lower(producer)",
+    ),
+]
+
+
 async def _apply_migrations(conn):
     for table, column, ddl_type in _MIGRATIONS:
         existing = await conn.execute(text(f"PRAGMA table_info({table})"))
@@ -72,6 +88,20 @@ async def _apply_migrations(conn):
                 text(f"ALTER TABLE {table} DROP COLUMN {column}")
             )
             log.info("Миграция: %s.%s удалена", table, column)
+
+    for name, table, expr in _EXPRESSION_INDEXES:
+        exists = await conn.execute(
+            text(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type = 'index' AND name = :name"
+            ),
+            {"name": name},
+        )
+        if exists.first() is None:
+            await conn.execute(
+                text(f"CREATE INDEX {name} ON {table} ({expr})")
+            )
+            log.info("Миграция: индекс %s создан", name)
 
 
 async def init_db():

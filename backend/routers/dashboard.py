@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 from collections import defaultdict
 from types import SimpleNamespace
 from typing import Any, Iterable
@@ -25,6 +24,7 @@ from backend.services.market_scoring import (
     get_market_scoring,
     mnn_scoring_item,
 )
+from backend.services.response_cache import MarketCache
 from backend.services.scoring_query import SUGGEST_LIMIT, suggest_mnn
 from backend.services.year_shift import (
     parse_years,
@@ -52,22 +52,18 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["dashboard"])
 
 
-_DASHBOARD_CACHE: dict[tuple, tuple[float, bytes]] = {}
-_DASHBOARD_CACHE_TTL_SEC = 600
+# Срока жизни нет, как и у кеша обзора: сброс идёт явно при смене данных.
+_DASHBOARD_CACHE = MarketCache(max_items=500)
 
 
 def invalidate_dashboard_cache(market_id: int | None = None) -> None:
+    count = _DASHBOARD_CACHE.invalidate(market_id)
     if market_id is None:
-        _DASHBOARD_CACHE.clear()
         log.info("Кеш dashboard сброшен целиком")
-        return
-    keys = [k for k in _DASHBOARD_CACHE if k[0] == market_id]
-    for k in keys:
-        _DASHBOARD_CACHE.pop(k, None)
-    if keys:
+    elif count:
         log.info(
             "Кеш dashboard сброшен для market_id=%d (%d ключей)",
-            market_id, len(keys),
+            market_id, count,
         )
 
 
@@ -144,12 +140,10 @@ async def dashboard(
 
     mnn_upper = mnn.strip().upper()
     cache_key = (market_id, mnn_upper, lf or "", dose or "", year_idx)
-    now = time.monotonic()
     cached = _DASHBOARD_CACHE.get(cache_key)
-    if cached and now - cached[0] < _DASHBOARD_CACHE_TTL_SEC:
-        return Response(
-            content=cached[1], media_type="application/json",
-        )
+    if cached is not None:
+        return Response(content=cached, media_type="application/json")
+    generation = _DASHBOARD_CACHE.generation(market_id)
     stmt = select(BdpRaw).where(
         BdpRaw.market_id == market_id,
         func.upper(BdpRaw.mnn) == mnn_upper,
@@ -235,7 +229,7 @@ async def dashboard(
     body = json.dumps(
         jsonable_encoder(payload), ensure_ascii=False,
     ).encode("utf-8")
-    _DASHBOARD_CACHE[cache_key] = (now, body)
+    _DASHBOARD_CACHE.set(cache_key, body, generation)
     return Response(content=body, media_type="application/json")
 
 

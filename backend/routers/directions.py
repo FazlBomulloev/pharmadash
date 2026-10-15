@@ -4,7 +4,8 @@ import logging
 import shutil
 
 from fastapi import (
-    APIRouter, Depends, File, HTTPException, Query, UploadFile,
+    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query,
+    UploadFile,
 )
 from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +15,9 @@ from backend.database import get_db
 from backend.services.permissions import require
 from backend.models import DirectionImport, MnnDirection
 from backend.routers.dashboard import invalidate_dashboard_cache
-from backend.routers.overview import invalidate_overview_cache
+from backend.routers.overview import (
+    invalidate_overview_cache, prewarm_all_overviews,
+)
 from backend.schemas import (
     DirectionMetaResponse,
     DirectionRowsResponse,
@@ -33,6 +36,7 @@ INSERT_BATCH = 5000
 
 @router.post("/upload", response_model=DirectionUploadResponse, dependencies=[Depends(require("directions:write"))])
 async def upload_directions(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -73,6 +77,7 @@ async def upload_directions(
     invalidate_direction_map()
     invalidate_overview_cache()
     invalidate_dashboard_cache()
+    background_tasks.add_task(prewarm_all_overviews)
     log.info(
         "Справочник направлений обновлён из «%s»: %d строк",
         file.filename, report["rows_accepted"],

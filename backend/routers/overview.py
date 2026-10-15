@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session, get_db
@@ -16,6 +17,7 @@ from backend.services.market_scoring import (
     get_market_scoring,
     market_settings,
 )
+from backend.services.response_cache import MarketCache
 from backend.services.scoring import CATEGORIES
 from backend.services.year_shift import (
     parse_years,
@@ -29,21 +31,18 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/markets", tags=["overview"])
 
 
-_OVERVIEW_CACHE: dict[tuple, tuple[float, dict]] = {}
-_CACHE_TTL_SEC = 600
+# Срока жизни нет: данные меняются только загрузками и настройками,
+# и каждая из них сбрасывает кеш явно.
+_OVERVIEW_CACHE = MarketCache(max_items=500)
 
 
 def invalidate_overview_cache(market_id: int | None = None) -> None:
+    count = _OVERVIEW_CACHE.invalidate(market_id)
     if market_id is None:
-        _OVERVIEW_CACHE.clear()
         log.info("Кеш обзора сброшен целиком")
-        return
-    keys = [k for k in _OVERVIEW_CACHE if k[0] == market_id]
-    for k in keys:
-        _OVERVIEW_CACHE.pop(k, None)
-    if keys:
+    elif count:
         log.info("Кеш обзора сброшен для market_id=%d (%d ключей)",
-                 market_id, len(keys))
+                 market_id, count)
 
 
 def _safe_div(num: float, den: float) -> float | None:
@@ -367,34 +366,61 @@ _PREWARM_COMBOS: list[tuple[str | None, str | None]] = [
     ("hos", None),
 ]
 
-_PREWARM_LOCKS: dict[int, asyncio.Lock] = {}
+_PREWARM_RUNNING: set[int] = set()
+_PREWARM_AGAIN: set[int] = set()
 
 
-def _prewarm_lock(market_id: int) -> asyncio.Lock:
-    lock = _PREWARM_LOCKS.get(market_id)
-    if lock is None:
-        lock = asyncio.Lock()
-        _PREWARM_LOCKS[market_id] = lock
-    return lock
+async def _prewarm_once(market_id: int) -> None:
+    async with async_session() as db:
+        market = await db.get(Market, market_id)
+        if market is None:
+            return
+        year_idx = resolve_year_idx(market, None)
+        for sector, atc3 in _PREWARM_COMBOS:
+            try:
+                await _compute_overview(
+                    db, market_id, sector, atc3, year_idx, market,
+                )
+            except HTTPException as e:
+                log.info(
+                    "Прогрев обзора рынка %d пропущен: %s",
+                    market_id, e.detail,
+                )
+                return
+            except SQLAlchemyError:
+                log.exception(
+                    "Прогрев обзора рынка %d: ошибка базы", market_id,
+                )
+                return
 
 
-async def _prewarm_market_overview(market_id: int) -> None:
-    lock = _prewarm_lock(market_id)
-    if lock.locked():
+async def prewarm_overview(market_id: int) -> None:
+    # Запрос на прогрев во время прогрева не теряется: данные могли
+    # смениться, и посчитанное до этого кеш уже не примет.
+    if market_id in _PREWARM_RUNNING:
+        _PREWARM_AGAIN.add(market_id)
         return
-    async with lock:
-        async with async_session() as db:
-            for sector, atc3 in _PREWARM_COMBOS:
-                key = (market_id, sector or "all", atc3)
-                cached = _OVERVIEW_CACHE.get(key)
-                if cached and (time.time() - cached[0]) < _CACHE_TTL_SEC:
-                    continue
-                try:
-                    await _compute_overview(
-                        db, market_id, sector, atc3,
-                    )
-                except Exception as e:
-                    log.warning("Prewarm %s упал: %s", key, e)
+    _PREWARM_RUNNING.add(market_id)
+    try:
+        while True:
+            _PREWARM_AGAIN.discard(market_id)
+            await _prewarm_once(market_id)
+            if market_id not in _PREWARM_AGAIN:
+                break
+    finally:
+        _PREWARM_RUNNING.discard(market_id)
+
+
+async def prewarm_all_overviews() -> None:
+    t0 = time.perf_counter()
+    async with async_session() as db:
+        market_ids = (await db.execute(select(Market.id))).scalars().all()
+    for market_id in market_ids:
+        await prewarm_overview(market_id)
+    log.info(
+        "Кеш обзора прогрет: рынков %d, %.1f с",
+        len(market_ids), time.perf_counter() - t0,
+    )
 
 
 @router.get("/{market_id}/overview")
@@ -413,15 +439,12 @@ async def market_overview(
     cache_key = (
         market_id, sector or "all", atc3, year_idx,
     )
-    was_cached = (
-        cache_key in _OVERVIEW_CACHE
-        and (time.time() - _OVERVIEW_CACHE[cache_key][0]) < _CACHE_TTL_SEC
-    )
+    was_cached = _OVERVIEW_CACHE.get(cache_key) is not None
     response = await _compute_overview(
         db, market_id, sector, atc3, year_idx, market,
     )
     if not was_cached:
-        background_tasks.add_task(_prewarm_market_overview, market_id)
+        background_tasks.add_task(prewarm_overview, market_id)
     return response
 
 
@@ -437,8 +460,9 @@ async def _compute_overview(
         market_id, sector or "all", atc3, year_idx,
     )
     cached = _OVERVIEW_CACHE.get(cache_key)
-    if cached and (time.time() - cached[0]) < _CACHE_TTL_SEC:
-        return cached[1]
+    if cached is not None:
+        return cached
+    generation = _OVERVIEW_CACHE.generation(market_id)
 
     if market is None:
         market = await db.get(Market, market_id)
@@ -449,6 +473,27 @@ async def _compute_overview(
     if not raw_rows:
         raise HTTPException(400, "Для рынка не загружены данные БДП")
 
+    dmap = await load_direction_map(db)
+    scoring = await get_market_scoring(db, market)
+    # Расчёт занимает секунды чистого CPU: в отдельном потоке он не
+    # останавливает обработку остальных запросов.
+    response = await asyncio.to_thread(
+        _build_overview,
+        market, raw_rows, dmap, scoring, sector, atc3, year_idx,
+    )
+    _OVERVIEW_CACHE.set(cache_key, response, generation)
+    return response
+
+
+def _build_overview(
+    market: Market,
+    raw_rows,
+    dmap,
+    scoring: dict,
+    sector: str | None,
+    atc3: str | None,
+    year_idx: int,
+) -> dict:
     all_bdp_items = shift_items(raw_rows, year_idx)
 
     years = parse_years(market)
@@ -480,13 +525,11 @@ async def _compute_overview(
 
     home = {c.strip().upper() for c in market_settings(market).home_countries}
     portfolio = _build_portfolio(bdp_items, home)
-    dmap = await load_direction_map(db)
     portfolio["directions"] = build_overview_directions(bdp_items, dmap)
     volume = _build_volume(bdp_items, shifted_year_list)
     volume["series"] = _build_series(
         _apply_filters(raw_rows, sector, atc3), years,
     )
-    scoring = await get_market_scoring(db, market)
     decision = _build_decision(scoring, scope_mnns)
 
     header = {
@@ -521,5 +564,4 @@ async def _compute_overview(
         "portfolio": portfolio,
         "decision": decision,
     }
-    _OVERVIEW_CACHE[cache_key] = (time.time(), response)
     return response
