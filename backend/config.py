@@ -13,3 +13,13 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MIN_COMPETITOR_USD = 10_000
 COMPETITOR_PCT = 0.001
+
+# Вход. Первый аккаунт создаётся при старте, если таблица users пуста.
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+# Secure у cookie: включать за https; по http локальная разработка сломается.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+SESSION_COOKIE = "epi_session"
+SESSION_DAYS = 30

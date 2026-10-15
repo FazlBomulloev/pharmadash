@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import DIRECTIONS_FILE, UPLOAD_DIR
 from backend.database import get_db
+from backend.services.permissions import require
 from backend.models import DirectionImport, MnnDirection
 from backend.routers.dashboard import invalidate_dashboard_cache
 from backend.routers.overview import invalidate_overview_cache
@@ -30,7 +31,7 @@ router = APIRouter(prefix="/directions", tags=["directions"])
 INSERT_BATCH = 5000
 
 
-@router.post("/upload", response_model=DirectionUploadResponse)
+@router.post("/upload", response_model=DirectionUploadResponse, dependencies=[Depends(require("directions:write"))])
 async def upload_directions(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),

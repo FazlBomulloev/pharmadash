@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
+from backend.services.permissions import require
 from backend.models import BdpRaw, Market
 from backend.routers.dashboard import invalidate_dashboard_cache
 from backend.routers.overview import invalidate_overview_cache
@@ -113,7 +114,7 @@ async def get_settings(
     return await _settings_payload(db, market)
 
 
-@router.put("/{market_id}/settings")
+@router.put("/{market_id}/settings", dependencies=[Depends(require("settings:write"))])
 async def update_settings(
     market_id: int,
     body: ScoringSettings,

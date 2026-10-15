@@ -16,6 +16,7 @@ from sqlalchemy import select, func, delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.config import UPLOAD_DIR
 from backend.database import get_db
+from backend.services.permissions import require
 from backend.models import Market, FieldMapping, BdpRaw
 from backend.schemas import (
     MarketCreate,
@@ -109,7 +110,7 @@ async def get_market(
     return await _market_card(db, m)
 
 
-@router.post("", response_model=MarketOut)
+@router.post("", response_model=MarketOut, dependencies=[Depends(require("markets:write"))])
 async def create_market(
     body: MarketCreate,
     db: AsyncSession = Depends(get_db),
@@ -142,7 +143,7 @@ async def create_market(
     )
 
 
-@router.delete("/{market_id}")
+@router.delete("/{market_id}", dependencies=[Depends(require("markets:write"))])
 async def delete_market(
     market_id: int,
     db: AsyncSession = Depends(get_db),
@@ -165,7 +166,7 @@ async def delete_market(
     return {"ok": True}
 
 
-@router.post("/{market_id}/upload", response_model=UploadResponse)
+@router.post("/{market_id}/upload", response_model=UploadResponse, dependencies=[Depends(require("markets:write"))])
 async def upload_file(
     market_id: int,
     file: UploadFile = File(...),
@@ -273,7 +274,7 @@ async def preview_data(
     )
 
 
-@router.post("/{market_id}/mapping")
+@router.post("/{market_id}/mapping", dependencies=[Depends(require("markets:write"))])
 async def apply_mapping(
     market_id: int,
     body: MappingRequest,

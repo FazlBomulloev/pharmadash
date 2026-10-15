@@ -8,6 +8,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
+from backend.services.permissions import require
 from backend.models import PharmacyPrice, PharmacySourceRun
 from backend.services.pharmacies.registry import ADAPTERS
 from backend.services.pharmacies.runner import (
@@ -45,7 +46,7 @@ async def list_sources(db: AsyncSession = Depends(get_db)):
     return out
 
 
-@router.post("/{slug}/run")
+@router.post("/{slug}/run", dependencies=[Depends(require("pharmacies:write"))])
 async def trigger_run(
     slug: str,
     limit: Optional[int] = Query(None, ge=1, le=100000),

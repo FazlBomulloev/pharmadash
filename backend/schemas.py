@@ -270,3 +270,13 @@ class DirectionOverviewItem(BaseModel):
     shares_by_year: list[float | None]
     growth: float | None
     kind: str
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class SessionOut(BaseModel):
+    username: str
+    role: str

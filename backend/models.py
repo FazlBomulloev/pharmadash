@@ -1,5 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
+    Boolean,
     Column,
     Float,
     ForeignKey,
@@ -146,3 +147,29 @@ class DirectionImport(Base):
     pairs_count = Column(Integer, nullable=False, default=0)
     directions_count = Column(Integer, nullable=False, default=0)
     report_json = Column(Text, nullable=True)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(100), nullable=False, unique=True)
+    password_hash = Column(String(128), nullable=False)
+    password_salt = Column(String(64), nullable=False)
+    role = Column(String(32), nullable=False, default="admin")
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)
+
+
+class UserSession(Base):
+    __tablename__ = "sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False, index=True)

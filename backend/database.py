@@ -88,4 +88,7 @@ async def init_db():
                 "WHERE status = 'running'"
             )
         )
+    from backend.services.auth import ensure_first_user
+    async with async_session() as session:
+        await ensure_first_user(session)
     log.info("База данных инициализирована")

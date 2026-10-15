@@ -6,6 +6,9 @@ services:
     restart: unless-stopped
     environment:
       TZ: ${TZ:-Europe/Moscow}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       EAPTEKA_REGION: ${EAPTEKA_REGION:-spb}
       OZERKI_REGION: ${OZERKI_REGION:-sankt-peterburg}
     volumes:

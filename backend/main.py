@@ -1,7 +1,7 @@
 import logging
 import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from backend.database import init_db
 from backend.services.pharmacies.scheduler import (
@@ -55,12 +55,32 @@ async def timing_middleware(request: Request, call_next):
 
 from backend.routers import (  # noqa: E402
     markets, dashboard, overview, drilldown, pharmacies, scoring, directions,
+    auth,
 )
+from backend.services.auth import require_user  # noqa: E402
 
-app.include_router(markets.router, prefix="/api")
-app.include_router(dashboard.router, prefix="/api")
-app.include_router(overview.router, prefix="/api")
-app.include_router(drilldown.router, prefix="/api")
-app.include_router(pharmacies.router, prefix="/api")
-app.include_router(scoring.router, prefix="/api")
-app.include_router(directions.router, prefix="/api")
+_protected = [Depends(require_user)]
+
+
+app.include_router(auth.router, prefix="/api")
+app.include_router(
+    markets.router, prefix="/api", dependencies=_protected,
+)
+app.include_router(
+    dashboard.router, prefix="/api", dependencies=_protected,
+)
+app.include_router(
+    overview.router, prefix="/api", dependencies=_protected,
+)
+app.include_router(
+    drilldown.router, prefix="/api", dependencies=_protected,
+)
+app.include_router(
+    pharmacies.router, prefix="/api", dependencies=_protected,
+)
+app.include_router(
+    scoring.router, prefix="/api", dependencies=_protected,
+)
+app.include_router(
+    directions.router, prefix="/api", dependencies=_protected,
+)
