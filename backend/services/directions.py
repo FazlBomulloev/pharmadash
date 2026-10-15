@@ -201,9 +201,13 @@ def build_mnn_directions(items: Iterable[Any], dmap: DirectionMap) -> dict:
     ):
         group_by_dir, group_rest = attribute_usd(group, dmap)
         group_usd = sum(i.usd_y3 or 0.0 for i in group)
+        group_prev = sum(i.usd_y2 or 0.0 for i in group)
+        group_first = sum(i.usd_y1 or 0.0 for i in group)
         forms.append({
             "form": form,
             "usd": group_usd,
+            "growth": _growth(group_usd, group_prev),
+            "cagr": _cagr(group_first, group_usd),
             "in_reference": bool(group_by_dir),
             "rows": (
                 _share_rows(group_by_dir, group_rest, group_usd)
@@ -214,6 +218,12 @@ def build_mnn_directions(items: Iterable[Any], dmap: DirectionMap) -> dict:
     return {
         "total": {
             "usd": total_usd,
+            "growth": _growth(
+                total_usd, sum(i.usd_y2 or 0.0 for i in materialised),
+            ),
+            "cagr": _cagr(
+                sum(i.usd_y1 or 0.0 for i in materialised), total_usd,
+            ),
             "rows": _share_rows(total_by_dir, total_rest, total_usd),
         },
         "forms": forms,

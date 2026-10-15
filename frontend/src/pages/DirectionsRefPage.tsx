@@ -11,8 +11,10 @@ import { Pagination } from "../components/ui/Pagination";
 import { Select } from "../components/ui/Select";
 import { EmptyCard, ErrorNote, Loading } from "../components/ui/states";
 
+// МНН длинные и переменные — им вся гибкая ширина; остальные колонки
+// фиксированы, чтобы цифры и коды читались столбиком.
 const REF_ROW =
-  "grid grid-cols-[minmax(0,1.4fr)_88px_minmax(0,0.9fr)_64px] gap-3";
+  "grid grid-cols-[minmax(0,1fr)_104px_184px_68px] items-baseline gap-4";
 
 export default function DirectionsRefPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -68,7 +70,8 @@ export default function DirectionsRefPage() {
       ? new Date(m.uploaded_at).toLocaleDateString("ru-RU")
       : "—";
     return `Загружен ${when} · ${fmtInt(m.rows_count)} строк · `
-      + `${fmtInt(m.pairs_count)} пар МНН×ЛФ · ${m.directions.length} направлений`;
+      + `${fmtInt(m.pairs_count)} пар МНН×ЛФ · ${m.directions.length} направлений`
+      + " · двойной клик по строке раскроет длинное МНН";
   }, [meta.data]);
 
   if (meta.data && meta.data.rows_count === 0) {
@@ -125,8 +128,8 @@ export default function DirectionsRefPage() {
           className="flex w-full max-w-[1080px] flex-col rounded-card bg-surface transition-opacity duration-200"
           style={rows.loading ? { opacity: 0.55 } : undefined}
         >
-          <div className={`${REF_ROW} px-4 pb-1.5 pt-3.5 text-[11px] text-faint`}>
-            <span>МНН · двойной клик раскроет полностью</span>
+          <div className={`${REF_ROW} border-b border-line px-5 pb-2 pt-4 text-[11px] text-faint`}>
+            <span>МНН</span>
             <span>ЛФ</span>
             <span>Направление</span>
             <span className="text-right">Доля</span>
@@ -138,7 +141,7 @@ export default function DirectionsRefPage() {
               <div
                 key={id}
                 onDoubleClick={() => toggle(id)}
-                className={`${REF_ROW} cursor-default select-none items-baseline border-t border-[#f3f3f0] px-4 py-[5px] text-[13px] hover:bg-[#f7f7f4]`}
+                className={`${REF_ROW} tr-soft cursor-default select-none border-t border-[#f3f3f0] px-5 py-2 text-[13px] hover:bg-[#f7f7f4]`}
               >
                 <span
                   className={open ? "break-words" : "truncate"}
@@ -146,11 +149,13 @@ export default function DirectionsRefPage() {
                 >
                   {r.mnn}
                 </span>
-                <span className="text-muted-2">{r.lf}</span>
+                <span className="text-[12px] tracking-wide text-muted-2">
+                  {r.lf}
+                </span>
                 <span className="truncate" title={r.direction}>
                   {r.direction}
                 </span>
-                <span className="text-right font-medium">
+                <span className="text-right font-medium tabular-nums">
                   {fmtShare(r.share)}
                 </span>
               </div>

@@ -666,12 +666,19 @@ export interface DirectionShareRow {
 export interface MnnDirectionsForm {
   form: string;
   usd: number;
+  growth: number | null;
+  cagr: number | null;
   in_reference: boolean;
   rows: DirectionShareRow[];
 }
 
 export interface MnnDirectionsBlock {
-  total: { usd: number; rows: DirectionShareRow[] };
+  total: {
+    usd: number;
+    growth: number | null;
+    cagr: number | null;
+    rows: DirectionShareRow[];
+  };
   forms: MnnDirectionsForm[];
 }
 

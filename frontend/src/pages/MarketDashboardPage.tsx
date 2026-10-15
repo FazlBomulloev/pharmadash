@@ -250,7 +250,7 @@ function TabContent({
         />
       );
     case "directions":
-      return <DirectionsTab data={data} t={t} />;
+      return <DirectionsTab data={data} />;
     case "scoring":
       return <ScoringTab data={data} t={t} />;
   }

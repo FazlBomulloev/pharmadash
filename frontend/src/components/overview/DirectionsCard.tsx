@@ -6,7 +6,7 @@ import { growthTone } from "../../lib/palette";
 import { HeatCell } from "../ui/bars";
 import { Card, CardTitle } from "../ui/Card";
 
-const TOP = 10;
+const TOP = 16;
 const OTHER_NAME = "Прочие направления";
 
 const sumNullable = (values: (number | null)[]): number | null =>
@@ -28,7 +28,20 @@ function mergeTail(tail: DirectionOverviewRow[]): DirectionOverviewRow {
 }
 
 const GRID =
-  "grid grid-cols-[minmax(80px,1fr)_72px_repeat(3,minmax(40px,56px))_52px] gap-1";
+  "grid grid-cols-[minmax(80px,1fr)_76px_repeat(3,minmax(40px,58px))_54px] gap-1";
+
+function Head({ yearLabels }: { yearLabels: string[] }) {
+  return (
+    <div className={clsx(GRID, "-mx-1.5 px-1.5 pb-0.5 text-[11px] text-faint")}>
+      <span>Направление</span>
+      <span className="text-right">USD</span>
+      {yearLabels.map((y, i) => (
+        <span key={i} className="text-center">{y}</span>
+      ))}
+      <span className="text-right">г/г</span>
+    </div>
+  );
+}
 
 export function DirectionsCard({
   rows, yearLabels, selected, onPick, index,
@@ -47,8 +60,52 @@ export function DirectionsCard({
     ? [...directions, ...unalloc]
     : [...directions.slice(0, TOP), mergeTail(tail), ...unalloc];
 
+  const half = Math.ceil(visible.length / 2);
+  const columns = [visible.slice(0, half), visible.slice(half)];
+
+  const renderRow = (r: DirectionOverviewRow) => {
+    const clickable = r.kind === "direction";
+    const body = (
+      <>
+        <span className="truncate" title={r.name}>{r.name}</span>
+        <span className="whitespace-nowrap text-right text-[13px] tabular-nums">
+          {fmtUsd(r.usd)}
+        </span>
+        {r.shares_by_year.map((s, i) => (
+          <HeatCell key={i} share={s} max={12} />
+        ))}
+        <span
+          className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums"
+          style={{ color: growthTone(r.growth) }}
+        >
+          {fmtGrowth(r.growth)}
+        </span>
+      </>
+    );
+    const base = clsx(
+      GRID,
+      "-mx-1.5 items-center rounded-row px-1.5 py-0.5 text-left text-sm",
+      clickable ? "text-fg" : "text-muted-2 italic",
+    );
+    return clickable ? (
+      <button
+        key={r.name}
+        type="button"
+        onClick={() => onPick(r.name)}
+        className={clsx(
+          base, "tr-soft border-0 hover:bg-[#f4f5fa]",
+          selected === r.name ? "bg-accent-tint" : "bg-transparent",
+        )}
+      >
+        {body}
+      </button>
+    ) : (
+      <div key={r.name} className={base}>{body}</div>
+    );
+  };
+
   return (
-    <Card index={index} className="flex flex-[1_1_400px] flex-col gap-1.5">
+    <Card index={index} className="flex flex-1 flex-col gap-1.5">
       <CardTitle note="доля USD, % · клик — детальный анализ" className="pb-2">
         Направления
       </CardTitle>
@@ -59,61 +116,22 @@ export function DirectionsCard({
         </span>
       ) : (
         <>
-          <div className={clsx(GRID, "-mx-1.5 px-1.5 text-[11px] text-faint")}>
-            <span>Направление</span>
-            <span className="text-right">USD</span>
-            {yearLabels.map((y, i) => (
-              <span key={i} className="text-center">{y}</span>
+          <div className="grid gap-x-10 xl:grid-cols-2">
+            {columns.map((col, i) => (
+              col.length === 0 ? null : (
+                <div key={i} className="flex min-w-0 flex-col">
+                  <Head yearLabels={yearLabels} />
+                  {col.map(renderRow)}
+                </div>
+              )
             ))}
-            <span className="text-right">г/г</span>
           </div>
-
-          {visible.map((r) => {
-            const clickable = r.kind === "direction";
-            const body = (
-              <>
-                <span className="truncate" title={r.name}>{r.name}</span>
-                <span className="whitespace-nowrap text-right text-[13px]">
-                  {fmtUsd(r.usd)}
-                </span>
-                {r.shares_by_year.map((s, i) => (
-                  <HeatCell key={i} share={s} max={12} />
-                ))}
-                <span
-                  className="whitespace-nowrap text-right text-[13px] font-semibold"
-                  style={{ color: growthTone(r.growth) }}
-                >
-                  {fmtGrowth(r.growth)}
-                </span>
-              </>
-            );
-            const base = clsx(
-              GRID,
-              "-mx-1.5 items-center rounded-row px-1.5 py-0.5 text-left text-sm",
-              clickable ? "text-fg" : "text-muted-2 italic",
-            );
-            return clickable ? (
-              <button
-                key={r.name}
-                type="button"
-                onClick={() => onPick(r.name)}
-                className={clsx(
-                  base, "tr-soft border-0 hover:bg-[#f4f5fa]",
-                  selected === r.name ? "bg-accent-tint" : "bg-transparent",
-                )}
-              >
-                {body}
-              </button>
-            ) : (
-              <div key={r.name} className={base}>{body}</div>
-            );
-          })}
 
           {directions.length > TOP && (
             <button
               type="button"
               onClick={() => setAll((v) => !v)}
-              className="mt-1 w-fit border-0 bg-transparent px-1.5 py-1 text-[13px] font-medium text-accent hover:text-accent-hover"
+              className="mt-1.5 w-fit border-0 bg-transparent px-1.5 py-1 text-[13px] font-medium text-accent hover:text-accent-hover"
             >
               {all ? "Свернуть" : `Показать все ${directions.length}`}
             </button>

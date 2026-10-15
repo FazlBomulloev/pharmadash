@@ -1,135 +1,204 @@
-import type { DashboardResponse, DirectionShareRow } from "../../types/api";
+import { useMemo, useState } from "react";
+import type {
+  DashboardResponse, DirectionShareRow, MnnDirectionsForm,
+} from "../../types/api";
 import { fmtGrowth, fmtShare, fmtUsd } from "../../lib/format";
-import { growthTone } from "../../lib/palette";
-import { ProgressBar } from "../ui/bars";
+import {
+  DIRECTION_COLORS, DIRECTION_OTHER_COLOR, DIRECTION_REST_COLOR, growthTone,
+} from "../../lib/palette";
+import { Donut } from "../ui/bars";
 import { Card, CardTitle } from "../ui/Card";
 
-const BAR = "oklch(0.52 0.16 268)";
-const BAR_DIM = "oklch(0.78 0.06 262)";
+const UNALLOCATED = "Не распределено";
+const OTHER = "Прочие направления";
+// Больше шести сегментов в кольце перестают читаться, поэтому хвост
+// сворачивается. Столько же тонов в наборе.
+const MAX_SLICES = DIRECTION_COLORS.length;
 
-const ROW =
-  "grid w-full max-w-[760px] grid-cols-[minmax(110px,1fr)_44px_minmax(70px,180px)_78px_56px_56px] items-center gap-2.5";
+type ColorMap = Map<string, string>;
 
-export function DirectionsTab({
-  data, t,
-}: {
-  data: DashboardResponse;
-  t: number;
-}) {
+/**
+ * Цвет закреплён за направлением на весь МНН, а не за местом в конкретной
+ * форме: иначе «Дерматология» меняла бы цвет от кольца к кольцу и формы
+ * нельзя было бы сравнивать глазами.
+ */
+function buildColors(rows: DirectionShareRow[]): ColorMap {
+  const map: ColorMap = new Map([
+    [UNALLOCATED, DIRECTION_REST_COLOR],
+    [OTHER, DIRECTION_OTHER_COLOR],
+  ]);
+  let i = 0;
+  for (const r of rows) {
+    if (map.has(r.name)) continue;
+    map.set(
+      r.name,
+      i < MAX_SLICES ? DIRECTION_COLORS[i] : DIRECTION_OTHER_COLOR,
+    );
+    i += 1;
+  }
+  return map;
+}
+
+/** Хвост за пределами шести тонов сворачивается в одну долю. */
+function foldTail(rows: DirectionShareRow[]): DirectionShareRow[] {
+  const named = rows.filter((r) => r.name !== UNALLOCATED);
+  const rest = rows.filter((r) => r.name === UNALLOCATED);
+  if (named.length <= MAX_SLICES) return [...named, ...rest];
+
+  const head = named.slice(0, MAX_SLICES);
+  const tail = named.slice(MAX_SLICES);
+  return [
+    ...head,
+    {
+      name: OTHER,
+      usd: tail.reduce((a, r) => a + r.usd, 0),
+      share: tail.reduce((a, r) => a + r.share, 0),
+      growth: null,
+      cagr: null,
+    },
+    ...rest,
+  ];
+}
+
+export function DirectionsTab({ data }: { data: DashboardResponse }) {
   const block = data.directions;
-  const single = data.applied_filter.lf;
-  const forms = block.forms;
-  const showTotal = !single && forms.length > 1
-    && block.total.rows.length > 0;
+  const colors = useMemo(
+    () => buildColors(block.total.rows), [block.total.rows],
+  );
 
-  return (
-    <Card className="flex flex-col gap-5">
-      <CardTitle note="оценка по долям назначений · CAGR за 2 года">
-        Кто выписывает
-      </CardTitle>
-      <span className="-mt-3.5 text-[13px] text-faint">
-        Доза влияет на сумму, не на состав направлений
-      </span>
-
-      {showTotal && (
-        <Section
-          title={`${data.mnn} · все формы`}
-          usd={block.total.usd}
-          rows={block.total.rows}
-          t={t}
-          accent
-        />
-      )}
-
-      {forms.map((f) => (
-        <Section
-          key={f.form}
-          title={f.form}
-          usd={f.usd}
-          rows={f.rows}
-          empty={!f.in_reference}
-          t={t}
-        />
-      ))}
-
-      {forms.length === 0 && (
+  if (block.forms.length === 0) {
+    return (
+      <Card className="flex flex-col gap-2">
+        <CardTitle>Кто выписывает</CardTitle>
         <span className="text-sm text-faint">
           Для выбранного фильтра нет данных
         </span>
-      )}
-    </Card>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="m-0 text-[17px] font-semibold tracking-[-0.01em]">
+          Кто выписывает
+        </h2>
+        <span className="text-xs text-faint">
+          оценка по долям назначений · доза влияет на сумму, не на состав ·
+          CAGR за 2 года
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-5">
+        {block.forms.map((f) => (
+          <FormDonut key={f.form} form={f} colors={colors} />
+        ))}
+      </div>
+    </div>
   );
 }
 
-function Section({
-  title, usd, rows, t, empty, accent,
+function FormDonut({
+  form, colors,
 }: {
-  title: string;
-  usd: number;
-  rows: DirectionShareRow[];
-  t: number;
-  empty?: boolean;
-  accent?: boolean;
+  form: MnnDirectionsForm;
+  colors: ColorMap;
 }) {
-  const max = Math.max(...rows.map((r) => r.share), 1e-9);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const rows = useMemo(() => foldTail(form.rows), [form.rows]);
+  const slices = rows.filter((r) => r.share > 0);
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex w-full max-w-[760px] flex-wrap items-baseline justify-between gap-3 border-b border-[#ecece8] pb-1.5">
-        <span className={accent ? "text-sm font-semibold" : "text-[13px] font-semibold"}>
-          {title}
+    <Card className="flex max-w-[520px] flex-[1_1_330px] flex-col gap-3 px-5 py-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm font-semibold tracking-wide">{form.form}</span>
+        <span className="text-[13px] font-medium tabular-nums">
+          {fmtUsd(form.usd)}
         </span>
-        <span className="text-[13px] text-muted-2">{fmtUsd(usd)}</span>
       </div>
 
-      {empty ? (
-        <span className="py-1 text-[13px] text-faint">
+      {!form.in_reference ? (
+        <span className="py-6 text-center text-[13px] text-faint">
           ⌀ Нет в справочнике направлений
         </span>
       ) : (
         <>
-          <div className={`${ROW} pb-0.5 pt-1 text-[11px] text-faint`}>
-            <span>Направление</span>
-            <span className="text-right">доля</span>
-            <span />
-            <span className="text-right">USD</span>
-            <span className="text-right">CAGR</span>
-            <span className="text-right">г/г</span>
+          <div className="flex items-center gap-4">
+            <Donut
+              slices={slices.map((r) => ({
+                key: r.name,
+                value: r.share,
+                color: colors.get(r.name) ?? DIRECTION_OTHER_COLOR,
+                label: `${r.name} · ${fmtShare(r.share)} · ${fmtUsd(r.usd)}`,
+              }))}
+              hovered={hovered}
+              onHover={setHovered}
+              center={
+                <>
+                  <span
+                    className="text-[13px] font-semibold tabular-nums"
+                    style={{ color: growthTone(form.cagr) }}
+                  >
+                    {fmtGrowth(form.cagr)}
+                  </span>
+                  <span className="text-[10px] text-faint">CAGR</span>
+                </>
+              }
+            />
+
+            <ul className="m-0 flex min-w-0 flex-1 list-none flex-col gap-1.5 p-0">
+              {rows.map((r) => {
+                const muted = r.name === UNALLOCATED || r.name === OTHER;
+                return (
+                  <li
+                    key={r.name}
+                    onMouseEnter={() => setHovered(r.name)}
+                    onMouseLeave={() => setHovered(null)}
+                    className="grid grid-cols-[8px_minmax(0,1fr)_42px] items-center gap-2 text-[13px]"
+                    style={{
+                      opacity: hovered && hovered !== r.name ? 0.45 : 1,
+                      transition: "opacity .15s",
+                    }}
+                  >
+                    <span
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{
+                        background: colors.get(r.name) ?? DIRECTION_OTHER_COLOR,
+                      }}
+                    />
+                    <span
+                      className={`truncate ${muted ? "text-muted-2 italic" : ""}`}
+                      title={`${r.name} · ${fmtUsd(r.usd)}`}
+                    >
+                      {r.name}
+                    </span>
+                    <span className="text-right font-medium tabular-nums">
+                      {fmtShare(r.share)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          {rows.map((r) => {
-            const rest = r.name === "Не распределено";
-            return (
-              <div
-                key={r.name}
-                className={`${ROW} py-[3px] text-[13px] ${rest ? "text-muted-2 italic" : ""}`}
+
+          <div className="flex items-baseline justify-between border-t border-[#f3f3f0] pt-2 text-[12px] text-muted-2">
+            <span>
+              г/г{" "}
+              <b
+                className="font-semibold tabular-nums"
+                style={{ color: growthTone(form.growth) }}
               >
-                <span className="truncate" title={r.name}>{r.name}</span>
-                <span className="text-right font-medium">
-                  {fmtShare(r.share)}
-                </span>
-                <ProgressBar
-                  value={(r.share / max) * t}
-                  color={rest ? BAR_DIM : BAR}
-                  height={6}
-                />
-                <span className="text-right font-medium">{fmtUsd(r.usd)}</span>
-                <span
-                  className="text-right"
-                  style={{ color: growthTone(r.cagr) }}
-                >
-                  {fmtGrowth(r.cagr)}
-                </span>
-                <span
-                  className="text-right"
-                  style={{ color: growthTone(r.growth) }}
-                >
-                  {fmtGrowth(r.growth)}
-                </span>
-              </div>
-            );
-          })}
+                {fmtGrowth(form.growth)}
+              </b>
+            </span>
+            <span className="tabular-nums">
+              {rows.filter((r) => r.name !== UNALLOCATED && r.name !== OTHER)
+                .length}{" "}
+              направл.
+            </span>
+          </div>
         </>
       )}
-    </div>
+    </Card>
   );
 }

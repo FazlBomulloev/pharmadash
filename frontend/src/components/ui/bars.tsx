@@ -332,3 +332,77 @@ export function ZoneScale({
     </div>
   );
 }
+
+export interface DonutSlice {
+  key: string;
+  value: number;
+  color: string;
+  label: string;
+}
+
+/**
+ * Кольцевая диаграмма долей. Рисуется штрихом по окружности: длина штриха —
+ * доля, разрыв между сегментами задаётся вычетом из неё, поэтому зазор всегда
+ * ровно `gap` пикселей дуги независимо от размера долей.
+ */
+export function Donut({
+  slices, size = 132, thickness = 16, gap = 2, hovered, onHover, center,
+}: {
+  slices: DonutSlice[];
+  size?: number;
+  thickness?: number;
+  gap?: number;
+  hovered?: string | null;
+  onHover?: (key: string | null) => void;
+  center?: ReactNode;
+}) {
+  const r = 50 - thickness / 2;
+  const circumference = 2 * Math.PI * r;
+  const total = slices.reduce((acc, s) => acc + s.value, 0) || 1;
+
+  const spans = slices.map((s) => (s.value / total) * circumference);
+  const arcs = slices.map((s, i) => ({
+    ...s,
+    length: Math.max(spans[i] - gap, 0.5),
+    // Сегментов не больше семи, поэтому накопление суммы перебором дешевле
+    // изменяемого счётчика, который React-компилятор справедливо запрещает.
+    offset: spans.slice(0, i).reduce((a, b) => a + b, 0),
+  }));
+
+  return (
+    <span
+      className="relative block shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <svg viewBox="0 0 100 100" className="size-full -rotate-90">
+        {arcs.map((a) => (
+          <circle
+            key={a.key}
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke={a.color}
+            strokeWidth={thickness}
+            strokeDasharray={`${a.length} ${circumference - a.length}`}
+            strokeDashoffset={-a.offset}
+            style={{
+              opacity: hovered && hovered !== a.key ? 0.35 : 1,
+              transition: "opacity .15s",
+              cursor: onHover ? "default" : undefined,
+            }}
+            onMouseEnter={() => onHover?.(a.key)}
+            onMouseLeave={() => onHover?.(null)}
+          >
+            <title>{a.label}</title>
+          </circle>
+        ))}
+      </svg>
+      {center && (
+        <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-px">
+          {center}
+        </span>
+      )}
+    </span>
+  );
+}
