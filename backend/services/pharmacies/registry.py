@@ -5,6 +5,7 @@ from typing import Type
 
 from .base import PharmacyAdapter
 from .eapteka import EaptekaAdapter
+from .medsgo import MedsgoAdapter
 from .rigla import RiglaAdapter
 from .ozerki import OzerkiAdapter
 
@@ -12,6 +13,7 @@ ADAPTERS: dict[str, Type[PharmacyAdapter]] = {
     EaptekaAdapter.slug: EaptekaAdapter,
     RiglaAdapter.slug: RiglaAdapter,
     OzerkiAdapter.slug: OzerkiAdapter,
+    MedsgoAdapter.slug: MedsgoAdapter,
 }
 
 
