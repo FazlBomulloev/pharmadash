@@ -17,6 +17,14 @@ from .name_parse_en import (
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://southstardrug.com.ph"
+# Типы товаров у магазина почти не заполнены, поэтому отбор идёт по
+# разделам: рецептурные, безрецептурные и витамины.
+COLLECTIONS = (
+    "prescription-medicines",
+    "prescription-medicines-1",
+    "over-the-counter",
+    "vitamins-supplements",
+)
 PAGE_LIMIT = 250
 PAGE_DELAY = (1.0, 2.0)
 RATE_LIMIT_WAITS = (20, 40, 80, 160)
@@ -53,7 +61,9 @@ def _generic_name(body_html: str) -> str:
     return html_lib.unescape(match.group(1)).strip(" :-")
 
 
-def parse_products(payload: dict) -> list[PharmacyProduct]:
+def parse_products(
+    payload: dict, collection: str = "",
+) -> list[PharmacyProduct]:
     products: list[PharmacyProduct] = []
     for item in payload.get("products") or []:
         title = (item.get("title") or "").strip()
@@ -91,6 +101,7 @@ def parse_products(payload: dict) -> list[PharmacyProduct]:
                 + (f"?variant={variant['id']}" if variant.get("id") else ""),
                 image_url=featured.get("src") or image,
                 extra={
+                    "category": collection,
                     "product_type": item.get("product_type") or "",
                     "tags": item.get("tags") or [],
                     "in_stock": bool(variant.get("available")),
@@ -100,17 +111,18 @@ def parse_products(payload: dict) -> list[PharmacyProduct]:
 
 
 async def _fetch_page(
-    client: httpx.AsyncClient, number: int,
+    client: httpx.AsyncClient, collection: str, number: int,
 ) -> dict | None:
-    url = f"{BASE_URL}/products.json"
+    url = f"{BASE_URL}/collections/{collection}/products.json"
     params = {"limit": PAGE_LIMIT, "page": number}
     for attempt in range(MAX_ATTEMPTS):
         try:
             resp = await client.get(url, params=params)
         except httpx.HTTPError as e:
             log.warning(
-                "Southstar: страница %d, попытка %d/%d: %s",
-                number, attempt + 1, MAX_ATTEMPTS, type(e).__name__,
+                "Southstar: %s стр. %d, попытка %d/%d: %s",
+                collection, number, attempt + 1, MAX_ATTEMPTS,
+                type(e).__name__,
             )
             await asyncio.sleep(5 * (attempt + 1))
             continue
@@ -119,8 +131,8 @@ async def _fetch_page(
                 return resp.json()
             except ValueError:
                 log.warning(
-                    "Southstar: страница %d вернула не JSON "
-                    "(вероятно, проверка Cloudflare)", number,
+                    "Southstar: %s стр. %d вернула не JSON "
+                    "(вероятно, проверка Cloudflare)", collection, number,
                 )
         elif resp.status_code == 429:
             wait = RATE_LIMIT_WAITS[min(attempt, len(RATE_LIMIT_WAITS) - 1)]
@@ -131,7 +143,8 @@ async def _fetch_page(
             continue
         else:
             log.warning(
-                "Southstar: страница %d — HTTP %d", number, resp.status_code,
+                "Southstar: %s стр. %d — HTTP %d",
+                collection, number, resp.status_code,
             )
         await asyncio.sleep(5 * (attempt + 1))
     return None
@@ -150,30 +163,32 @@ class SouthstarAdapter(PharmacyAdapter):
             timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=15.0),
             follow_redirects=True,
         ) as client:
-            number = 1
-            while True:
-                payload = await _fetch_page(client, number)
-                if payload is None:
-                    log.warning(
-                        "Southstar: страница %d недоступна, сбор прерван",
-                        number,
+            for collection in COLLECTIONS:
+                number = 1
+                while True:
+                    payload = await _fetch_page(client, collection, number)
+                    if payload is None:
+                        log.warning(
+                            "Southstar: %s стр. %d недоступна, "
+                            "раздел прерван", collection, number,
+                        )
+                        break
+                    if not payload.get("products"):
+                        break
+                    for product in parse_products(payload, collection):
+                        if not product.sku or product.sku in seen:
+                            continue
+                        seen.add(product.sku)
+                        yield product
+                        yielded += 1
+                        if self.limit and yielded >= self.limit:
+                            return
+                    log.info(
+                        "Southstar: %s стр. %d (товаров: %d)",
+                        collection, number, yielded,
                     )
-                    break
-                if not payload.get("products"):
-                    break
-                for product in parse_products(payload):
-                    if not product.sku or product.sku in seen:
-                        continue
-                    seen.add(product.sku)
-                    yield product
-                    yielded += 1
-                    if self.limit and yielded >= self.limit:
-                        return
-                log.info(
-                    "Southstar: страница %d (товаров: %d)", number, yielded,
-                )
-                number += 1
-                await asyncio.sleep(random.uniform(*PAGE_DELAY))
+                    number += 1
+                    await asyncio.sleep(random.uniform(*PAGE_DELAY))
 
         if yielded == 0:
             raise RuntimeError(
