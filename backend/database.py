@@ -51,9 +51,9 @@ _DROPPED_COLUMNS = [
 ]
 
 
-# Дашборд МНН и drilldown ищут без учёта регистра: upper(mnn) = ...
-# Обычный индекс по mnn такое условие не использует, и SQLite перебирал
-# всю таблицу. Индекс по тому же выражению это закрывает.
+# Дашборд МНН, drilldown и сравнение цен аптек ищут без учёта регистра:
+# upper(mnn) = ... Обычный индекс по колонке такое условие не использует,
+# и SQLite перебирал всю таблицу. Индекс по тому же выражению это закрывает.
 _EXPRESSION_INDEXES = [
     ("ix_bdp_raw_market_upper_mnn", "bdp_raw", "market_id, upper(mnn)"),
     (
@@ -63,6 +63,10 @@ _EXPRESSION_INDEXES = [
     (
         "ix_bdp_raw_market_lower_producer",
         "bdp_raw", "market_id, lower(producer)",
+    ),
+    (
+        "ix_pharmacy_prices_lower_trade_name",
+        "pharmacy_prices", "lower(trade_name)",
     ),
 ]
 

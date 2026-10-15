@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,6 +19,36 @@ from backend.services.pharmacies.runner import (
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/pharmacies", tags=["pharmacies"])
+
+# Цены пишет отдельный процесс парсера, и сбросить кеш этого процесса он не
+# может. Поэтому кеш привязан к отпечатку таблицы запусков: старт или
+# завершение любого парсера меняет отпечаток, и кеш пересчитывается.
+_FILTERS_CACHE: dict[tuple, dict] = {}
+_TOTALS_CACHE: OrderedDict[tuple, int] = OrderedDict()
+_TOTALS_CACHE_MAX = 500
+
+
+async def _data_version(db: AsyncSession) -> tuple:
+    row = (await db.execute(
+        select(
+            func.count(),
+            func.max(PharmacySourceRun.id),
+            func.max(PharmacySourceRun.finished_at),
+        )
+    )).one()
+    return tuple(row)
+
+
+async def _cached_total(db: AsyncSession, key: tuple, total_stmt) -> int:
+    total = _TOTALS_CACHE.get(key)
+    if total is not None:
+        _TOTALS_CACHE.move_to_end(key)
+        return total
+    total = (await db.execute(total_stmt)).scalar() or 0
+    _TOTALS_CACHE[key] = total
+    while len(_TOTALS_CACHE) > _TOTALS_CACHE_MAX:
+        _TOTALS_CACHE.popitem(last=False)
+    return total
 
 
 @router.get("")
@@ -127,15 +158,23 @@ async def list_prices(
         "price": PharmacyPrice.price,
         "scraped_at": PharmacyPrice.scraped_at,
     }.get(sort, PharmacyPrice.scraped_at)
+    # В SQLite NULL меньше любого значения: при DESC они и так в конце.
+    # Лишнее «IS NULL» в ORDER BY не даёт взять порядок из индекса, и
+    # каждая страница сортировала всю таблицу.
     if order == "desc":
-        direction = sort_col.is_(None).asc(), sort_col.desc()
+        direction = (sort_col.desc(),)
     else:
         direction = sort_col.is_(None).asc(), sort_col.asc()
 
     total_stmt = select(func.count()).select_from(PharmacyPrice)
     if where_clause is not None:
         total_stmt = total_stmt.where(where_clause)
-    total = (await db.execute(total_stmt)).scalar() or 0
+    total_key = (
+        await _data_version(db), tuple(sorted(slugs)), mnn, manufacturer,
+        country, form, price_min, price_max,
+        search.strip() if search else None,
+    )
+    total = await _cached_total(db, total_key, total_stmt)
 
     stmt = select(PharmacyPrice).order_by(*direction).offset(offset).limit(limit)
     if where_clause is not None:
@@ -203,6 +242,10 @@ def cheapest_per_source(rows, current) -> list[dict]:
 
 @router.get("/filters")
 async def get_filters(db: AsyncSession = Depends(get_db)):
+    version = await _data_version(db)
+    cached = _FILTERS_CACHE.get(version)
+    if cached is not None:
+        return cached
     async def _distinct(col, limit_n: int = 300):
         rows = (await db.execute(
             select(col, func.count().label("c"))
@@ -220,13 +263,16 @@ async def get_filters(db: AsyncSession = Depends(get_db)):
         {"slug": s, "display_name": cls.display_name}
         for s, cls in ADAPTERS.items()
     ]
-    return {
+    payload = {
         "sources": sources,
         "manufacturers": await _distinct(PharmacyPrice.manufacturer),
         "countries": await _distinct(PharmacyPrice.country),
         "forms": await _distinct(PharmacyPrice.form),
         "mnns": await _distinct(PharmacyPrice.mnn, 500),
     }
+    _FILTERS_CACHE.clear()
+    _FILTERS_CACHE[version] = payload
+    return payload
 
 
 def _serialize_run(r: PharmacySourceRun | None) -> dict | None:

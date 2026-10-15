@@ -18,6 +18,9 @@ from backend.services.market_scoring import (
     load_scoring_rows,
     market_settings,
 )
+from backend.services.market_caches import (
+    SETTINGS_LISTS, invalidate_market_card,
+)
 from backend.services.prewarm import prewarm_market
 from backend.services.scoring import CATEGORIES, compute_scoring, summarize
 from backend.services.scoring_query import (
@@ -96,15 +99,28 @@ async def _country_options(db: AsyncSession, market_id: int) -> list[dict]:
     return [{"value": r[0], "count": r[1]} for r in result.all() if r[0]]
 
 
+async def _settings_lists(db: AsyncSession, market_id: int) -> dict:
+    key = (market_id,)
+    cached = SETTINGS_LISTS.get(key)
+    if cached is not None:
+        return cached
+    generation = SETTINGS_LISTS.generation(market_id)
+    lists = {
+        "classes": await _distinct(db, market_id, BdpRaw.atc),
+        "forms": await _distinct(db, market_id, BdpRaw.lf_avp),
+        "countries": await _distinct(db, market_id, BdpRaw.country_mfr),
+        "country_options": await _country_options(db, market_id),
+    }
+    SETTINGS_LISTS.set(key, lists, generation)
+    return lists
+
+
 async def _settings_payload(db: AsyncSession, market: Market) -> dict:
     return {
         "market_id": market.id,
         "settings": market_settings(market).model_dump(),
         "defaults": ScoringSettings().model_dump(),
-        "classes": await _distinct(db, market.id, BdpRaw.atc),
-        "forms": await _distinct(db, market.id, BdpRaw.lf_avp),
-        "countries": await _distinct(db, market.id, BdpRaw.country_mfr),
-        "country_options": await _country_options(db, market.id),
+        **await _settings_lists(db, market.id),
     }
 
 
@@ -132,6 +148,7 @@ async def update_settings(
     invalidate_scoring_cache(market_id)
     invalidate_dashboard_cache(market_id)
     invalidate_overview_cache(market_id)
+    invalidate_market_card(market_id)
     background_tasks.add_task(prewarm_market, market_id)
     log.info("Настройки рынка id=%d обновлены", market_id)
     return await _settings_payload(db, market)

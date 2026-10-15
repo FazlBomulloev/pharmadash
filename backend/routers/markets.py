@@ -34,6 +34,9 @@ from backend.services.market_scoring import (
     get_market_scoring,
     invalidate_scoring_cache,
 )
+from backend.services.market_caches import (
+    MARKET_CARDS, invalidate_market_card, invalidate_settings_lists,
+)
 from backend.services.prewarm import prewarm_market
 from backend.services.parsers.base import (
     read_column_samples,
@@ -57,6 +60,17 @@ def _upload_path(market_id: int) -> Path:
 
 
 async def _market_card(db: AsyncSession, m: Market) -> MarketOut:
+    key = (m.id,)
+    cached = MARKET_CARDS.get(key)
+    if cached is not None:
+        return cached
+    generation = MARKET_CARDS.generation(m.id)
+    card = await _build_market_card(db, m)
+    MARKET_CARDS.set(key, card, generation)
+    return card
+
+
+async def _build_market_card(db: AsyncSession, m: Market) -> MarketOut:
     cnt, usd_prev, usd_last = (await db.execute(
         select(
             func.count(func.distinct(BdpRaw.mnn)),
@@ -161,6 +175,8 @@ async def delete_market(
     invalidate_dashboard_cache(market_id)
     invalidate_drilldown_cache(market_id)
     invalidate_scoring_cache(market_id)
+    invalidate_market_card(market_id)
+    invalidate_settings_lists(market_id)
 
     fp = _upload_path(market_id)
     if fp.exists():
@@ -188,6 +204,7 @@ async def upload_file(
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    invalidate_market_card(market_id)
     sheets_cols = get_sheets_and_columns(dest)
     log.info(
         "Загружен файл для рынка %s: %d листов",
@@ -366,6 +383,8 @@ async def apply_mapping(
     invalidate_dashboard_cache(market_id)
     invalidate_scoring_cache(market_id)
     invalidate_drilldown_cache(market_id)
+    invalidate_market_card(market_id)
+    invalidate_settings_lists(market_id)
     background_tasks.add_task(prewarm_market, market_id)
 
     return {
