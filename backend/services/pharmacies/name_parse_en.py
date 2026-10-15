@@ -6,7 +6,7 @@ _DOSE_RE = re.compile(
     re.I,
 )
 _PACK_RE = re.compile(
-    r"(\d+)\s*(?:'s\b|pcs\b|pieces?\b|tablets?\b|tabs?\b|capsules?\b|"
+    r"(\d+)\s*(?:'s\b|pcs?\b|pieces?\b|tablets?\b|tabs?\b|capsules?\b|"
     r"caps\b|softgels?\b|sachets?\b|vials?\b|ampoules?\b|ampules?\b)",
     re.I,
 )

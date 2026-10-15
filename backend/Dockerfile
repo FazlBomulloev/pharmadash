@@ -14,7 +14,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install -r backend/requirements.txt \
-    && playwright install --with-deps chromium \
+    && playwright install --with-deps chromium firefox \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/ backend/

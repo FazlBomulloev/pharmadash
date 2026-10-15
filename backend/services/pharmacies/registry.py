@@ -8,6 +8,7 @@ from .eapteka import EaptekaAdapter
 from .medsgo import MedsgoAdapter
 from .rigla import RiglaAdapter
 from .southstar import SouthstarAdapter
+from .watsons import WatsonsAdapter
 from .ozerki import OzerkiAdapter
 
 ADAPTERS: dict[str, Type[PharmacyAdapter]] = {
@@ -16,6 +17,7 @@ ADAPTERS: dict[str, Type[PharmacyAdapter]] = {
     OzerkiAdapter.slug: OzerkiAdapter,
     MedsgoAdapter.slug: MedsgoAdapter,
     SouthstarAdapter.slug: SouthstarAdapter,
+    WatsonsAdapter.slug: WatsonsAdapter,
 }
 
 
