@@ -8,6 +8,7 @@ from typing import AsyncIterator
 import httpx
 
 from .base import PharmacyAdapter, PharmacyProduct
+from .name_parse import is_medicine_form, strip_html
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ PAGE_SIZE = 12
 CONCURRENCY = 6
 MAX_ATTEMPTS = 5
 REQUEST_TIMEOUT = 40
+NON_DRUG_ATC = ("V04", "V07")
 # Сколько карточек пробовать на один ID страны, если первая не ответила.
 COUNTRY_SAMPLES = 3
 
@@ -82,7 +84,7 @@ def _price(value) -> float | None:
 def _text(value) -> str:
     if value is None:
         return ""
-    value = str(value).strip()
+    value = strip_html(str(value))
     return "" if value in ("0", "Yoxdur") else value
 
 
@@ -316,6 +318,18 @@ class AloeAdapter(PharmacyAdapter):
         for item, category in items:
             product = parse_product(item, category, countries, types)
             if product is None or not product.sku or product.sku in seen:
+                continue
+            # В разделе «Dərmanlar» лежат и изделия: тонометры, бинты,
+            # презервативы. Оставляем только лекарства. Приборам магазин
+            # ставит ATC V04 (диагностика) и V07 (нелечебные средства).
+            drug_mnn = product.mnn and not product.extra["atc"].startswith(
+                NON_DRUG_ATC,
+            )
+            if not (
+                drug_mnn
+                or product.extra["prescription"]
+                or is_medicine_form(product.form)
+            ):
                 continue
             seen.add(product.sku)
             yield product

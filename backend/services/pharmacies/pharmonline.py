@@ -8,7 +8,9 @@ from typing import AsyncIterator
 import httpx
 
 from .base import PharmacyAdapter, PharmacyProduct
-from .name_parse import parse_dosage, parse_form, parse_trade_name
+from .name_parse import (
+    is_medicine_form, parse_dosage, parse_form, parse_trade_name, strip_html,
+)
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +41,20 @@ HEADERS = {
     "Referer": f"{SITE_URL}/ru/products",
 }
 
+# Разделы без лекарств: товар только из них и без МНН — не лекарство
+# (подгузники, косметика, детское питание, медтехника).
+NON_MEDICAL_CATEGORIES = {
+    "Средства для детей",
+    "Средства для гигиены",
+    "Средства по уходу за кожей",
+    "Средства по уходу за волосами",
+    "Забота о полости рта",
+    "Интимные средства",
+    "Медицинские принадлежности",
+    "Медицинское оборудование",
+    "Натуральные средства",
+}
+
 _PACK_RE = re.compile(r"№\s*(\d+)")
 _BRACKETS_RE = re.compile(r"\(([^()]+)\)")
 # «Левофлоксацин - 500 мг» → «Левофлоксацин»: дозировку отрезаем.
@@ -55,8 +71,8 @@ def _ru(obj: dict | None, key: str = "name") -> str:
     for lang in ("ru", "az", "en"):
         value = (i18n.get(lang) or {}).get(key)
         if value:
-            return str(value).replace("\xa0", " ").strip()
-    return str(obj.get(key) or "").strip()
+            return strip_html(str(value))
+    return strip_html(str(obj.get(key) or ""))
 
 
 def _fields(item: dict) -> dict[str, str]:
@@ -142,16 +158,22 @@ def parse_product(
             if title and title not in roots:
                 roots.append(title)
 
+    mnn = _mnn(fields.get(FIELD_COMPOSITION, ""))
+    form = form or _bracket_form(name)
+    medical = any(title not in NON_MEDICAL_CATEGORIES for title in roots)
+    if not mnn and not (medical and is_medicine_form(form)):
+        return None
+
     images = [i for i in item.get("images") or [] if isinstance(i, str)]
     return PharmacyProduct(
         source=PharmonlineAdapter.slug,
         sku=str(item.get("_id") or ""),
         name=name,
-        mnn=_mnn(fields.get(FIELD_COMPOSITION, "")),
+        mnn=mnn,
         trade_name=parse_trade_name(name),
         manufacturer=_maker(alt, country),
         country=country,
-        form=form or _bracket_form(name),
+        form=form,
         dosage=parse_dosage(name),
         pack_qty=pack.group(1) if pack else str(item.get("packageCount") or ""),
         price=full if discounted else current,
@@ -200,7 +222,7 @@ async def _get_json(
 
 class PharmonlineAdapter(PharmacyAdapter):
     slug = "pharmonline"
-    display_name = "Pharmonline (PharmaStore)"
+    display_name = "Pharmonline"
     currency = "AZN"
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import re
 
 _UNITS = r"мг/мл|мкг/мл|мг/доза|мкг/доза|ме/мл|мг/г|мкг|мг|мл|ме|ед|г|%"
@@ -50,3 +51,34 @@ def parse_trade_name(name: str) -> str:
     cuts = [m.start() for m in (form, digit) if m and m.start() > 0]
     head = text[:min(cuts)] if cuts else text
     return head.strip(" ,;-") or text.split(" ")[0]
+
+
+_MEDICINE_FORM_RE = re.compile(
+    r"таблет|табл|капсул|капс|ампул|раствор|р-р|сироп|капл|спрей|свеч|"
+    r"суппозитор|крем|гель|мазь|саше|суспенз|пастил|порош|инфуз|флакон|"
+    r"драже|гранул|аэрозол|эмульс|лиофилизат|концентрат|инъекц|линимент|"
+    r"эликсир|настойк",
+    re.IGNORECASE,
+)
+_NOT_MEDICINE_FORM_RE = re.compile(r"смазк|зубн|таблетниц", re.IGNORECASE)
+_HTML_TAG_RE = re.compile(
+    r"</?(?:br|p|span|div|b|i|u|strong|em|sup|sub|li|ul|ol)\b[^>]*>",
+    re.IGNORECASE,
+)
+
+
+def is_medicine_form(form: str) -> bool:
+    """Лекарственная форма, а не изделие: «Таблетки», «Капли», но не
+    «Тонометр» или «Гель-смазка»."""
+    return bool(
+        form
+        and _MEDICINE_FORM_RE.search(form)
+        and not _NOT_MEDICINE_FORM_RE.search(form)
+    )
+
+
+def strip_html(text: str) -> str:
+    """Каталоги иногда хранят в полях разметку: «<br>», «<p>…</p>»."""
+    text = _HTML_TAG_RE.sub(" ", text or "")
+    text = html.unescape(text).replace("\xa0", " ")
+    return re.sub(r"\s+", " ", text).strip()
