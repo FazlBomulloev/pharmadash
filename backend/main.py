@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import CORS_ORIGINS
 from backend.database import init_db
+from backend.services.currency import refresh_if_stale
 from backend.services.prewarm import prewarm_all_markets
 from backend.services.pharmacies.scheduler import (
     start_scheduler, stop_scheduler,
@@ -26,7 +27,9 @@ async def lifespan(app: FastAPI):
     # Без прогрева первый открывший обзор после перезапуска ждёт
     # полного пересчёта.
     prewarm = asyncio.create_task(prewarm_all_markets())
+    rates = asyncio.create_task(refresh_if_stale())
     yield
+    rates.cancel()
     prewarm.cancel()
     try:
         await prewarm

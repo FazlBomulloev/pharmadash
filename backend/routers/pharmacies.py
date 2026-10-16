@@ -9,6 +9,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
+from backend.services.currency import to_usd, usd_rates
 from backend.services.permissions import require
 from backend.models import Market, PharmacyPrice, PharmacySourceRun
 from backend.services.pharmacies.registry import ADAPTERS, market_sources
@@ -196,12 +197,13 @@ async def list_prices(
     if where_clause is not None:
         stmt = stmt.where(where_clause)
     rows = (await db.execute(stmt)).scalars().all()
+    rates = await usd_rates(db)
 
     return {
         "total": total,
         "offset": offset,
         "limit": limit,
-        "items": [_serialize_price(r) for r in rows],
+        "items": [_serialize_price(r, rates) for r in rows],
     }
 
 
@@ -230,10 +232,19 @@ async def compare_prices(
             select(PharmacyPrice).where(and_(*conds))
         )).scalars().all()
 
-    return {"items": cheapest_per_source(rows, current)}
+    rates = await usd_rates(db)
+    return {"items": cheapest_per_source(rows, current, rates)}
 
 
-def cheapest_per_source(rows, current) -> list[dict]:
+def _currency(source: str) -> str:
+    adapter = ADAPTERS.get(source)
+    return adapter.currency if adapter else "RUB"
+
+
+def cheapest_per_source(
+    rows, current, rates: dict[str, float] | None = None,
+) -> list[dict]:
+    rates = rates or {}
     best: dict[str, PharmacyPrice] = {}
     for r in rows:
         if r.price is None:
@@ -252,6 +263,8 @@ def cheapest_per_source(rows, current) -> list[dict]:
                 if r.source in ADAPTERS else r.source
             ),
             "price": r.price,
+            "currency": _currency(r.source),
+            "price_usd": to_usd(r.price, _currency(r.source), rates),
             "url": r.url,
             "is_current": r.id == current.id,
         }
@@ -341,7 +354,8 @@ def _full_image_url(source: str, url: str | None) -> str | None:
     return adapter.full_image_url(url)
 
 
-def _serialize_price(r: PharmacyPrice) -> dict:
+def _serialize_price(r: PharmacyPrice, rates: dict[str, float]) -> dict:
+    currency = _currency(r.source)
     return {
         "id": r.id,
         "source": r.source,
@@ -356,6 +370,9 @@ def _serialize_price(r: PharmacyPrice) -> dict:
         "pack_qty": r.pack_qty,
         "price": r.price,
         "price_discount": r.price_discount,
+        "currency": currency,
+        "price_usd": to_usd(r.price, currency, rates),
+        "price_discount_usd": to_usd(r.price_discount, currency, rates),
         "url": r.url,
         "image_url": r.image_url,
         "image_full_url": _full_image_url(r.source, r.image_url),

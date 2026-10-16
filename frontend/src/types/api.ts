@@ -592,6 +592,10 @@ export interface PharmacyPrice {
   pack_qty: string | null;
   price: number | null;
   price_discount: number | null;
+  currency: string;
+  /** Цена в USD по последнему курсу; null, если курса валюты нет. */
+  price_usd: number | null;
+  price_discount_usd: number | null;
   url: string | null;
   image_url: string | null;
   /** Полноразмерное фото для увеличения; превью из image_url — для списка. */
@@ -640,6 +644,8 @@ export interface PriceCompareItem {
   source: string;
   display_name: string;
   price: number;
+  currency: string;
+  price_usd: number | null;
   url: string | null;
   is_current: boolean;
 }

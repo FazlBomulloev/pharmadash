@@ -14,7 +14,8 @@ import type {
 import { useDebounce } from "../hooks/useDebounce";
 import { useFetch } from "../hooks/useFetch";
 import {
-  currencySign, fmtAgo, fmtInt, fmtMoney, fmtPct, plural, titleCase,
+  currencySign, fmtAgo, fmtInt, fmtMoney, fmtPct, fmtUsdHint, plural,
+  titleCase,
 } from "../lib/format";
 import { pharmacyHue, tintChip } from "../lib/palette";
 import { Page } from "../components/layout/Layout";
@@ -715,6 +716,11 @@ function PriceTable({
                     <span className="whitespace-nowrap text-[15px] font-bold tracking-[-0.01em]">
                       {fmtMoney(p.price, meta[p.source]?.currency)}
                     </span>
+                    {fmtUsdHint(p.price_usd, p.currency) && (
+                      <span className="whitespace-nowrap text-[11px] text-faint">
+                        {fmtUsdHint(p.price_usd, p.currency)}
+                      </span>
+                    )}
                     {p.price_discount != null && (
                       <span className="whitespace-nowrap text-[11px] font-medium text-pos">
                         со скидкой {fmtMoney(p.price_discount, meta[p.source]?.currency)}
@@ -787,6 +793,11 @@ function ProductPanel({
         </span>
         <span className="flex flex-wrap items-baseline gap-2.5">
           <span className="text-[28px] font-semibold">{money(item.price)}</span>
+          {fmtUsdHint(item.price_usd, item.currency) && (
+            <span className="text-[15px] text-muted-2">
+              {fmtUsdHint(item.price_usd, item.currency)}
+            </span>
+          )}
           {item.price_discount != null && (
             <span className="text-[13px] font-medium text-pos">
               со скидкой {money(item.price_discount)}

@@ -7,6 +7,8 @@ import time
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from backend.services.currency import refresh_rates
+
 from .registry import ADAPTERS
 from .runner import is_running, launch_background
 
@@ -14,6 +16,9 @@ log = logging.getLogger(__name__)
 
 DAILY_HOUR = 6
 DAILY_MINUTE = 0
+# Курсы — до сбора цен, чтобы утренние цены сразу пересчитывались в USD.
+RATES_HOUR = 5
+RATES_MINUTE = 55
 POLL_SECONDS = 15
 MAX_WAIT_SECONDS = 2 * 3600
 
@@ -56,6 +61,12 @@ def start_scheduler() -> None:
         _daily_all,
         CronTrigger(hour=DAILY_HOUR, minute=DAILY_MINUTE),
         id="pharmacies_daily",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        refresh_rates,
+        CronTrigger(hour=RATES_HOUR, minute=RATES_MINUTE),
+        id="currency_rates_daily",
         replace_existing=True,
     )
     _scheduler.start()

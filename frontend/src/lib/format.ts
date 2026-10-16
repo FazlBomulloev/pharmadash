@@ -64,10 +64,24 @@ export function fmtScore(v: number | null | undefined, digits = 1): string {
   return fixed(v, digits);
 }
 
-const CURRENCY_SIGNS: Record<string, string> = { RUB: "₽", PHP: "₱", AZN: "₼" };
+// Остальные валюты берутся из Intl; здесь те, что он показывает плохо.
+const CURRENCY_SIGNS: Record<string, string> = {
+  RUB: "₽", PHP: "₱", AZN: "₼", USD: "$",
+  GEL: "₾", KGS: "сом", UZS: "сум", TJS: "смн", BYN: "Br",
+};
 
 export function currencySign(currency: string | undefined): string {
-  return CURRENCY_SIGNS[currency ?? "RUB"] ?? currency ?? "₽";
+  const code = currency ?? "RUB";
+  if (CURRENCY_SIGNS[code]) return CURRENCY_SIGNS[code];
+  try {
+    const sign = new Intl.NumberFormat("ru-RU", {
+      style: "currency", currency: code, currencyDisplay: "narrowSymbol",
+    }).formatToParts(0).find((p) => p.type === "currency")?.value;
+    CURRENCY_SIGNS[code] = sign ?? code;
+  } catch {
+    CURRENCY_SIGNS[code] = code;
+  }
+  return CURRENCY_SIGNS[code];
 }
 
 export function fmtMoney(
@@ -79,6 +93,16 @@ export function fmtMoney(
     ? fmtInt(v)
     : fixed(v, 2).replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
   return `${amount}${NBSP}${currencySign(currency)}`;
+}
+
+/** «≈ 29,31 $» под ценой в местной валюте; пусто, если курса нет или
+ *  цена и так в долларах. */
+export function fmtUsdHint(
+  usd: number | null | undefined,
+  currency: string | undefined,
+): string {
+  if (usd == null || currency === "USD") return "";
+  return `≈${NBSP}${fmtMoney(usd, "USD")}`;
 }
 
 export function titleCase(s: string | null | undefined): string {

@@ -122,6 +122,20 @@ class PharmacySourceRun(Base):
     error = Column(Text, nullable=True)
 
 
+class CurrencyRate(Base):
+    __tablename__ = "currency_rates"
+    __table_args__ = (
+        UniqueConstraint("rate_date", "code", name="uq_currency_rate_day"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rate_date = Column(String(10), nullable=False, index=True)
+    code = Column(String(3), nullable=False, index=True)
+    # Сколько единиц валюты дают за 1 USD.
+    per_usd = Column(Float, nullable=False)
+    source = Column(String(50), nullable=False)
+
+
 class MnnDirection(Base):
     __tablename__ = "mnn_direction"
     __table_args__ = (
