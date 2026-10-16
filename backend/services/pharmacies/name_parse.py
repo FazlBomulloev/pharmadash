@@ -67,6 +67,18 @@ _HTML_TAG_RE = re.compile(
 )
 
 
+_BRACKETS_RE = re.compile(r"\(([^()]+)\)")
+
+
+def bracket_form(name: str) -> str:
+    """Форма из скобок названия: «Ратун 150 мл (Сироп)» → «Сироп»."""
+    for group in _BRACKETS_RE.findall(name or ""):
+        form = parse_form(group)
+        if form and form.lower() == group.strip().lower():
+            return form
+    return ""
+
+
 def is_medicine_form(form: str) -> bool:
     """Лекарственная форма, а не изделие: «Таблетки», «Капли», но не
     «Тонометр» или «Гель-смазка»."""

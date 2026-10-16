@@ -4,6 +4,7 @@ import json
 from typing import Type
 
 from .aloe import AloeAdapter
+from .azerimed import AzerimedAdapter
 from .base import PharmacyAdapter
 from .eapteka import EaptekaAdapter
 from .medsgo import MedsgoAdapter
@@ -22,6 +23,7 @@ ADAPTERS: dict[str, Type[PharmacyAdapter]] = {
     WatsonsAdapter.slug: WatsonsAdapter,
     AloeAdapter.slug: AloeAdapter,
     PharmonlineAdapter.slug: PharmonlineAdapter,
+    AzerimedAdapter.slug: AzerimedAdapter,
 }
 
 

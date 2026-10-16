@@ -9,7 +9,8 @@ import httpx
 
 from .base import PharmacyAdapter, PharmacyProduct
 from .name_parse import (
-    is_medicine_form, parse_dosage, parse_form, parse_trade_name, strip_html,
+    bracket_form, is_medicine_form, parse_dosage, parse_form,
+    parse_trade_name, strip_html,
 )
 
 log = logging.getLogger(__name__)
@@ -120,15 +121,6 @@ def _maker(alt: str, country: str) -> str:
     return maker
 
 
-def _bracket_form(name: str) -> str:
-    """«Ратун 150 мл (Сироп)» → «Сироп»."""
-    for group in _BRACKETS_RE.findall(name):
-        form = parse_form(group)
-        if form and form.lower() == group.strip().lower():
-            return form
-    return ""
-
-
 def parse_product(
     item: dict, categories: dict[str, dict], countries: set[str],
 ) -> PharmacyProduct | None:
@@ -159,7 +151,7 @@ def parse_product(
                 roots.append(title)
 
     mnn = _mnn(fields.get(FIELD_COMPOSITION, ""))
-    form = form or _bracket_form(name)
+    form = form or bracket_form(name)
     medical = any(title not in NON_MEDICAL_CATEGORIES for title in roots)
     if not mnn and not (medical and is_medicine_form(form)):
         return None
