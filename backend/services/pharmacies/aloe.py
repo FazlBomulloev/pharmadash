@@ -45,6 +45,29 @@ _UNITS = (
 _DOSE_RE = re.compile(
     rf"(\d+(?:[.,]\d+)?\s*(?:{_UNITS}))(?![a-zа-яёəğıöşüç])", re.I,
 )
+# Типы товара API отдаёт по-русски, но часть осталась без перевода.
+_FORMS_RU = {
+    "Kapsullar": "Капсулы",
+    "Vaginal Kapsullar": "Капсулы вагинальные",
+    "Krem": "Крем",
+    "Gel": "Гель",
+    "Krem-Gel": "Крем-гель",
+    "Gel-smazka": "Гель-смазка",
+    "Gel-Balzam": "Гель-бальзам",
+    "Diş geli": "Зубной гель",
+    "Qoruyucu": "Презервативы",
+    "Həblər": "Таблетки",
+    "Fışıldayan həblər": "Шипучие таблетки",
+    "Fışıldayan həb": "Шипучие таблетки",
+    "Saşe": "Саше",
+    "Sprey": "Спрей",
+    "Pastilka": "Пастилки",
+    "Məhlullar": "Раствор",
+    "Suspenziya": "Суспензия",
+    "Inyeksiya üçün toz": "Порошок для инъекций",
+    "Uşaq yeməkləri": "Детское питание",
+    "Qulaq çöpləri": "Ватные палочки",
+}
 _PACK_RE = re.compile(r"(\d+)\s*(?:əd|шт|ədəd)\b", re.I)
 
 
@@ -89,26 +112,51 @@ def _trade_name(name: str) -> str:
     return head.strip(" ,;-") or name
 
 
+def _russian_name(cname: str) -> str:
+    """Русское название из cname, если оно там есть.
+
+    «Хонда / Honda 50 ml.» → «Хонда 50 ml.»;
+    «Канпол 80/101 Сумочка … (Digərlər) (Canpol)» → без хвостовых скобок
+    с категорией и брендом.
+    """
+    if not _CYRILLIC_RE.search(cname):
+        return ""
+    name = cname
+    if " / " in name:
+        russian, latin = name.split(" / ", 1)
+        if _CYRILLIC_RE.search(russian):
+            tail = re.search(r"\s\d", latin)
+            name = russian + (latin[tail.start():] if tail else "")
+    while True:
+        trimmed = re.sub(r"\s*\([^()\d]*\)\s*$", "", name)
+        if trimmed == name or not trimmed:
+            break
+        name = trimmed
+    name = re.sub(r"\s*\(\d{3,5}\)", "", name)
+    return re.sub(r"\s+", " ", name).strip(" ,;-")
+
+
 def parse_product(
     item: dict, category: str,
     countries: dict[int, str], types: dict[int, str],
 ) -> PharmacyProduct | None:
-    name = _text(item.get("name"))
+    name_az = _text(item.get("name"))
     slug = item.get("slug")
     current = _price(item.get("price"))
-    if not name or not slug or current is None:
+    if not name_az or not slug or current is None:
         return None
     old = _price(item.get("old_price"))
     if old is not None and old <= current:
         old = None
-    # cname — оригинальное название из учётной системы, часто по-русски:
-    # «Витамин В1 / Vitamin B1 5% 1 ml. 10 əd.».
+    # cname — оригинальное название из учётной системы, у ~70% товаров
+    # по-русски: «Витамин В1 / Vitamin B1 5% 1 ml. 10 əd.».
     cname = _text(item.get("cname"))
+    name = _russian_name(cname) or name_az
     atc, mnn = _atc_mnn(item)
     volume = _text(item.get("volume"))
     pack = _text(item.get("package_quantity"))
-    dose = _DOSE_RE.search(name) or _DOSE_RE.search(cname)
-    pack_match = _PACK_RE.search(name) or _PACK_RE.search(cname)
+    dose = _DOSE_RE.search(name_az) or _DOSE_RE.search(cname)
+    pack_match = _PACK_RE.search(name_az) or _PACK_RE.search(cname)
     return PharmacyProduct(
         source=AloeAdapter.slug,
         sku=str(item.get("code") or item.get("id") or ""),
@@ -126,7 +174,7 @@ def parse_product(
         image_url=_image(item),
         extra={
             "category": category,
-            "name_original": cname if _CYRILLIC_RE.search(cname) else "",
+            "name_az": name_az,
             "atc": atc,
             "volume": volume,
             "prescription": bool(item.get("recipe_or_not")),
@@ -174,9 +222,10 @@ async def _fetch_category(
     first = await _get_json(client, sem, "products/filters", page_params(1))
     if not first:
         raise RuntimeError(f"Aloe: раздел {category_id} недоступен")
-    types = {
-        t["id"]: t.get("name") or "" for t in first.get("product_types") or []
-    }
+    types = {}
+    for product_type in first.get("product_types") or []:
+        title = (product_type.get("name") or "").strip()
+        types[product_type["id"]] = _FORMS_RU.get(title, title)
     listing = first["products"]
     last_page = int(listing.get("last_page") or 1)
     if max_pages:
