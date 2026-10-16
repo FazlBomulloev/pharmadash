@@ -28,7 +28,7 @@ const PAGE_SIZE = 100;
 const ROW_HEIGHT = 57;
 const LOAD_AHEAD = 20;
 const GRID =
-  "grid grid-cols-[64px_minmax(240px,2fr)_minmax(170px,1.2fr)_130px_110px_110px_40px]";
+  "grid grid-cols-[64px_minmax(200px,1.6fr)_minmax(170px,1.2fr)_130px_110px_100px_110px_40px]";
 const HATCH =
   "repeating-linear-gradient(135deg,#f2f2ef 0 6px,#ebebe7 6px 12px)";
 
@@ -59,11 +59,15 @@ type SourceMeta = Record<
   string, { name: string; hue: number; currency: string }
 >;
 
-const COLUMNS: { key: string; label: string; align?: "right" }[] = [
+const COLUMNS: {
+  key: string; label: string; align?: "right"; sortKey?: string;
+}[] = [
   { key: "name", label: "Название" },
   { key: "manufacturer", label: "Производитель" },
   { key: "source", label: "Источник" },
   { key: "price", label: "Цена", align: "right" },
+  // Внутри рынка валюта одна, поэтому порядок по USD тот же, что по цене.
+  { key: "price_usd", label: "Цена, $", align: "right", sortKey: "price" },
   { key: "scraped_at", label: "Дата", align: "right" },
 ];
 
@@ -644,7 +648,7 @@ function PriceTable({
         ref={scrollRef}
         className="max-h-[calc(var(--screen-h)-300px)] min-h-[360px] overflow-auto"
       >
-        <div className="min-w-[880px]">
+        <div className="min-w-[940px]">
           <div
             className={`${GRID} sticky top-0 z-[2] border-b border-[#eeeeea] bg-[#fafaf8]`}
           >
@@ -653,11 +657,11 @@ function PriceTable({
               <button
                 key={c.key}
                 type="button"
-                onClick={() => onSort(c.key)}
+                onClick={() => onSort(c.sortKey ?? c.key)}
                 className={clsx(
                   "whitespace-nowrap border-0 bg-transparent p-2.5 text-[11px] font-medium hover:text-fg",
                   c.align === "right" ? "text-right" : "text-left",
-                  sort.key === c.key ? "text-fg" : "text-muted-2",
+                  sort.key === (c.sortKey ?? c.key) ? "text-fg" : "text-muted-2",
                 )}
               >
                 {c.label}{arrow(c.key)}
@@ -726,14 +730,19 @@ function PriceTable({
                     <span className="whitespace-nowrap text-[15px] font-bold tracking-[-0.01em]">
                       {fmtMoney(p.price, meta[p.source]?.currency)}
                     </span>
-                    {fmtUsdHint(p.price_usd, p.currency) && (
-                      <span className="whitespace-nowrap text-[11px] text-faint">
-                        {fmtUsdHint(p.price_usd, p.currency)}
-                      </span>
-                    )}
                     {p.price_discount != null && (
                       <span className="whitespace-nowrap text-[11px] font-medium text-pos">
                         со скидкой {fmtMoney(p.price_discount, meta[p.source]?.currency)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-0.5 px-2.5 py-2">
+                    <span className="whitespace-nowrap text-[13px] font-medium text-muted-2">
+                      {fmtMoney(p.price_usd, "USD")}
+                    </span>
+                    {p.price_discount_usd != null && (
+                      <span className="whitespace-nowrap text-[11px] font-medium text-pos">
+                        {fmtMoney(p.price_discount_usd, "USD")}
                       </span>
                     )}
                   </div>
