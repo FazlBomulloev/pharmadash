@@ -179,6 +179,16 @@ export default function PharmaciesPage() {
             {plural(totalItems, "позиция", "позиции", "позиций")} из{" "}
             {sourceList.length}{" "}
             {plural(sourceList.length, "источника", "источников", "источников")}
+            {/* Бесплатный доступ к курсам требует указать источник. */}
+            {" · "}курсы валют:{" "}
+            <a
+              href="https://www.exchangerate-api.com"
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-dotted underline-offset-2"
+            >
+              ExchangeRate-API
+            </a>
           </>
         }
       />
