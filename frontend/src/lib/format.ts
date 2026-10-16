@@ -64,7 +64,7 @@ export function fmtScore(v: number | null | undefined, digits = 1): string {
   return fixed(v, digits);
 }
 
-const CURRENCY_SIGNS: Record<string, string> = { RUB: "₽", PHP: "₱" };
+const CURRENCY_SIGNS: Record<string, string> = { RUB: "₽", PHP: "₱", AZN: "₼" };
 
 export function currencySign(currency: string | undefined): string {
   return CURRENCY_SIGNS[currency ?? "RUB"] ?? currency ?? "₽";

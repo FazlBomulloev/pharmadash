@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Type
 
+from .aloe import AloeAdapter
 from .base import PharmacyAdapter
 from .eapteka import EaptekaAdapter
 from .medsgo import MedsgoAdapter
@@ -18,6 +19,7 @@ ADAPTERS: dict[str, Type[PharmacyAdapter]] = {
     MedsgoAdapter.slug: MedsgoAdapter,
     SouthstarAdapter.slug: SouthstarAdapter,
     WatsonsAdapter.slug: WatsonsAdapter,
+    AloeAdapter.slug: AloeAdapter,
 }
 
 
