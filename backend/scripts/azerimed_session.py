@@ -1,21 +1,17 @@
-"""Постоянный браузер Azərimed с экраном noVNC — эксперимент.
+"""Постоянный браузер Azərimed.
 
-С IP сервера Cloudflare показывает галочку «Verify you are human». Здесь
-Chromium с постоянным профилем работает всё время в виртуальном экране;
-человек один раз проходит галочку через noVNC, а скрипт раз в 5 минут
-нажимает F5 (как с клавиатуры, через xdotool) и пишет в журнал, пускает
-ли сайт с текущей cookie. Парсер берёт cookie у этого браузера.
+С IP сервера Cloudflare пускает не всегда. Здесь Chromium с постоянным
+профилем (backend/data/browser-profiles/azerimed-session) работает всё
+время в виртуальном экране; скрипт раз в 5 минут нажимает F5 (как с
+клавиатуры, через xdotool) и пишет в журнал, пускает ли сайт с текущей
+cookie и до какого времени она действует. Парсер берёт cookie у этого
+браузера.
 
-Запуск на сервере (нужен AZERIMED_VNC_PASSWORD в .env):
+Запуск на сервере:
 
     docker compose exec backend python backend/scripts/azerimed_session.py background
     docker compose exec backend python backend/scripts/azerimed_session.py status
     docker compose exec backend python backend/scripts/azerimed_session.py stop
-
-Экран — только через SSH-туннель с компьютера:
-
-    ssh -L 6080:127.0.0.1:6080 root@<сервер>
-    http://localhost:6080/vnc.html
 """
 from __future__ import annotations
 
@@ -40,8 +36,6 @@ PROFILE = DATA / "browser-profiles" / "azerimed-session"
 LOG = DATA / "azerimed_session.log"
 PIDS = Path("/tmp/azerimed_session.pids")
 DISPLAY = ":98"
-VNC_PORT = 5900
-WEB_PORT = 6080
 CHECK_EVERY = 60
 RELOAD_EVERY = 5 * 60
 
@@ -138,9 +132,6 @@ def background() -> None:
 
 
 async def _run() -> None:
-    password = os.environ.get("AZERIMED_VNC_PASSWORD", "")
-    if len(password) < 6:
-        sys.exit("Задайте AZERIMED_VNC_PASSWORD (от 6 символов) в .env")
     if await a.session_cookies() is not None or _alive():
         sys.exit("Сессия уже запущена: azerimed_session.py status")
 
@@ -162,22 +153,8 @@ async def _run() -> None:
         "--window-size=1366,768", "--disable-dev-shm-usage",
     ], env=env))
 
-    passfile = Path("/tmp/azerimed_vnc.pass")
-    subprocess.run(["x11vnc", "-storepasswd", password, str(passfile)],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                   check=True)
-    procs.append(spawn([
-        "x11vnc", "-display", DISPLAY, "-rfbauth", str(passfile),
-        "-localhost", "-forever", "-shared", "-rfbport", str(VNC_PORT),
-    ]))
-    # Порт 6080 проброшен только на 127.0.0.1 сервера (docker-compose).
-    procs.append(spawn([
-        "websockify", "--web", "/usr/share/novnc", f"0.0.0.0:{WEB_PORT}",
-        f"localhost:{VNC_PORT}",
-    ]))
-
     await a._open_tab(a.SESSION_PORT, procs[1], "/dev/null")
-    log("Сессия запущена. Откройте экран через noVNC и пройдите проверку.")
+    log("Сессия запущена")
 
     passed_before: bool | None = None
     last_reload = time.monotonic()

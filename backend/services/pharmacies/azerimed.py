@@ -46,8 +46,8 @@ CHECK_POLLS = 3
 CHECK_RELOADS = 3
 XVFB_DISPLAY = ":99"
 # Порт постоянного браузера (scripts/azerimed_session.py): с IP сервера
-# Cloudflare требует галочку, её проходит человек через noVNC, а парсер
-# берёт cookie у этого браузера.
+# Cloudflare пускает не всегда, а у этого браузера cookie держится в
+# профиле между перезапусками — парсер берёт её оттуда.
 SESSION_PORT = 9230
 PAGE_SIZE = 5000
 REQUEST_TIMEOUT = 120

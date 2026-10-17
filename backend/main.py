@@ -1,10 +1,13 @@
 import asyncio
 import logging
+import subprocess
+import sys
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from backend.config import CORS_ORIGINS
+from backend.config import BASE_DIR, CORS_ORIGINS, DATA_DIR
 from backend.database import init_db
 from backend.services.currency import refresh_if_stale
 from backend.services.prewarm import prewarm_all_markets
@@ -19,11 +22,33 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _start_azerimed_session() -> None:
+    """Поднимает постоянный браузер Azərimed после перезапуска контейнера.
+
+    Только если профиль уже есть (сессию хоть раз запускали на сервере):
+    при пересборке браузер закрывается, а cookie в профиле остаётся."""
+    profile = DATA_DIR / "browser-profiles" / "azerimed-session"
+    if not sys.platform.startswith("linux") or not profile.is_dir():
+        return
+    # Номера процессов от прошлого запуска контейнера ничего не значат и
+    # могут совпасть с новыми — тогда скрипт решил бы, что сессия жива.
+    Path("/tmp/azerimed_session.pids").unlink(missing_ok=True)
+    subprocess.Popen(
+        [sys.executable, str(BASE_DIR / "scripts" / "azerimed_session.py"),
+         "background"],
+        cwd=str(BASE_DIR.parent),
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    log.info("Постоянный браузер Azərimed запускается")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("Запуск PharmDash API")
     await init_db()
     start_scheduler()
+    _start_azerimed_session()
     # Без прогрева первый открывший обзор после перезапуска ждёт
     # полного пересчёта.
     prewarm = asyncio.create_task(prewarm_all_markets())
