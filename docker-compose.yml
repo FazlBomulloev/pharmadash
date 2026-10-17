@@ -11,8 +11,13 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       EAPTEKA_REGION: ${EAPTEKA_REGION:-spb}
       OZERKI_REGION: ${OZERKI_REGION:-sankt-peterburg}
+      AZERIMED_VNC_PASSWORD: ${AZERIMED_VNC_PASSWORD:-}
     volumes:
       - ./backend/data:/app/backend/data
+    # Экран браузера Azərimed (noVNC) — только с самого сервера,
+    # подключение через SSH-туннель.
+    ports:
+      - "127.0.0.1:6080:6080"
     healthcheck:
       test:
         - CMD

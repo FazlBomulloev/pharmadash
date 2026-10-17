@@ -43,6 +43,10 @@ CHECK_POLLS = 3
 # страница открывается — как F5 в обычном браузере.
 CHECK_RELOADS = 3
 XVFB_DISPLAY = ":99"
+# Порт постоянного браузера (scripts/azerimed_session.py): с IP сервера
+# Cloudflare требует галочку, её проходит человек через noVNC, а парсер
+# берёт cookie у этого браузера.
+SESSION_PORT = 9230
 PAGE_SIZE = 5000
 REQUEST_TIMEOUT = 120
 MAX_ATTEMPTS = 3
@@ -433,6 +437,18 @@ async def pass_check() -> tuple[dict[str, str], str]:
         shutil.rmtree(profile, ignore_errors=True)
 
 
+async def session_cookies() -> tuple[dict[str, str], str] | None:
+    """Cookie постоянного браузера, если он запущен и проверка пройдена."""
+    try:
+        cookies, user_agent, _ = await _browser_state(SESSION_PORT)
+    except (httpx.HTTPError, aiohttp.ClientError, OSError, ValueError,
+            KeyError):
+        return None
+    if "cf_clearance" not in cookies or not user_agent:
+        return None
+    return cookies, user_agent
+
+
 def _blocked(resp: httpx.Response) -> bool:
     return resp.status_code == 403 or "challenge-platform" in resp.text[:6000]
 
@@ -514,8 +530,9 @@ class AzerimedAdapter(PharmacyAdapter):
                     raise RuntimeError(
                         "Azərimed: Cloudflare не пускает даже после проверки"
                     )
+                session = await session_cookies() if checks == 0 else None
                 try:
-                    cookies, user_agent = await pass_check()
+                    cookies, user_agent = session or await pass_check()
                 except PlaywrightError as e:
                     raise RuntimeError(
                         f"Azərimed: браузер не запустился "
@@ -524,7 +541,10 @@ class AzerimedAdapter(PharmacyAdapter):
                 client.cookies.update(cookies)
                 client.headers["User-Agent"] = user_agent
                 checks += 1
-                log.info("Azərimed: проверка Cloudflare пройдена")
+                log.info(
+                    "Azərimed: cookie %s",
+                    "постоянного браузера" if session else "после проверки",
+                )
                 continue
             items += data.get("data") or []
             last_page = int(data.get("last_page") or 1)
