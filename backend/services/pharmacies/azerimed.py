@@ -34,6 +34,8 @@ LIST_URL = f"{SITE_URL}/shop/productList"
 # проходит, поэтому на сервере Chromium рисует в виртуальный экран Xvfb.
 # Если Cloudflare попросит поставить галочку, сбор просто не пройдёт.
 CHECK_URL = f"{SITE_URL}/products"
+# На слабом сервере первый запуск Chromium идёт дольше 10 с.
+BROWSER_START_TIMEOUT = 40
 CHECK_WAIT = 12
 CHECK_POLL = 4
 CHECK_POLLS = 3
@@ -278,8 +280,13 @@ def _ensure_display() -> subprocess.Popen | None:
          "tcp"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    os.environ["DISPLAY"] = XVFB_DISPLAY
     time.sleep(1)
+    if xvfb.poll() is not None:
+        raise RuntimeError(
+            f"Azərimed: виртуальный экран Xvfb не запустился "
+            f"(код {xvfb.returncode})"
+        )
+    os.environ["DISPLAY"] = XVFB_DISPLAY
     return xvfb
 
 
@@ -314,18 +321,38 @@ async def _browser_state(port: int) -> tuple[dict[str, str], str, str]:
     return cookies, version.get("User-Agent", ""), title.lower()
 
 
-async def _open_tab(port: int) -> None:
+async def _open_tab(
+    port: int, chrome: subprocess.Popen, log_path: str,
+) -> None:
     base = f"http://127.0.0.1:{port}"
+    deadline = time.monotonic() + BROWSER_START_TIMEOUT
     async with httpx.AsyncClient(timeout=10) as client:
-        for _ in range(20):
+        while time.monotonic() < deadline:
+            if chrome.poll() is not None:
+                raise RuntimeError(
+                    f"Azərimed: браузер завершился с кодом {chrome.returncode}"
+                    f": {_tail(log_path)}"
+                )
             try:
                 resp = await client.put(f"{base}/json/new?{CHECK_URL}")
             except httpx.HTTPError:
-                await asyncio.sleep(0.5)  # браузер ещё стартует
+                await asyncio.sleep(1)  # браузер ещё стартует
                 continue
             resp.raise_for_status()
             return
-    raise RuntimeError("Azərimed: браузер не открыл вкладку с сайтом")
+    raise RuntimeError(
+        f"Azərimed: браузер не открыл вкладку за {BROWSER_START_TIMEOUT} с: "
+        f"{_tail(log_path)}"
+    )
+
+
+def _tail(path: str, limit: int = 600) -> str:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            text = f.read().strip()
+    except OSError:
+        return "журнал браузера пуст"
+    return text[-limit:] or "журнал браузера пуст"
 
 
 async def _reload(port: int) -> None:
@@ -363,13 +390,14 @@ async def pass_check() -> tuple[dict[str, str], str]:
     ]
     if sys.platform.startswith("linux") and os.geteuid() == 0:
         args.insert(1, "--no-sandbox")
-    chrome = subprocess.Popen(
-        args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    # Вывод браузера — в файл: по нему видно, почему он не запустился.
+    log_path = os.path.join(profile, "chrome.log")
+    log_file = open(log_path, "w", encoding="utf-8")
+    chrome = subprocess.Popen(args, stdout=log_file, stderr=log_file)
     try:
         # Адрес из командной строки новый Chromium не открывает — вкладка
         # остаётся пустой. Открываем сайт отдельной вкладкой через CDP.
-        await _open_tab(port)
+        await _open_tab(port, chrome, log_path)
         for attempt in range(CHECK_RELOADS + 1):
             if attempt:
                 log.info("Azərimed: проверка не прошла, перезагружаем страницу")
@@ -398,6 +426,7 @@ async def pass_check() -> tuple[dict[str, str], str]:
             chrome.wait(10)
         except subprocess.TimeoutExpired:
             chrome.kill()
+        log_file.close()
         if xvfb is not None:
             xvfb.terminate()
             os.environ.pop("DISPLAY", None)
