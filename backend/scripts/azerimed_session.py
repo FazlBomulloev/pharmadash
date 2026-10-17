@@ -30,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import aiohttp  # noqa: E402
 import httpx  # noqa: E402
 
 from backend.services.pharmacies import azerimed as a  # noqa: E402
@@ -42,7 +43,7 @@ DISPLAY = ":98"
 VNC_PORT = 5900
 WEB_PORT = 6080
 CHECK_EVERY = 60
-RELOAD_EVERY = 20 * 60
+RELOAD_EVERY = 5 * 60
 
 
 def log(text: str) -> None:
@@ -80,6 +81,31 @@ async def catalog_ok(cookies: dict[str, str], user_agent: str) -> bool:
             "lang": "ru", "perPage": 1, "page": 1,
         })
     return resp.status_code == 200 and resp.text.lstrip().startswith("{")
+
+
+async def clearance_expiry() -> str:
+    """До какого времени действует cf_clearance — по данным браузера."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        version = (await client.get(
+            f"http://127.0.0.1:{a.SESSION_PORT}/json/version",
+        )).json()
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(
+            version["webSocketDebuggerUrl"], max_msg_size=0,
+        ) as ws:
+            await ws.send_json({"id": 1, "method": "Storage.getCookies"})
+            async for msg in ws:
+                data = msg.json()
+                if data.get("id") == 1:
+                    break
+    for c in data.get("result", {}).get("cookies", []):
+        if c.get("name") == "cf_clearance" \
+                and "aptekonline" in c.get("domain", ""):
+            expires = c.get("expires") or 0
+            if expires <= 0:
+                return "до закрытия браузера"
+            return f"до {dt.datetime.fromtimestamp(expires):%H:%M:%S}"
+    return "нет"
 
 
 def press_f5() -> None:
@@ -160,8 +186,9 @@ async def _run() -> None:
         if procs[1].poll() is not None:
             log("Браузер закрылся — сессия остановлена")
             break
-        reload = passed_before and \
-            time.monotonic() - last_reload >= RELOAD_EVERY
+        # F5 — при любом состоянии: проверяем, продлевает ли обычная
+        # перезагрузка доступ и пускает ли снова без галочки.
+        reload = time.monotonic() - last_reload >= RELOAD_EVERY
         if reload:
             press_f5()
             last_reload = time.monotonic()
@@ -178,7 +205,12 @@ async def _run() -> None:
             state = "сайт пускает" if passed else (
                 f"НЕ пускает, на странице: {title or '—'}"
             )
-            log(("после F5: " if reload else "") + state)
+            try:
+                expiry = await clearance_expiry()
+            except Exception as e:
+                expiry = f"? ({type(e).__name__})"
+            log(("после F5: " if reload else "") + state
+                + f"; cf_clearance {expiry}")
         passed_before = passed
 
 
