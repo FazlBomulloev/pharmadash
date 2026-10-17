@@ -35,6 +35,8 @@ class PharmacyProduct:
 class PharmacyAdapter:
     slug: str = ""
     display_name: str = ""
+    # Страна аптечной сети — по ней источники группируются при выборе.
+    country: str = ""
     currency: str = "RUB"
 
     def __init__(self, limit: Optional[int] = None):

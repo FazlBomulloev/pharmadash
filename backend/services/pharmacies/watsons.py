@@ -249,6 +249,7 @@ async def _load_page(page: Page, path: str, number: int) -> dict | None:
 class WatsonsAdapter(PharmacyAdapter):
     slug = "watsons"
     display_name = "Watsons"
+    country = "Филиппины"
     currency = "PHP"
 
     @staticmethod

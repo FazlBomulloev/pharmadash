@@ -190,6 +190,7 @@ async def _load(page: Page, url: str) -> str | None:
 class MedsgoAdapter(PharmacyAdapter):
     slug = "medsgo"
     display_name = "MedsGo"
+    country = "Филиппины"
     currency = "PHP"
 
     @staticmethod

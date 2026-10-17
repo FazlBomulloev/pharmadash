@@ -153,6 +153,7 @@ async def _fetch_page(
 class SouthstarAdapter(PharmacyAdapter):
     slug = "southstar"
     display_name = "Southstar Drug"
+    country = "Филиппины"
     currency = "PHP"
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:

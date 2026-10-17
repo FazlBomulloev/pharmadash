@@ -572,6 +572,8 @@ export interface PharmacySourceRun {
 export interface PharmacySource {
   slug: string;
   display_name: string;
+  /** Страна аптечной сети; пусто, если не указана. */
+  country: string;
   currency: string;
   items_count: number;
   running: boolean;

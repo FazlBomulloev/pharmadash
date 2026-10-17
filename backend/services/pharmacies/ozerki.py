@@ -80,6 +80,7 @@ def _slug(href: str) -> str:
 class OzerkiAdapter(PharmacyAdapter):
     slug = "ozerki"
     display_name = "Озерки"
+    country = "Россия"
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
         async with httpx.AsyncClient(

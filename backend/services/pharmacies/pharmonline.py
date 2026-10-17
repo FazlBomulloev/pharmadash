@@ -215,6 +215,7 @@ async def _get_json(
 class PharmonlineAdapter(PharmacyAdapter):
     slug = "pharmonline"
     display_name = "Pharmonline"
+    country = "Азербайджан"
     currency = "AZN"
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:

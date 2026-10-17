@@ -442,6 +442,7 @@ async def _load_page(
 class AzerimedAdapter(PharmacyAdapter):
     slug = "azerimed"
     display_name = "Azərimed"
+    country = "Азербайджан"
     currency = "AZN"
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:

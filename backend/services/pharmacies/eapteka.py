@@ -269,6 +269,7 @@ def _parse_card(card: str) -> PharmacyProduct | None:
 class EaptekaAdapter(PharmacyAdapter):
     slug = "eapteka"
     display_name = "eApteka"
+    country = "Россия"
 
     @staticmethod
     def full_image_url(url: str) -> str:

@@ -86,6 +86,7 @@ async def list_sources(
         out.append({
             "slug": slug,
             "display_name": cls.display_name,
+            "country": cls.country,
             "currency": cls.currency,
             "items_count": count,
             "running": is_running(slug),

@@ -76,6 +76,7 @@ query productsElastic(
 class RiglaAdapter(PharmacyAdapter):
     slug = "rigla"
     display_name = "Ригла"
+    country = "Россия"
 
     @staticmethod
     def full_image_url(url: str) -> str:

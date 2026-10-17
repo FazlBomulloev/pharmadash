@@ -291,6 +291,7 @@ async def _fetch_countries(
 class AloeAdapter(PharmacyAdapter):
     slug = "aloe"
     display_name = "Aloe+"
+    country = "Азербайджан"
     currency = "AZN"
 
     async def fetch(self) -> AsyncIterator[PharmacyProduct]:
