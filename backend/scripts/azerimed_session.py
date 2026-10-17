@@ -8,7 +8,7 @@ Chromium с постоянным профилем работает всё вре
 
 Запуск на сервере (нужен AZERIMED_VNC_PASSWORD в .env):
 
-    docker compose exec -d backend python backend/scripts/azerimed_session.py start
+    docker compose exec backend python backend/scripts/azerimed_session.py background
     docker compose exec backend python backend/scripts/azerimed_session.py status
     docker compose exec backend python backend/scripts/azerimed_session.py stop
 
@@ -53,9 +53,13 @@ def log(text: str) -> None:
 
 
 def spawn(args: list[str], **kw) -> subprocess.Popen:
-    return subprocess.Popen(
+    proc = subprocess.Popen(
         args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw,
     )
+    # Сразу в файл: если запуск дальше упадёт, stop() найдёт что убрать.
+    with PIDS.open("a") as f:
+        f.write(f" {proc.pid}")
+    return proc
 
 
 def unlock() -> None:
@@ -88,6 +92,26 @@ def press_f5() -> None:
 
 
 async def start() -> None:
+    try:
+        await _run()
+    except Exception as e:
+        log(f"Сессия упала: {type(e).__name__}: {e}")
+        stop()
+        raise
+
+
+def background() -> None:
+    """Запускает сессию отдельным процессом, отвязанным от окна SSH."""
+    out = (DATA / "azerimed_session.out").open("a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, str(Path(__file__).resolve()), "start"],
+        stdin=subprocess.DEVNULL, stdout=out, stderr=out,
+        start_new_session=True, cwd=str(Path(__file__).resolve().parents[2]),
+    )
+    print(f"Сессия запускается в фоне (процесс {proc.pid}). Журнал: status")
+
+
+async def _run() -> None:
     password = os.environ.get("AZERIMED_VNC_PASSWORD", "")
     if len(password) < 6:
         sys.exit("Задайте AZERIMED_VNC_PASSWORD (от 6 символов) в .env")
@@ -96,6 +120,7 @@ async def start() -> None:
 
     PROFILE.mkdir(parents=True, exist_ok=True)
     unlock()
+    PIDS.write_text("")
     env = {**os.environ, "DISPLAY": DISPLAY}
     procs = [spawn(["Xvfb", DISPLAY, "-screen", "0", "1366x768x24",
                     "-nolisten", "tcp"])]
@@ -124,7 +149,6 @@ async def start() -> None:
         "websockify", "--web", "/usr/share/novnc", f"0.0.0.0:{WEB_PORT}",
         f"localhost:{VNC_PORT}",
     ]))
-    PIDS.write_text(" ".join(str(p.pid) for p in procs))
 
     await a._open_tab(a.SESSION_PORT, procs[1], "/dev/null")
     log("Сессия запущена. Откройте экран через noVNC и пройдите проверку.")
@@ -163,10 +187,12 @@ def _alive() -> bool:
         return False
     for pid in PIDS.read_text().split():
         try:
-            os.kill(int(pid), 0)
-            return True
+            stat = Path(f"/proc/{int(pid)}/stat").read_text()
         except (OSError, ValueError):
-            pass
+            continue
+        # Завершённый процесс, которого никто не убрал, — «зомби» (Z).
+        if stat.rsplit(")", 1)[-1].split()[0] != "Z":
+            return True
     return False
 
 
@@ -195,6 +221,8 @@ if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else "status"
     if command == "start":
         asyncio.run(start())
+    elif command == "background":
+        background()
     elif command == "stop":
         stop()
     else:
