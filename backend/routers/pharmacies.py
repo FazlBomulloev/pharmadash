@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import OrderedDict
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend import config
 from backend.database import get_db
 from backend.services.currency import to_usd, usd_rates
 from backend.services.permissions import require
@@ -121,6 +124,22 @@ async def list_runs(
         .limit(limit)
     )).scalars().all()
     return [_serialize_run(r) for r in rows]
+
+
+_IMAGE_NAME_RE = re.compile(r"^[\w.-]+\.(?:jpe?g|png|webp|gif)$", re.I)
+
+
+@router.get("/images/{slug}/{name}")
+async def pharmacy_image(slug: str, name: str):
+    """Фото, скачанное сбором: сайт аптеки сам их не отдаёт (Cloudflare)."""
+    if slug not in ADAPTERS or not _IMAGE_NAME_RE.match(name):
+        raise HTTPException(404, "Фото не найдено")
+    path = config.PHARMACY_IMAGES_DIR / slug / name
+    if not path.is_file():
+        raise HTTPException(404, "Фото не найдено")
+    return FileResponse(
+        path, headers={"Cache-Control": "private, max-age=604800"},
+    )
 
 
 @router.get("/prices")

@@ -17,6 +17,8 @@ import httpx
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright
 
+from backend.config import PHARMACY_IMAGES_DIR
+
 from .base import PharmacyAdapter, PharmacyProduct
 from .name_parse import (
     bracket_form, is_medicine_form, parse_dosage, parse_trade_name,
@@ -50,6 +52,13 @@ SESSION_PORT = 9230
 PAGE_SIZE = 5000
 REQUEST_TIMEOUT = 120
 MAX_ATTEMPTS = 3
+THUMB_URL = f"{SITE_URL}/storage/ProductThumbs/"
+IMAGES_DIR = PHARMACY_IMAGES_DIR / "azerimed"
+LOCAL_IMAGE_PREFIX = "/api/pharmacies/images/azerimed/"
+_IMAGE_NAME_RE = re.compile(r"^[\w.-]+\.(?:jpe?g|png|webp|gif)$", re.I)
+IMAGE_WORKERS = 8
+# Cookie живёт ~15 минут: что не успели скачать, докачает следующий сбор.
+IMAGE_BUDGET = 10 * 60
 HEADERS = {
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "ru-RU,ru;q=0.9",
@@ -221,6 +230,13 @@ def _mnn(composition: str) -> str:
     return " + ".join(parts)
 
 
+def _image_url(thumb: str | None) -> str:
+    thumb = (thumb or "").strip()
+    if not _IMAGE_NAME_RE.match(thumb):
+        return ""
+    return f"{LOCAL_IMAGE_PREFIX}{thumb}"
+
+
 def parse_product(item: dict) -> PharmacyProduct | None:
     name = re.sub(r"\s+", " ", (item.get("name_ru") or item.get("name") or ""))
     name = name.strip()
@@ -257,9 +273,10 @@ def parse_product(item: dict) -> PharmacyProduct | None:
         price=current,
         price_discount=discount,
         url=f"{SITE_URL}/product/{url_id}",
-        # Фото отдаются тоже из-за Cloudflare: в браузере пользователя без
-        # cookie проверки они не откроются.
-        image_url="",
+        # Фото тоже за Cloudflare: в браузере пользователя без cookie
+        # проверки они не откроются. Поэтому их качает сам сбор, а
+        # показываем копию со своего сервера.
+        image_url=_image_url(item.get("thumb1")),
         extra={
             "name_az": (item.get("name") or "").strip(),
             "composition": composition,
@@ -484,6 +501,53 @@ async def _load_page(
     raise RuntimeError(f"Azərimed: стр. {number} не загрузилась")
 
 
+async def _download_images(
+    client: httpx.AsyncClient, products: list[PharmacyProduct],
+) -> None:
+    """Качает превью, которых ещё нет на диске. Не скачанное — без фото
+    до следующего сбора; на сбор цен это не влияет."""
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    names = {p.image_url.removeprefix(LOCAL_IMAGE_PREFIX)
+             for p in products if p.image_url}
+    queue = [n for n in sorted(names) if not (IMAGES_DIR / n).exists()]
+    if not queue:
+        return
+    log.info("Azərimed: фото к загрузке: %d из %d", len(queue), len(names))
+    deadline = time.monotonic() + IMAGE_BUDGET
+    done, missing = 0, 0
+    blocked = False
+
+    async def worker() -> None:
+        nonlocal done, missing, blocked
+        while queue and not blocked and time.monotonic() < deadline:
+            name = queue.pop()
+            try:
+                resp = await client.get(
+                    THUMB_URL + name, headers={"Accept": "image/*"},
+                )
+            except httpx.HTTPError:
+                continue
+            if resp.status_code == 403:
+                blocked = True  # cookie истекла — докачаем в другой раз
+                return
+            if resp.status_code != 200 or not resp.headers.get(
+                "content-type", "",
+            ).startswith("image/"):
+                missing += 1
+                continue
+            tmp = IMAGES_DIR / f".{name}.part"
+            tmp.write_bytes(resp.content)
+            tmp.replace(IMAGES_DIR / name)
+            done += 1
+
+    await asyncio.gather(*(worker() for _ in range(IMAGE_WORKERS)))
+    log.info(
+        "Azərimed: фото скачано %d, нет на сайте %d, осталось %d%s",
+        done, missing, len(queue),
+        " (Cloudflare перестал пускать)" if blocked else "",
+    )
+
+
 class AzerimedAdapter(PharmacyAdapter):
     slug = "azerimed"
     display_name = "Azərimed"
@@ -496,24 +560,27 @@ class AzerimedAdapter(PharmacyAdapter):
             timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=15.0),
             follow_redirects=True,
         )
+        products: list[PharmacyProduct] = []
         try:
             items = await self._load_all(client)
+            seen: set[str] = set()
+            for item in items:
+                product = parse_product(item)
+                if product is None or product.sku in seen:
+                    continue
+                seen.add(product.sku)
+                products.append(product)
+                if self.limit and len(products) >= self.limit:
+                    break
+            # Сразу после каталога, пока cookie Cloudflare ещё действует.
+            await _download_images(client, products)
         finally:
             await client.aclose()
 
-        seen: set[str] = set()
-        yielded = 0
-        for item in items:
-            product = parse_product(item)
-            if product is None or product.sku in seen:
-                continue
-            seen.add(product.sku)
+        for product in products:
             yield product
-            yielded += 1
-            if self.limit and yielded >= self.limit:
-                return
 
-        if yielded == 0:
+        if not products:
             raise RuntimeError(
                 "Azərimed: не удалось получить ни одного товара "
                 "(сайт недоступен или изменился формат каталога)"
